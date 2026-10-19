@@ -1,0 +1,27 @@
+# Local development database. Production uses compose.yaml on the droplet.
+# Start with `pnpm db:up` (reads .env.local). Bound to localhost only.
+name: vip-gcs-dev
+
+services:
+  db:
+    # Same major version as production (compose.yaml) and the PGlite test engine.
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: vip_gcs
+      POSTGRES_USER: vip_owner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.local}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env.local}
+      SERVICE_DB_PASSWORD: ${SERVICE_DB_PASSWORD:?set SERVICE_DB_PASSWORD in .env.local}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./db/docker-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vip_owner -d vip_gcs"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

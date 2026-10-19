@@ -1,0 +1,91 @@
+# Production stack for one DigitalOcean droplet (see docs/02-TRD.md section 5).
+#   docker compose --env-file .env.production up -d --build
+# Only Caddy is reachable from the internet (ports 80/443); Postgres and the app stay private.
+# Passwords are embedded in connection URLs: generate URL-safe ones (openssl rand -hex 32).
+name: vip-gcs
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vip_gcs
+      POSTGRES_USER: vip_owner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD}
+      SERVICE_DB_PASSWORD: ${SERVICE_DB_PASSWORD:?set SERVICE_DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./db/docker-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vip_owner -d vip_gcs"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Applies db/migrations once per deploy, then exits. The app waits for it to succeed.
+  migrate:
+    image: amacneil/dbmate:2.36
+    command: ["--no-dump-schema", "--wait", "up"]
+    environment:
+      DATABASE_URL: postgres://vip_owner:${POSTGRES_PASSWORD}@db:5432/vip_gcs?sslmode=disable
+    volumes:
+      - ./db/migrations:/db/migrations:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://vip_app:${APP_DB_PASSWORD}@db:5432/vip_gcs
+      SERVICE_DATABASE_URL: postgres://vip_service:${SERVICE_DB_PASSWORD}@db:5432/vip_gcs
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: https://${SITE_ADDRESS:?set SITE_ADDRESS}
+      API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-}
+    expose:
+      - "3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+  # One-off scripts against the production database, e.g.
+  #   docker compose --env-file .env.production run --rm tools pnpm admin:create --email you@example.com --name "Your Name"
+  tools:
+    build:
+      context: .
+      target: build
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: postgres://vip_app:${APP_DB_PASSWORD}@db:5432/vip_gcs
+      SERVICE_DATABASE_URL: postgres://vip_service:${SERVICE_DB_PASSWORD}@db:5432/vip_gcs
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: https://${SITE_ADDRESS}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

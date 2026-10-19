@@ -1,0 +1,38 @@
+# Reverse proxy with automatic HTTPS (Let's Encrypt) for the droplet.
+# SITE_ADDRESS is the public domain, e.g. ops.example.com (its DNS A record must point here).
+{
+	servers {
+		# Slow-client protection. No write timeout: notification streams stay open for minutes.
+		timeouts {
+			read_header 10s
+			read_body 30s
+			idle 2m
+		}
+	}
+}
+
+{$SITE_ADDRESS} {
+	# The app limits bodies too; this stops oversized uploads before they reach it.
+	request_body {
+		max_size 2MB
+	}
+
+	# Compress everything except the notification stream, which must not be buffered.
+	@compressible not path /api/notifications/stream
+	encode @compressible zstd gzip
+
+	reverse_proxy app:3000 {
+		# Flush immediately so Server-Sent Events reach clients without delay.
+		flush_interval -1
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Microphone stays available to this site for the Co-Pilot's push-to-talk (P7).
+		Permissions-Policy "camera=(), geolocation=(), microphone=(self)"
+		-Server
+	}
+}

@@ -1,0 +1,7 @@
+# Settings only: this repository is a single package (tools/docx-export is managed separately).
+# Versions in package.json are chosen to pass pnpm's minimumReleaseAge supply-chain check;
+# do not add minimumReleaseAgeExclude entries to get around it.
+
+# Packages allowed to run install scripts (pnpm 11 blocks all others).
+allowBuilds:
+  esbuild: true

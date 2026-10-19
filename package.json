@@ -1,0 +1,57 @@
+{
+  "name": "vip-gcs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "VIP Guest Coordination System: backend, API and (later) web app",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@11.4.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
+    "test:coverage": "vitest run --project unit --coverage",
+    "test:db": "vitest run --project db",
+    "test:integration": "vitest run --project integration",
+    "test:all": "vitest run",
+    "db:up": "docker compose --env-file .env.local -f compose.dev.yml up -d --wait",
+    "db:down": "docker compose --env-file .env.local -f compose.dev.yml down",
+    "db:migrate": "dbmate --env-file .env.local -e DATABASE_MIGRATION_URL --no-dump-schema up",
+    "db:rollback": "dbmate --env-file .env.local -e DATABASE_MIGRATION_URL --no-dump-schema rollback",
+    "db:new": "dbmate new",
+    "db:types": "node scripts/generate-db-types.ts",
+    "db:seed": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/seed-dev.ts",
+    "admin:create": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/create-super-admin.ts"
+  },
+  "dependencies": {
+    "better-auth": "1.7.7",
+    "csv-parse": "7.0.3",
+    "kysely": "0.29.6",
+    "next": "16.4.1",
+    "pg": "8.23.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "server-only": "0.0.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@electric-sql/pglite-socket": "0.2.11",
+    "@types/node": "^22.19.0",
+    "@types/pg": "8.23.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitest/coverage-v8": "5.0.4",
+    "dbmate": "2.36.0",
+    "kysely-codegen": "0.20.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vite": "^8.0.0",
+    "vitest": "5.0.4"
+  }
+}
