@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   // Self-contained server bundle for the Docker image that runs on the droplet.
   output: 'standalone',
   // pg and better-auth use Node APIs; keep them out of the server bundle.
-  serverExternalPackages: ['pg', 'better-auth'],
+  serverExternalPackages: ['pg', 'better-auth', '@electric-sql/pglite'],
 }
 
 export default nextConfig

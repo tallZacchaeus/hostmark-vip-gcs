@@ -1,6 +1,6 @@
 # 06 — Implementation Plan
 
-**Status as of 2026-10-16:** P0 docs drafted (confirmations still pending). **P1 backend built, reviewed and tested** (206 automated tests, 93% statement / 90% branch coverage). The P1 frontend waits for the Figma Make design. Hosting moved from Vercel + Supabase to one DigitalOcean droplet (decision 12 in `00`).
+**Status as of 2026-10-19:** P0 decisions confirmed. **P1 is done**: backend (2026-10-16) and the **Figma Make frontend "Hostmark", ported into the Next.js app** (2026-10-19): auth screens, console and staff shells, dashboard, activity and settings on the real API; the other screens show "coming soon" until their phase. 276 automated tests pass. Next: P2 guest intake. The project is now under git (one commit per phase).
 
 **Rule from [`00` §10](00-Project-Breakdown.md#10-boundaries-to-keep-the-project-realistic):** a phase is done when it **works end to end and can be measured**, not when it has the most features. Each phase below has explicit exit criteria.
 
@@ -34,8 +34,8 @@ flowchart TD
 
 | Phase | Status | Modules | Depends on |
 |---|---|---|---|
-| P0 Docs and decisions | 🟨 drafted, awaiting confirmation of [Proposed] items | — | — |
-| P1 Foundation | 🟨 backend ✅ · frontend ⬜ (Figma Make) | M0 Platform | P0 |
+| P0 Docs and decisions | ✅ (venue airports and dates still open, §4) | — | — |
+| P1 Foundation | ✅ backend · ✅ frontend (Hostmark) | M0 Platform | P0 |
 | P2 Guest intake | ⬜ | M1 | P1 |
 | P3 Flights and transport | ⬜ | M2 | P2 |
 | P4 Room allocation | ⬜ | M3 | P2 |
@@ -56,7 +56,7 @@ flowchart TD
 
 **Exit:** open questions answered, AeroDataBox confirmed (or the fallback chosen).
 
-### P1 — Foundation (M0) 🟨 backend done, frontend pending
+### P1 — Foundation (M0) ✅
 
 Backend (built 2026-10-16):
 - ✅ Scaffold: Next.js 16 + TypeScript 5.9, Vitest 5 (unit / db / integration projects), pnpm 11 with the release-age supply-chain check respected
@@ -70,12 +70,17 @@ Backend (built 2026-10-16):
 - ✅ Droplet deployment files: `Dockerfile`, `compose.yaml` (Caddy + app + Postgres + migrate), `Caddyfile`; `compose.dev.yml` for local Postgres
 - ✅ Security and code review (2026-10-16): no critical findings; fixed: separate `vip_service` login, last-Super-Admin race, undo limited to operational tables, streamed body limits + Caddy limits, Origin check on cookie writes, SSE lifetime/cleanup, notification hub races, superseded plan lines, expired items hidden from the queue, undo conflicts. 206 tests pass.
 
-Frontend and tooling (pending):
-- ⬜ App shell: console layout (sidebar, top bar, event clock), staff-app shell (PWA manifest), design tokens from `04` (light/dark) — from the Figma Make design
-- ⬜ Admin screens on top of the P1 API; SimBanner
-- ⬜ ESLint/Prettier; Playwright
-- ⬜ CI (e.g. GitHub Actions): typecheck, unit, db and integration tests (all run without Docker), build, on every push
-- ⬜ Run the stack once on Docker locally and on the droplet (verified so far: the full test suite on PGlite and `next build`; the Docker images themselves have not been built yet)
+Frontend (2026-10-19, from the Figma Make export in `design/figma-make/`):
+- ✅ Design system ported: the prototype's CSS split by screen (`styles/01–18`) plus app additions (`19-app.css`); Tailwind dropped (unused); Plus Jakarta Sans and the venue photo self-hosted; one tertiary grey darkened for WCAG AA
+- ✅ Shared components (`components/ui`: Icon, Button, status pills, Modal with focus trap, FormDialog, Toast, empty/error states) and the console and staff shells (`components/shell`: sidebar by role, top bar with event clock, Simulated badge (FR-PL-10), notifications drawer with live SSE refresh, Co-Pilot drawer placeholder)
+- ✅ Server-side page guards (`lib/auth/page-access.ts`, `page-guard.ts`): sign-in, inactive accounts, forced password change, role per page; routes follow the design (`03` §2)
+- ✅ Screens on the P1 API: sign in, choose a new password, dashboard (approvals with one-tap approve/reject, recent activity with Undo, room tiles), activity (day, who and type filters, field changes, Undo), settings (users, rooms + CSV import, drivers + shifts, VIP categories with reorder, event / registration link / flight mode)
+- ✅ API additions: `GET /api/dashboard/summary`; `actor_type` and `entity_types` filters on `/api/audit`
+- ✅ `pglite://` development mode (`pnpm local:setup`, no Docker needed) with the Figma demo venue in the seed
+- ✅ ESLint (Next.js + TypeScript + React hooks rules), UI tests (jsdom + Testing Library)
+- ⬜ Playwright E2E + axe (P8, browser installed: `PLAYWRIGHT_BROWSERS_PATH=0`)
+- ⬜ CI (GitHub Actions): typecheck, lint, all Vitest projects, build (P8)
+- ⬜ Run the stack once on Docker locally and on the droplet (the Docker images have not been built yet)
 
 **Exit:** each role can sign in and sees only its own shell. Admin can configure the full venue. RLS tests pass for every role ✅. An audited write + undo works on one sample entity ✅.
 
@@ -174,6 +179,6 @@ Frontend and tooling (pending):
 | 1 | Confirm [Proposed] items in `01` §9 | Final scope of P1–P7 |
 | 2 | Venue country, timezone, arrival airport(s) | Flight API coverage test (P0 exit), droplet region, privacy regime |
 | 3 | Submission and demo dates | Scheduling these phases |
-| 4 | Brand colors (if any) | P1 design tokens (defaults are usable meanwhile) |
-| 5 | Figma Make design | P1 frontend (app shell, admin screens) |
+| 4 | ~~Brand colors~~ Hostmark design adopted | — |
+| 5 | ~~Figma Make design~~ received 2026-10-19 and ported | — |
 | 6 | Domain name pointing at the droplet | Production deploy (HTTPS via Caddy) |

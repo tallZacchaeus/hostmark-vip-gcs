@@ -1,29 +1,39 @@
-# VIP Guest Coordination System (VIP GCS)
+# Hostmark — VIP Guest Coordination System (VIP GCS)
 
 Coordinate VIP guests at a large event: guest intake, live flight tracking, transport, room allocation, a Co-Pilot assistant and room turnaround. Final-year Computer Science project.
 
 **Docs:** [`docs/`](docs/) holds the six core documents: [PRD](docs/01-PRD.md), [TRD](docs/02-TRD.md) (stack, hosting), [App flow](docs/03-App-Flow.md), [UI/UX brief](docs/04-UI-UX-Design-Brief.md), [Schema & API](docs/05-Backend-Schema.md), [Implementation plan](docs/06-Implementation-Plan.md) (what is built).
 
-**Status:** P1 backend (accounts, roles, event and venue setup, audit + undo, notifications, decisions queue) is built and tested. The frontend is being designed in Figma Make.
+**Status:** P1 is done: backend plus the Figma Make frontend ("Hostmark", source in [`design/figma-make/`](design/figma-make/README.md)) ported into this Next.js app. Sign-in, dashboard, activity and settings work on the real API; other screens show "coming soon" until their phase (see the implementation plan).
 
 ## Local development
 
-Requirements: Node 22.12+, pnpm 11, Docker (for the local Postgres only).
+Requirements: Node 22.12+, pnpm 11. Docker is optional.
+
+**Quickest (no Docker):** an in-process PGlite database with demo data starting today.
+
+```bash
+pnpm install
+pnpm local:setup                     # creates .env.local and .pglite/dev, prints the demo accounts and password
+pnpm dev                             # or: pnpm build && pnpm start   → http://localhost:3000
+```
+
+**With Docker Postgres:**
 
 ```bash
 pnpm install
 cp .env.example .env.local          # then replace every "change-me" (openssl rand -hex 32)
 pnpm db:up                           # Postgres 18 on 127.0.0.1:5433
 pnpm db:migrate                      # apply db/migrations
-pnpm db:seed                         # demo event, 126 rooms, 15 drivers, one account per role (prints the password)
+pnpm db:seed                         # demo event, 120 rooms, 15 drivers, one account per role (prints the password)
 pnpm dev                             # http://localhost:3000
 ```
 
 | Command | What it does |
 |---|---|
-| `pnpm test` / `pnpm test:db` / `pnpm test:integration` | Unit / SQL (RLS per role) / API end-to-end tests — no Docker needed |
+| `pnpm test` / `pnpm test:ui` / `pnpm test:db` / `pnpm test:integration` | Unit / components (jsdom) / SQL (RLS per role) / API end-to-end tests — no Docker needed |
 | `pnpm test:all` · `pnpm vitest run --coverage` | Everything · with coverage (threshold 80%) |
-| `pnpm typecheck` · `pnpm build` | Type check · production build |
+| `pnpm typecheck` · `pnpm lint` · `pnpm build` | Type check · ESLint · production build |
 | `pnpm db:types` | Regenerate `lib/db/types.ts` from the migrations |
 | `pnpm admin:create --email … --name …` | Create a Super Admin (prints a one-time password) |
 

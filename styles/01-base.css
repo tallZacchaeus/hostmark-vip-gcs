@@ -1,0 +1,25 @@
+/* Hostmark design system: tokens and resets (ported from the Figma Make export, see design/figma-make). */
+:root {
+  font-family: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", system-ui, sans-serif;
+  color: #0f1b2d;
+  background: #f4f6fb;
+  font-synthesis: none;
+  --navy: #0e1a2c;
+  --text: #0f1b2d;
+  --secondary: #566174;
+  --tertiary: #626d80;
+  --line: #e6eaf2;
+  --orange: #c8420f;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { min-width: 320px; min-height: 100vh; margin: 0; background: #f4f6fb; font-size: 14px; line-height: 20px; -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid #e8480c; outline-offset: 2px; }
+.icon { flex: 0 0 auto; }
+
+.app-shell-v4 { min-height: 100vh; }
+.workspace-v4 { min-height: 100vh; margin-left: 236px; }
+

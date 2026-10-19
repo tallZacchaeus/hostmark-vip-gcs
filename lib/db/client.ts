@@ -9,6 +9,7 @@ import { getServerEnv } from '@/lib/env'
 import { logger } from '@/lib/logger'
 import type { ChannelSource } from '@/lib/realtime/notification-hub'
 import { createPgChannelSource } from '@/lib/realtime/pg-channel-source'
+import { PGLITE_SCHEME, createPgliteDatabase } from './pglite-database'
 import type { DB } from './types'
 
 // Keep `date` columns as 'YYYY-MM-DD'. Parsing them into JS Dates would shift them by the
@@ -55,14 +56,18 @@ function createDatabase(connectionString: string, serviceConnectionString: strin
   }
 }
 
-let database: Database | undefined
+// Kept on globalThis: Next.js can load this module more than once (per route bundle in
+// development, and again after hot reloads), and there must only ever be one set of pools.
+const holder = globalThis as typeof globalThis & { __vipGcsDatabase?: Database }
 
 function getDatabase(): Database {
-  if (!database) {
+  if (!holder.__vipGcsDatabase) {
     const env = getServerEnv()
-    database = createDatabase(env.DATABASE_URL, env.SERVICE_DATABASE_URL)
+    holder.__vipGcsDatabase = env.DATABASE_URL.startsWith(PGLITE_SCHEME)
+      ? createPgliteDatabase(env.DATABASE_URL)
+      : createDatabase(env.DATABASE_URL, env.SERVICE_DATABASE_URL)
   }
-  return database
+  return holder.__vipGcsDatabase
 }
 
 export function getDb(): Kysely<DB> {
@@ -79,11 +84,11 @@ export function getChannelSource(): ChannelSource {
 
 /** Closes every connection, e.g. at the end of a script so the process can exit. */
 export async function closeDatabase(): Promise<void> {
-  await database?.close()
-  database = undefined
+  await holder.__vipGcsDatabase?.close()
+  holder.__vipGcsDatabase = undefined
 }
 
 /** Tests inject an in-process database (see tests/integration/support). */
 export function setDatabaseForTesting(replacement: Database | undefined): void {
-  database = replacement
+  holder.__vipGcsDatabase = replacement
 }

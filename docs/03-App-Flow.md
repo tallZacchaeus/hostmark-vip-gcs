@@ -1,6 +1,6 @@
 # 03 — App Flow
 
-**Status:** Draft v1, 2026-10-12. Planned screens, none built yet.
+**Status:** v2, 2026-10-19. Routes now follow the Figma Make design (Hostmark). Built: sign-in, password change, dashboard (P1 data), activity, settings; the other screens show "coming soon" until their phase lands.
 
 **Related:** requirements in [`01-PRD.md`](01-PRD.md), routes/API in [`05-Backend-Schema.md` §7](05-Backend-Schema.md#7-api-surface-nextjs), visual rules in [`04-UI-UX-Design-Brief.md`](04-UI-UX-Design-Brief.md).
 
@@ -17,100 +17,89 @@
 
 ## 2. Screen inventory
 
+Routes follow the Figma Make design ("Hostmark", see [`design/figma-make/`](../design/figma-make/README.md)); every page checks its role on the server (`lib/auth/page-access.ts`) before rendering, and the API and row-level security still decide what data each role gets. Status: ✅ built · 🟨 placeholder ("coming soon" until its phase lands).
+
 ### Public
-| Route | Screen | Purpose |
-|---|---|---|
-| `/intake/[token]` | Intake form | Conditional fields by "How are you arriving?", team members, diet, others, consent, Turnstile |
-| `/intake/[token]/done` | Confirmation | Reference code, what happens next |
-| `/intake/closed` | Closed/invalid link | Plain message with a contact line |
+| Route | Screen | Purpose | Status |
+|---|---|---|---|
+| `/register/[token]` | Registration form | Four steps (delegation, arrival, party, review) with conditional arrival-mode fields, consent, Turnstile | 🟨 P2 |
+| `/register/[token]/done` | Confirmation | Reference code, what happens next | 🟨 P2 |
 
 ### Auth
-| Route | Screen | Purpose |
-|---|---|---|
-| `/login` | Sign in | Email + password |
-| `/account/password` | Change password | Forced on first sign-in |
-
-### Console — Coordinator (also Admin, Super Admin)
-| Route | Screen | Purpose / key actions |
-|---|---|---|
-| `/dashboard` | **Home** | ① **Needs your decision** (proposals + review items, one-tap approve/reject) ② **Next 6 hours** arrivals timeline (flight phase, delay badge, pickup and room readiness) ③ Alerts (program at risk, flights unknown, quota warnings) ④ Counters |
-| `/decisions` | Decisions queue | Full list of pending proposals and review items. Filters by kind. Bulk approve plans. |
-| `/guests` | Guests | Table of delegations/guests: filters (VIP category, arrival mode, status, missing driver, no room, needs attention) |
-| `/guests/[id]` | Guest / delegation detail | Profile, members (add/rename placeholders, member role, proximity priority, share groups), VIP category, requirements, arrival(s) + flight, pickup + driver, room(s), program participation, history (audit) |
-| `/intake-review` | Intake review | Submissions needing review: issues list, AI-extracted items, duplicate side-by-side. Approve (with edits) / link / reject. **Paste a message** tool. |
-| `/flights` | Flight board | All tracked flights: phase, scheduled vs estimated, delay, guests on board, last checked. Refresh, override time. |
-| `/transport` | Transport board | Pickups timeline by driver (lanes) + an unassigned lane. Propose/assign driver. Driver shifts. |
-| `/rooms` | Room plan | Grid by floor × wing with room status and occupants. Unallocated guests tray. **Run allocator** → plan review. Drag or pick to move (with rule check). |
-| `/rooms/plan/[proposalId]` | Plan review | Per-line assignments with score breakdown, overall satisfaction %. Approve all/selected. |
-| `/housekeeping` | Cleaning overview | Same queue housekeeping sees, plus estimates vs needed-by |
-| `/program` | Program timeline | Read-only for the coordinator. At-risk items highlighted. |
-| `/activity` | Activity log | Audit log, filters, **Undo** on automatic entries |
-| `/simulation` | Simulation | Scenarios list, start/stop a run, speed, live event feed |
-
-### Console — Programs team
-| Route | Screen | Purpose |
-|---|---|---|
-| `/program` | Program editor | Timeline + list. Create/edit/publish items. At-risk badges. |
-| `/program/[id]` | Program item | Details, participants (search guests), each participant's arrival status and at-risk reason |
-
-### Console — Admin (also Super Admin)
-| Route | Screen | Purpose |
-|---|---|---|
-| `/admin/event` | Event settings | Dates, timezone, airports, buffers, intake link (open/close/regenerate/copy) |
-| `/admin/venue` | Venue | Wings, floors, room types (tier, capacity, cleaning minutes), rooms (CSV import, out of service) |
-| `/admin/drivers` | Drivers | Drivers, vehicles, shifts, linked logins |
-| `/admin/vip-categories` | VIP categories | Ordered rank list (coordinators can also edit) |
-| `/admin/users` | Users | Create (temporary password), role, deactivate. Only Super Admin can manage Admin/Super Admin accounts. |
-| `/admin/system` | System (**Super Admin only**) | Flight provider mode (live/simulated), provider status and quota, AI usage, data export, post-event purge |
-
-### Staff app
-| Route | Role | Screen | Single status button |
+| Route | Screen | Purpose | Status |
 |---|---|---|---|
-| `/driver` | Driver | My pickups (next first): time, guest title + name, flight + live status, pickup point, passengers, changes highlighted | Acknowledge change → En route → Picked up → Completed |
-| `/accommodation` | Accommodation & logistics | Today's arrivals (expected time, room(s), readiness) and in-house guests | **Check in** / **Check out** (first wins) |
-| `/cleaning` | Housekeeping | Prioritized rooms: number, floor/wing, type, needed by, estimated ready | Start → Done |
+| `/sign-in` | Sign in | Email + password (Better Auth); `?reason=inactive` explains a deactivated account | ✅ |
+| `/account/password` | Choose a new password | Forced after a temporary password; also reachable from the account menu | ✅ |
+| `/forbidden` | Not part of your role | Link back to the role's home | ✅ |
+
+### Console (sidebar + top bar) — Coordinator, Admin, Super Admin; Programs sees Programme only
+| Route | Screen | Purpose / key actions | Status |
+|---|---|---|---|
+| `/dashboard` | **Home** | Greeting and data mode, KPI tiles, **Waiting for your approval** (one-tap approve/reject), recent activity with Undo, quick actions. Flight alert and today's timeline arrive with P3. | ✅ (P1 data) |
+| `/programme` | Programme | Timeline by day, at-risk items, venues (programs team edits) | 🟨 P6 |
+| `/guests` | Guests | Delegations and guests: arrival, transport, room, issues; tabs and filters | 🟨 P2 |
+| `/guests/[id]` | Guest profile | Party, arrival, transport, room, open issues, history with Undo | 🟨 P2 |
+| `/intake` | Intake | Submissions needing review by reason; **Paste a message**; copy registration link | 🟨 P2 |
+| `/intake/[id]` | Review submission | Original message vs what was read; duplicate side-by-side; approve / link / reject | 🟨 P2 |
+| `/arrivals` | Arrivals | Flight board by hour: flight phase and delay, pickup, driver, suggestions | 🟨 P3 |
+| `/transport` | Transport | Driver lanes timeline, suggested assignments/reassignments, driver drawer | 🟨 P3 |
+| `/rooms` | Rooms | Building grid by floor × wing with status, room inspector, run allocator | 🟨 P4 |
+| `/rooms/plan/[id]` | Allocation plan | Plan lines with match and rule checks, approve selected/all, reject | 🟨 P4 |
+| `/sanitation` | Sanitation | Cleaning queue by priority, estimated ready vs needed by, reverse checkout | 🟨 P5 |
+| `/activity` | Activity | Audit log by day with who/type filters, sentence + field changes, **Undo** on automatic changes | ✅ |
+| `/simulation` | Simulation | What-if scenarios (flight delay, room out of service, extra guests, driver unavailable) | 🟨 P3 |
+| `/settings?tab=` | Settings | **Users** (invite with one-time temporary password, role, reset, deactivate), **Rooms** (room types, rooms, CSV import with dry run), **Drivers** (vehicles, app login, shifts), **VIP categories** (rank order), **System** (event, registration link, flight data mode). Coordinators see VIP categories only. | ✅ |
+
+The **Co-Pilot** drawer (top bar, coordinator+) and the **notifications** drawer (everyone) open over any console screen. The decisions queue lives on the dashboard (`/dashboard#approvals`) rather than on a separate page.
+
+### Staff app (phone)
+| Route | Role | Screen | Status |
+|---|---|---|---|
+| `/driver` | Driver | My pickups: current/next pickup with live flight status, Start → Picked up, later and done lists | 🟨 P3 |
+| `/staff/front-desk` | Accommodation (and coordinator+) | Arriving / In house / Leaving tabs, **Check in** / **Check out** (first wins) | 🟨 P4 |
+| `/staff/sanitation` | Housekeeping | Rooms to clean in priority order, **Start cleaning** → **Mark ready**, report a problem | 🟨 P5 |
 
 ## 3. Navigation map
 
 ```mermaid
 flowchart LR
-  L["/login"] --> R{role?}
+  L["/sign-in"] --> R{role?}
+  R -->|temporary password| PW["/account/password"]
   R -->|super_admin / admin / coordinator| D["/dashboard"]
-  R -->|programs| PG["/program"]
+  R -->|programs| PG["/programme"]
   R -->|driver| DR["/driver"]
-  R -->|accommodation| AC["/accommodation"]
-  R -->|housekeeping| CL["/cleaning"]
+  R -->|accommodation| AC["/staff/front-desk"]
+  R -->|housekeeping| CL["/staff/sanitation"]
 
-  D --- DEC["/decisions"]
   D --- GU["/guests"] --> GD["/guests/[id]"]
-  D --- IR["/intake-review"]
-  D --- FL["/flights"]
+  D --- IN["/intake"] --> IR["/intake/[id]"]
+  D --- AR["/arrivals"]
   D --- TR["/transport"]
   D --- RM["/rooms"] --> RP["/rooms/plan/[id]"]
-  D --- HK["/housekeeping"]
-  D --- PGV["/program"]
+  D --- SA["/sanitation"]
+  D --- PGV["/programme"]
   D --- ACT["/activity"]
   D --- SIM["/simulation"]
-  D --- ADM["/admin/*"]
+  D --- SET["/settings"]
   D -.-> CP(("Co-Pilot drawer"))
-  GD -.-> CP
+  D -.-> NO(("Notifications drawer"))
 
-  PG --> PGI["/program/[id]"]
-
-  PUB["/intake/[token]"] --> DONE["/intake/[token]/done"]
+  PUB["/register/[token]"] --> DONE["/register/[token]/done"]
 ```
 
-**After sign-in:** users go to their role's home route. A user who opens a route their role cannot access gets a 403 page with a link to their home (RLS blocks the data either way). A user with `must_change_password` is sent to `/account/password` first.
+**After sign-in:** users go to their role's home route (`HOME_ROUTES` in `lib/auth/roles.ts`). A user who opens a route their role cannot access is sent to `/forbidden` with a link to their home (the API and RLS block the data either way). A user with `must_change_password` is sent to `/account/password` first.
 
-**Deep links:** every notification links to its entity (`/guests/[id]`, `/decisions?focus=<proposal>`, `/driver#<pickup>`, …).
+**Simulated mode:** while `events.flight_mode = simulated`, the console top bar shows a **Simulated** badge (a link to Settings → System for admins) and the staff app shows a strip above each screen (FR-PL-10).
+
+**Deep links:** every notification links to its entity (`/guests/[id]`, `/intake/[id]`, `/dashboard#approvals`, `/driver`, …; `lib/client/labels.ts`).
 
 ## 4. Key flows
 
-### F1 — Guest intake (shared link)
+### F1 — Guest registration (shared link)
 
 ```mermaid
 flowchart TD
-  A[Guest opens /intake/token] --> B{Arriving how?}
+  A[Guest opens /register/token] --> B{Arriving how?}
   B -->|Flying| B1[Airline, flight no., arrival date]
   B -->|Own transport| B2[Arrival date and time]
   B -->|Need pickup| B3[Pickup address, date and time]
@@ -260,13 +249,13 @@ sequenceDiagram
 4. The programs team adjusts the order or time, or the coordinator acts on transport. The badge clears automatically when the conflict is gone.
 
 ### F10 — Undo an automatic action
-**Activity** → filter "Automatic" → choose an entry (e.g. "Auto-created delegation from VIP-7K3Q" or "Arrival time changed by flight API") → **Undo** → confirm. The system checks that the record hasn't changed since (`version`). If it has, undo is refused with "Changed since by <who> at <when>; edit manually instead." The undo itself is logged.
+**Activity** → filter Who: "Automatic" → choose an entry (e.g. "Auto-created delegation from VIP-7K3Q" or "Arrival time changed by flight API") → **Undo** → confirm. The system checks that the record hasn't changed since (`version`). If it has, undo is refused with "Changed since by <who> at <when>; edit manually instead." The undo itself is logged.
 
 ### F11 — Simulation demo
 **Simulation** → choose a scenario (e.g. "3 flights delayed, 1 cancelled, shared flight") → speed ×60 → **Start**. A banner shows "SIMULATED MODE · virtual time 14:20" on every console screen and staff screen. Worker ticks apply steps through the same `ingest_flight_update` path, so all of F4–F9 happen live. **Stop** ends the run, and the metrics (cascade latency, proposal correctness) are viewable afterwards.
 
 ### F12 — First-run setup (Admin)
-`/admin/event` (dates, timezone, airports, buffers) → `/admin/venue` (room types with cleaning minutes → rooms CSV import) → `/admin/vip-categories` → `/admin/drivers` (drivers, vehicles, shifts) → `/admin/users` (create staff accounts) → `/admin/event` **Open intake** → copy the link and share it with the secretariats.
+Settings → **System** (create the event: dates, time zone, airports, buffers) → **Rooms** (room types with cleaning minutes, then rooms by hand or CSV import with a dry run) → **VIP categories** → **Drivers** (vehicles, app logins, shifts) → **Users** (staff accounts with one-time temporary passwords) → **System** → **Open link** → copy the registration link and share it with the secretariats. For local development, `pnpm local:setup` does all of this with demo data.
 
 ## 5. Status lifecycles (reference)
 

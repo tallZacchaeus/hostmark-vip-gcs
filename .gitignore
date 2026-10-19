@@ -23,3 +23,15 @@ supabase/.temp/
 .DS_Store
 .claude/.cc-writes/
 **/.claude/.cc-writes/
+
+# design exports (large binaries; extracted source is committed)
+design/**/*.zip
+design/**/*.make
+
+# playwright
+test-results/
+playwright-report/
+blob-report/
+
+# local PGlite databases (pnpm local:setup, e2e)
+.pglite/

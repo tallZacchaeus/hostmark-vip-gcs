@@ -21,15 +21,15 @@ export const COORDINATOR_PLUS: readonly AppRole[] = ['super_admin', 'admin', 'co
 
 export const ANY_ROLE: readonly AppRole[] = APP_ROLES
 
-/** Where each role lands after signing in (03-App-Flow.md section 3). */
+/** Where each role lands after signing in (03-App-Flow.md section 3; paths follow the Figma design). */
 export const HOME_ROUTES: Readonly<Record<AppRole, string>> = {
   super_admin: '/dashboard',
   admin: '/dashboard',
   coordinator: '/dashboard',
-  programs: '/program',
+  programs: '/programme',
   driver: '/driver',
-  accommodation: '/accommodation',
-  housekeeping: '/cleaning',
+  accommodation: '/staff/front-desk',
+  housekeeping: '/staff/sanitation',
 }
 
 export function isAppRole(value: unknown): value is AppRole {

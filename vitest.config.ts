@@ -17,8 +17,18 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'unit',
-          include: ['lib/**/*.test.ts', 'app/**/*.test.ts'],
+          include: ['lib/**/*.test.ts', 'app/**/*.test.ts', 'features/**/*.test.ts'],
           environment: 'node',
+        },
+      },
+      {
+        // React components and screens in a simulated browser (jsdom), with Testing Library.
+        extends: true,
+        test: {
+          name: 'ui',
+          include: ['components/**/*.test.tsx', 'features/**/*.test.tsx'],
+          environment: 'jsdom',
+          setupFiles: ['tests/support/ui-setup.ts'],
         },
       },
       {
@@ -47,8 +57,8 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
-      include: ['lib/**/*.ts'],
-      exclude: ['lib/**/*.test.ts', 'lib/db/types.ts'],
+      include: ['lib/**/*.ts', 'components/**/*.tsx', 'features/**/*.{ts,tsx}'],
+      exclude: ['**/*.test.{ts,tsx}', 'lib/db/types.ts'],
       thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
     },
   },

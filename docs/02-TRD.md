@@ -1,6 +1,6 @@
 # 02 — Technical Requirements Document (TRD)
 
-**Status:** v2, 2026-10-16. Hosting changed from Vercel + Supabase to **one DigitalOcean droplet** (decision 12 in [`00`](00-Project-Breakdown.md#decisions-log)). The P1 backend is built and tested (see [`06`](06-Implementation-Plan.md)).
+**Status:** v3, 2026-10-19. Hosting is **one DigitalOcean droplet** (decision 12 in [`00`](00-Project-Breakdown.md#decisions-log)). The P1 backend is built and tested, and the Figma Make frontend ("Hostmark") is ported into the same Next.js app (see [`06`](06-Implementation-Plan.md)).
 
 **Related:** [`01-PRD.md`](01-PRD.md) (what), [`05-Backend-Schema.md`](05-Backend-Schema.md) (data and API), [`06-Implementation-Plan.md`](06-Implementation-Plan.md) (build order).
 
@@ -14,7 +14,8 @@
 |---|---|---|
 | Language | **TypeScript 5.9** everywhere (API, domain logic, scripts, tests) | One language end to end. TypeScript 7 (native compiler) is out, but Next.js's build-time type-check still uses the 5.x JavaScript API. |
 | Web framework | **Next.js 16** (App Router, 16.4.1), `output: 'standalone'` | Route handlers for the API today; the Figma Make frontend is integrated into the same app later. Standalone output gives a small Docker image. |
-| UI | **Tailwind CSS + shadcn/ui** *(planned with the Figma Make export)* | Accessible primitives; the design brief (`04`) applies directly. |
+| UI | **The Figma Make design, ported**: React 19 components (`components/`, `features/`) on the design's own global CSS (`styles/`, split by screen) | The prototype used hand-written CSS with no Tailwind utilities, so Tailwind and shadcn/ui were dropped. Plus Jakarta Sans and the venue photo are self-hosted. |
+| Client data | **SWR 2.5** on a small typed client for the API envelope (`lib/client`) | Caching, revalidation and de-duplication; a Server-Sent Events stream triggers revalidation. |
 | Database | **PostgreSQL 18** in Docker on the droplet | Relational data with strong constraints suits the shared data model. The same major version runs in dev, tests (PGlite = Postgres 18.3) and production. |
 | Data access | **Kysely 0.29** + node-postgres 8 | Typed SQL query builder; raw SQL where it is clearer. Table types are generated from the migrations (`pnpm db:types`). |
 | Migrations | **dbmate 2.36** (plain SQL, up/down) | The schema leans on triggers, RLS and SQL functions, so SQL files are the source of truth. |
@@ -28,8 +29,8 @@
 | Flight data | **AeroDataBox** (primary), **FlightAware AeroAPI** (fallback), **simulated provider** *(P3)* | See §4.1. |
 | Bot protection | **Cloudflare Turnstile** on the public intake form *(P2)* | Free and low-friction. |
 | Hosting | **One DigitalOcean droplet**: Docker Compose with Caddy (HTTPS), app, Postgres, a one-shot migrate job, and later the worker | Decision 12. See §5. |
-| Testing | **Vitest 5** (unit), **Vitest on PGlite** (SQL and route integration tests), **Playwright** (E2E, with the frontend) | PGlite is real Postgres compiled to WebAssembly: the whole suite runs without Docker. |
-| Tooling | pnpm 11 (its `minimumReleaseAge` supply-chain check is respected), tsx, `tools/docx-export` | |
+| Testing | **Vitest 5** (unit), **Vitest + jsdom + Testing Library** (components and screens), **Vitest on PGlite** (SQL and route integration tests), **Playwright** + axe (E2E and accessibility) | PGlite is real Postgres compiled to WebAssembly: the whole suite runs without Docker. |
+| Tooling | pnpm 11 (its `minimumReleaseAge` supply-chain check is respected), tsx, ESLint 10 + `eslint-config-next`, `tools/docx-export` | |
 
 **Alternatives considered:** self-hosting Supabase on the droplet (rejected: about ten containers and 4 GB+ RAM to run features that Postgres plus one library cover); Auth.js credentials provider or hand-rolled sessions (rejected: discouraged or security-sensitive to write ourselves); Drizzle or Prisma (rejected: the schema's triggers, RLS and SQL functions would still be raw SQL, so SQL-first migrations are simpler); pgTAP (rejected: needs a running server for every test run, while Vitest on PGlite needs nothing).
 
@@ -93,10 +94,18 @@ flowchart TB
 ### 2.2 Code layout (as built)
 
 ```
+app/(console)/**         console pages (sidebar + top bar); each page checks its role on the server
+app/(staff)/**           phone-sized staff app (driver, front desk, housekeeping)
+app/sign-in, app/account/password, app/register/**   auth and public pages
 app/api/**/route.ts      thin route handlers (see 05-Backend-Schema.md §7)
+components/ui, components/shell   design-system pieces (Icon, Button, Modal, Toast, …) and the console/staff frames
+features/<screen>/       screen components by feature (dashboard, activity, settings, …)
+styles/                  the Figma design's CSS split by screen (01–18) + app additions (19)
+lib/client/              browser code: API client, SWR hooks, formatting, realtime, labels
+design/figma-make/       the original Figma Make export (reference only, not built)
 lib/api/                 route wrapper (auth, roles, validation, rate limits, envelope), errors, CORS, CRUD route factory
-lib/auth/                Better Auth config, roles, permissions, session, password policy, HTTP allowlist
-lib/db/                  pools, withUser transaction helper, generated table types
+lib/auth/                Better Auth config, roles, permissions, session, password policy, HTTP allowlist, page access and page guard
+lib/db/                  pools, withUser transaction helper, generated table types, pglite:// development mode
 lib/domain/              pure logic: clock, room CSV parsing, temporary passwords (grows per phase)
 lib/repositories/        data access: generic CRUD, event, activity (audit, notifications, decisions)
 lib/resources/           CRUD resource definitions: venue, drivers, VIP categories
@@ -221,7 +230,8 @@ submit → [Turnstile + rate limit] → store raw submission
 
 | Environment | App | Database | Flight provider |
 |---|---|---|---|
-| Local | `pnpm dev` | Docker Postgres 18 via `pnpm db:up` (port 5433) | Simulated |
+| Local (no Docker) | `pnpm local:setup` once, then `pnpm dev` (or `pnpm build && pnpm start`) | In-process PGlite (`DATABASE_URL=pglite://.pglite/dev`), migrations applied on start; never allowed in production unless `ALLOW_PGLITE=true` is set for a local production build | Simulated |
+| Local (Docker) | `pnpm dev` | Docker Postgres 18 via `pnpm db:up` (port 5433) | Simulated |
 | Tests | Vitest | PGlite in-process (no Docker) | Simulated |
 | Production / demo | Droplet: `compose.yaml` (Caddy + app + Postgres + migrate) | Postgres 18 on the same droplet | Live (switchable to simulated) |
 
@@ -261,15 +271,16 @@ Technical constraints:
 
 ## 8. Testing and evaluation strategy
 
-| Layer | Tooling | What | Status (2026-10-16) |
+| Layer | Tooling | What | Status (2026-10-19) |
 |---|---|---|---|
-| Unit | Vitest | Pure modules: roles, envelope, error mapping, rate limiter, clock, CSV, passwords, env, CORS, route wrapper, notification hub | ✅ 86 tests |
-| Database | Vitest + PGlite | RLS per role, triggers, SQL functions, the security baseline | ✅ 56 tests |
-| Integration | Vitest + PGlite + real Better Auth | Route handlers end to end: auth, accounts, event, venue, CSV import, drivers, categories, audit/undo, notifications incl. SSE, decisions, seed | ✅ 51 tests |
-| End-to-end | Playwright | Main flows in `03-App-Flow.md` across roles | With the frontend |
+| Unit | Vitest | Pure modules: roles, page access, envelope, error mapping, rate limiter, clock, CSV, passwords, env, CORS, route wrapper, notification hub; browser helpers (API client, formatting and time zones, activity sentences, password rules) | ✅ 142 tests |
+| UI | Vitest + jsdom + Testing Library | Modal focus trap, form dialog, toasts, sidebar by role, simulated-mode badge, change-password screen, activity rows | ✅ 16 tests |
+| Database | Vitest + PGlite | RLS per role, triggers, SQL functions, the security baseline | ✅ 63 tests |
+| Integration | Vitest + PGlite + real Better Auth | Route handlers end to end: auth, accounts, event, venue, CSV import, drivers, categories, audit/undo and filters, notifications incl. SSE, decisions, dashboard summary, seed | ✅ 55 tests |
+| End-to-end | Playwright + axe, against `pnpm build && pnpm start` on PGlite | Main flows in `03-App-Flow.md` across roles, accessibility scan per screen | P8 |
 | **Evaluation** | `eval/` runners (`pnpm eval:<module>`) | The PRD §8 metrics as JSON + Markdown tables | From P2 |
 
-Coverage across all projects: **94% statements, 90% branches** (threshold 80%). Commands: `pnpm test`, `pnpm test:db`, `pnpm test:integration`, `pnpm test:all`, `pnpm vitest run --coverage`.
+Commands: `pnpm test` (unit), `pnpm test:ui`, `pnpm test:db`, `pnpm test:integration`, `pnpm test:all`, `pnpm vitest run --coverage`, `pnpm lint`, `pnpm typecheck`.
 
 **Evaluation datasets** (versioned in `eval/datasets/`): `intake.jsonl` (≥ 100 texts), `scenarios/*.json` (flight scenarios), `allocation/*.json` (venues and guest sets), `copilot.jsonl` (≥ 50 questions, ≥ 20 actions), `voice/` (recorded name-heavy questions, with consent).
 

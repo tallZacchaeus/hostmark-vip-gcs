@@ -1,8 +1,8 @@
 # 01 — Product Requirements Document (PRD)
 
-**Product:** VIP Guest Coordination System (VIP GCS)
+**Product:** Hostmark — VIP Guest Coordination System (VIP GCS)
 
-**Status:** Draft v1, 2026-10-12. No code has been written yet.
+**Status:** v1.1, 2026-10-19. All [Proposed] items were confirmed on 2026-10-19 (§9). The frontend follows the Figma Make design "Hostmark"; where it differs from this PRD, the design decides look and flow and this PRD decides rules.
 
 **Scope source:** [`00-Project-Breakdown.md`](00-Project-Breakdown.md), which is the agreed project understanding (v2). This PRD turns it into numbered, testable requirements.
 
@@ -248,14 +248,22 @@ Targets are **[Proposed]** values for the evaluation chapter. Adjust them with y
 | M5 Cleaning | Estimate error | Mean absolute error between estimated and actual ready time (in trials) | ≤ 15 min |
 | All | Decision speed (usability) | Task time for 3 scripted coordinator tasks vs a spreadsheet + chat baseline (small user test) | Report the gap |
 
-## 9. Open questions (need your input)
+## 9. Decisions and open questions
 
-1. **[Proposed]** role permissions (§3) and the hierarchy `super_admin ⊇ admin ⊇ coordinator`. OK?
-2. **[Proposed]** P1 interpretation: if the same driver is still free after a delay, the time shift is automatic. OK?
-3. **[Proposed]** intake additions: submitter contact, expected departure date, consent notice. OK?
-4. **[Proposed]** room-sharing defaults (principal never shares; members share only by coordinator grouping). OK?
-5. **[Proposed]** Co-Pilot write-action set (move rooms, assign driver, add note). OK?
-6. **[Proposed]** programs module scope (§5.6). Is that the right minimum?
-7. Venue location, timezone and expected arrival airport(s). These are needed to verify flight API coverage.
+Confirmed on 2026-10-19 (the [Proposed] markers above stand for these confirmed defaults):
+
+1. ✅ Role permissions (§3) and the hierarchy `super_admin ⊇ admin ⊇ coordinator`.
+2. ✅ P1 interpretation: if the same driver is still free after a delay, the time shift is automatic.
+3. ✅ Intake additions: submitter contact, expected departure date, consent notice.
+4. ✅ Room sharing: the principal never shares; members share only by coordinator grouping.
+5. ✅ Co-Pilot write actions: move rooms, assign driver, add note.
+6. ✅ Programs module scope as in §5.6.
+
+Rule reconciliations with the Figma design (the PRD wins on rules):
+- The design's registration form asks the guest for a **VIP category**; FR-IN-11 says only the coordinator sets it, so the public form does not ask for it.
+- The design's form has no **"Others"** free-text field or airline field; they are added because FR-IN-04 (AI extraction) and the flying rules depend on them.
+
+Still open:
+7. Venue location, timezone and arrival airport(s). The demo data assumes Lagos (LOS); they are editable in Settings → System.
 8. Project timeline: submission/demo dates, so phases in `06` can be scheduled.
 9. Success-metric targets (§8): agree them with your supervisor.

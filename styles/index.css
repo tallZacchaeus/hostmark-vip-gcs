@@ -1,0 +1,22 @@
+/* Global stylesheet, imported once by app/layout.tsx. Files 01–18 are the Figma Make design,
+   split by screen in their original order (the cascade depends on it); 19 adds what the
+   prototype did not have (real auth states, settings tables, placeholders, accessibility). */
+@import "./01-base.css";
+@import "./02-shell.css";
+@import "./03-dashboard.css";
+@import "./04-guests.css";
+@import "./05-profile.css";
+@import "./06-intake.css";
+@import "./07-arrivals.css";
+@import "./08-transport.css";
+@import "./09-rooms.css";
+@import "./10-sanitation.css";
+@import "./11-public.css";
+@import "./12-staff.css";
+@import "./13-drawers.css";
+@import "./14-signin.css";
+@import "./15-programme.css";
+@import "./16-settings.css";
+@import "./17-activity.css";
+@import "./18-simulation.css";
+@import "./19-app.css";

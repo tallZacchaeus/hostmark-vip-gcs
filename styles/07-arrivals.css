@@ -1,0 +1,119 @@
+/* Arrivals -------------------------------------------------------------- */
+.arrivals-page { width: 100%; min-height: 100vh; max-width: 1360px; margin: 0 auto; padding: 96px 28px 88px; }
+.arrivals-header h1 { margin: 0; color: #0f1b2d; font-size: 34px; line-height: 42px; font-weight: 800; letter-spacing: -.02em; }
+.arrivals-header > div { display: flex; align-items: center; gap: 14px; min-height: 30px; color: #566174; font-size: 14px; white-space: nowrap; }
+.arrivals-live { display: inline-flex; align-items: center; gap: 7px; padding: 4px 9px; border-radius: 999px; color: #146c36; background: #e4f6ec; font-size: 12px; font-weight: 600; }
+.arrivals-live i { width: 7px; height: 7px; border-radius: 50%; background: #22a45d; animation: live-pulse 2s infinite; }
+.arrivals-error { min-height: 50px; display: flex; align-items: center; gap: 10px; margin: 10px 0 0; padding: 5px 7px 5px 14px; border: 1px solid #f0c4bf; border-radius: 12px; color: #b42318; background: #fdecea; }
+.arrivals-error > span { flex: 1; font-size: 14px; font-weight: 600; }.arrivals-error .hm-button { min-height: 36px; background: #fff; font-size: 13px; }
+.arrivals-filters { min-height: 44px; display: flex; align-items: center; gap: 12px; margin: 18px 0 16px; }
+.arrival-segments { height: 44px; display: flex; align-items: center; padding: 4px; border-radius: 12px; background: #e8ecf4; }
+.arrival-segments button { height: 36px; border: 0; border-radius: 9px; padding: 0 14px; color: #566174; background: transparent; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.arrival-segments button.is-active { color: #0f1b2d; background: #fff; box-shadow: 0 3px 9px rgba(18,35,58,.1); }
+.arrival-status-select { position: relative; width: 150px; height: 44px; display: flex; align-items: center; border: 1px solid #d9dfe8; border-radius: 999px; background: #fff; }
+.arrival-status-select select { width: 100%; height: 100%; appearance: none; border: 0; outline: 0; padding: 0 34px 0 15px; border-radius: inherit; color: #334359; background: transparent; font-size: 13px; font-weight: 600; }
+.arrival-status-select .icon { position: absolute; right: 13px; pointer-events: none; }
+.arrival-search { width: 300px; height: 44px; display: flex; align-items: center; gap: 9px; margin-left: auto; padding: 0 13px; border: 1px solid #d9dfe8; border-radius: 12px; color: #7b8697; background: #fff; }
+.arrival-search:focus-within { border-color: #e46a38; box-shadow: 0 0 0 3px rgba(232,72,12,.12); }
+.arrival-search input { flex: 1; min-width: 0; border: 0; outline: 0; color: #0f1b2d; background: transparent; font-size: 13px; }
+.arrivals-card { width: 100%; overflow: hidden; border: 1px solid #e6eaf2; border-radius: 16px; background: #fff; box-shadow: 0 2px 8px rgba(18,35,58,.035); }
+.arrivals-table-head, .arrival-row { display: grid; grid-template-columns: 112px minmax(240px,1fr) minmax(186px,auto) minmax(140px,auto) minmax(150px,auto) 28px; column-gap: 12px; align-items: center; padding: 0 20px; }
+.arrivals-table-head { height: 44px; color: #626d80; background: #f8fafd; font-size: 13px; font-weight: 600; }
+.arrival-hour { height: 32px; display: flex; align-items: center; gap: 12px; padding: 0 20px; color: #626d80; font-size: 13px; font-weight: 700; }
+.arrival-hour i { height: 1px; flex: 1; background: #eef1f7; }
+.arrival-row { position: relative; min-width: 0; height: 64px; border-bottom: 1px solid #eef1f7; outline: 0; transition: background .15s ease; }
+.arrival-group:last-child .arrival-row:last-child { border-bottom: 0; }
+.arrival-row:hover, .arrival-row:focus-visible { background: #f7f9fd; }
+.arrival-row.is-attention { border-left: 4px solid #e8963a; padding-left: 16px; background: linear-gradient(90deg, #fff6ea, #fff 52%); }
+.arrival-row.is-attention:hover, .arrival-row.is-attention:focus-visible { background: linear-gradient(90deg, #fff1df, #f7f9fd 58%); }
+.arrival-time { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; font-variant-numeric: tabular-nums; }
+.arrival-time > b { color: #17263b; font-size: 18px; line-height: 23px; font-weight: 700; }
+.arrival-time > span { display: flex; align-items: center; gap: 7px; color: #8a94a3; font-size: 13px; line-height: 18px; }
+.arrival-time em { padding: 2px 6px; border-radius: 6px; color: #2456b3; background: #e8f0ff; font-size: 12px; line-height: 16px; font-style: normal; font-weight: 700; text-decoration: none; }
+.arrival-guest { min-width: 0; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.arrival-guest > b { min-width: 0; overflow: hidden; color: #0f1b2d; font-size: 14.5px; font-weight: 600; text-overflow: ellipsis; }
+.arrival-guest > span { flex: 0 0 auto; padding: 4px 7px; border-radius: 8px; color: #566174; background: #eef1f6; font-size: 12px; line-height: 16px; font-weight: 600; }
+.arrival-guest > small { flex: 0 0 auto; color: #626d80; font-size: 13px; font-weight: 600; }
+.arrival-flight, .arrival-pickup { min-width: 0; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.arrival-flight code { flex: 0 0 auto; padding: 4px 7px; border-radius: 8px; color: #334359; background: #eef1f6; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 17px; font-weight: 600; }
+.arrival-badge { width: fit-content; flex: 0 0 auto; display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 999px; font-size: 12px; line-height: 16px; font-weight: 600; white-space: nowrap; }
+.arrival-badge--success { color: #146c36; background: #e4f6ec; }.arrival-badge--info { color: #2456b3; background: #e8f0ff; }
+.arrival-badge--error { color: #b42318; background: #fdecea; }.arrival-badge--warning { color: #a84f08; background: #fff1da; }.arrival-badge--neutral { color: #566174; background: #eef1f6; }
+.arrival-transport { min-width: 0; display: flex; flex-direction: column; color: #626d80; font-size: 13px; white-space: nowrap; }
+.arrival-transport small { color: #626d80; font-size: 13px; }
+.arrival-driver { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; color: #566174; font-size: 14px; font-weight: 500; white-space: nowrap; }
+.arrival-driver > span:not(.arrival-suggested) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.arrival-suggested { width: fit-content; display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 999px; color: #6d3fc4; background: #f0eaff; font-size: 12px; line-height: 16px; font-weight: 600; white-space: nowrap; }
+.arrival-now { height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 20px; color: #b83a0a; }
+.arrival-now > i { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #d84b26; box-shadow: 0 0 0 5px rgba(216,75,38,.12); }
+.arrival-now b { flex: 0 0 auto; font-size: 13px; font-weight: 700; }.arrival-now span { height: 1px; flex: 1; background: linear-gradient(90deg, #f4b39b, transparent); }
+.arrival-open { width: 28px; height: 28px; display: grid; place-items: center; justify-self: end; border-radius: 50%; color: #626d80; }
+.arrival-open b { display: none; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.arrival-mobile-details { display: none; }
+.arrival-row:hover .arrival-open, .arrival-row:focus-visible .arrival-open { background: #fff; box-shadow: 0 4px 12px rgba(18,35,58,.12); }
+.arrival-loading > div { height: 64px; display: grid; grid-template-columns: 112px minmax(240px,1fr) 186px 140px 150px; gap: 12px; align-items: center; padding: 0 20px; border-bottom: 1px solid #eef1f7; }
+.arrival-loading > div:last-child { border: 0; }.arrival-loading .skeleton { width: 75%; height: 14px; }.arrival-loading .skeleton:nth-child(2) { width: 90%; }
+.arrival-empty, .arrival-no-results { min-height: 360px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.arrival-empty > span { width: 56px; height: 56px; display: grid; place-items: center; margin-bottom: 14px; border-radius: 50%; color: #2456b3; background: #e8f0ff; }
+.arrival-empty > span .icon { transform: rotate(18deg); }.arrival-empty h2 { margin: 0; color: #17263b; font-size: 16px; font-weight: 700; }
+.arrival-empty p { margin: 5px 0 17px; color: #626d80; font-size: 13px; }.arrival-empty .hm-button { font-size: 13px; }
+.arrival-no-results { min-height: 300px; gap: 5px; }.arrival-no-results b { color: #17263b; font-size: 16px; }.arrival-no-results span { color: #626d80; font-size: 13px; }
+.arrivals-state-switch > span, .arrivals-state-switch button, .arrivals-toast > span { font-size: 13px; }
+
+/* Arrivals shell */
+.route-arrivals .topbar-v4 { z-index: 50; height: 68px; border-bottom: 1px solid #e6eaf2; background: #fff; backdrop-filter: none; }
+.route-arrivals .search-wrap { flex: 1 1 auto; min-width: 190px; }
+.route-arrivals .search-field-v4 { width: 100%; min-width: 190px; }
+.route-arrivals .event-switcher { width: 250px; flex: 0 0 250px; }
+.route-arrivals .event-switcher > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-arrivals .topbar-time { display: none; }
+@media (min-width: 1500px) {
+  .route-arrivals .topbar-time { display: flex; }
+}
+@media (min-width: 1360px) {
+  .arrivals-table-head, .arrival-row { grid-template-columns: 112px minmax(240px,1fr) minmax(186px,auto) minmax(140px,auto) minmax(150px,auto) 72px; }
+  .arrival-open { width: 72px; border-radius: 999px; }
+  .arrival-row:hover .arrival-open .icon, .arrival-row:focus-visible .arrival-open .icon { display: none; }
+  .arrival-row:hover .arrival-open b, .arrival-row:focus-visible .arrival-open b { display: block; }
+}
+@media (max-width: 1259px) {
+  .arrivals-table-head { display: none; }
+  .arrival-row { min-height: 92px; height: auto; grid-template-columns: 112px minmax(0,1fr) 28px; grid-template-rows: 38px auto; padding-block: 8px; }
+  .arrival-time { grid-column: 1; grid-row: 1 / 3; }
+  .arrival-guest { grid-column: 2; grid-row: 1; }
+  .arrival-row > .arrival-flight, .arrival-row > .arrival-pickup, .arrival-row > .arrival-driver { display: none; }
+  .arrival-mobile-details { min-width: 0; display: flex; align-items: center; align-self: start; flex-wrap: wrap; grid-column: 2; grid-row: 2; gap: 7px 12px; }
+  .arrival-mobile-details .arrival-flight, .arrival-mobile-details .arrival-pickup, .arrival-mobile-details .arrival-driver { display: flex; }
+  .arrival-mobile-details .arrival-driver { flex-direction: row; align-items: center; }
+  .arrival-open { grid-column: 3; grid-row: 1 / 3; }
+}
+@media (max-width: 1200px) {
+  .route-arrivals .event-switcher { width: 42px; flex-basis: 42px; justify-content: center; padding: 0; }
+  .route-arrivals .event-switcher span, .route-arrivals .event-switcher .icon:last-child { display: none; }
+}
+@media (max-width: 960px) {
+  .route-arrivals .sidebar-v4 { transform: translateX(-100%); transition: transform .2s ease; box-shadow: 0 16px 38px rgba(8,16,28,.22); }
+  .route-arrivals .sidebar-v4.is-open { transform: translateX(0); }
+  .route-arrivals .workspace-v4 { margin-left: 0; }
+  .route-arrivals .topbar-v4 { left: 0; }
+  .route-arrivals .menu-button { display: grid; }
+  .route-arrivals .sidebar-backdrop { position: fixed; inset: 0; z-index: 35; display: block; border: 0; background: rgba(8,16,28,.46); }
+}
+@media (max-width: 699px) {
+  .arrivals-page { padding: 88px 16px 96px; }
+  .arrivals-header > div { align-items: flex-start; flex-direction: column; gap: 8px; white-space: normal; }
+  .arrivals-filters { flex-wrap: wrap; }
+  .arrival-segments { width: 100%; }.arrival-segments button { flex: 1; padding: 0 6px; }
+  .arrival-status-select { flex: 1; }.arrival-search { width: 100%; order: 3; }
+  .arrival-row, .arrival-row.is-attention { min-height: 164px; display: grid; grid-template-columns: 1fr 28px; grid-template-rows: auto auto 1fr; gap: 9px 12px; margin: 0 10px 12px; padding: 14px 16px; border: 1px solid #e6eaf2; border-radius: 14px; background: #fff; }
+  .arrival-row.is-attention { border-left: 4px solid #e8963a; background: linear-gradient(90deg, #fff6ea, #fff 60%); }
+  .arrival-time { grid-column: 1; grid-row: 1; }.arrival-open { grid-column: 2; grid-row: 1; }
+  .arrival-guest { grid-column: 1 / 3; grid-row: 2; }
+  .arrival-mobile-details { grid-column: 1 / 3; grid-row: 3; align-content: start; }
+  .arrival-hour { padding-inline: 16px; }.arrival-now { padding-inline: 18px; }
+  .arrival-loading > div { grid-template-columns: 90px 1fr; margin: 10px; border: 1px solid #eef1f7; border-radius: 12px; }
+  .arrival-loading .skeleton:nth-child(n+3) { display: none; }
+  .route-arrivals .topbar-actions > .hm-button { width: 38px; padding: 0; }
+  .route-arrivals .topbar-actions > .hm-button span { display: none; }
+}
+

@@ -8,6 +8,8 @@ const offsetOf = (pagination: Pagination): number => (pagination.page - 1) * pag
 
 export interface AuditFilters {
   readonly entity_type?: string
+  readonly entity_types?: readonly string[]
+  readonly actor_type?: 'user' | 'system' | 'copilot' | 'guest_intake'
   readonly entity_id?: string
   readonly actor_id?: string
   readonly automatic?: boolean
@@ -18,6 +20,8 @@ export interface AuditFilters {
 export async function listAuditEntries(tx: Tx, filters: AuditFilters, pagination: Pagination) {
   let query = tx.selectFrom('audit_log as a')
   if (filters.entity_type) query = query.where('a.entity_type', '=', filters.entity_type)
+  if (filters.entity_types) query = query.where('a.entity_type', 'in', [...filters.entity_types])
+  if (filters.actor_type) query = query.where('a.actor_type', '=', filters.actor_type)
   if (filters.entity_id) query = query.where('a.entity_id', '=', filters.entity_id)
   if (filters.actor_id) query = query.where('a.actor_id', '=', filters.actor_id)
   if (filters.automatic !== undefined) query = query.where('a.is_automatic', '=', filters.automatic)

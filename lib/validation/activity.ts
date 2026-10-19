@@ -4,8 +4,18 @@ import { booleanQuery, optionalText, paginationSchema, uuidSchema } from './comm
 
 const timestamp = z.iso.datetime({ offset: true, message: 'Use an ISO 8601 date-time with a time zone' })
 
+const tableName = z.string().regex(/^[a-z_]{1,50}$/, 'Use a table name such as rooms')
+const MAX_ENTITY_TYPES = 20
+
 export const auditListQuerySchema = paginationSchema.extend({
-  entity_type: z.string().regex(/^[a-z_]{1,50}$/, 'Use a table name such as rooms').optional(),
+  entity_type: tableName.optional(),
+  /** Several tables at once, comma-separated: "pickups,pickup_assignments". */
+  entity_types: z
+    .string()
+    .transform((value) => value.split(',').map((entry) => entry.trim()).filter((entry) => entry !== ''))
+    .pipe(z.array(tableName).min(1).max(MAX_ENTITY_TYPES))
+    .optional(),
+  actor_type: z.enum(['user', 'system', 'copilot', 'guest_intake']).optional(),
   entity_id: uuidSchema.optional(),
   actor_id: uuidSchema.optional(),
   automatic: booleanQuery.optional(),

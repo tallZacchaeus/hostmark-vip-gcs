@@ -12,3 +12,7 @@ tools
 *.pdf
 *.tsbuildinfo
 .DS_Store
+design
+.pglite
+test-results
+playwright-report

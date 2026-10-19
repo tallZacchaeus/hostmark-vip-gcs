@@ -27,6 +27,13 @@ describe('server environment', () => {
     expect(() => parseServerEnv({ ...VALID, DATABASE_URL: 'mysql://db/app' })).toThrow(/DATABASE_URL/)
   })
 
+  it('allows the in-process pglite:// database only outside production', () => {
+    const local = { ...VALID, DATABASE_URL: 'pglite://.pglite/dev', SERVICE_DATABASE_URL: 'pglite://.pglite/dev' }
+    expect(parseServerEnv({ ...local, NODE_ENV: 'development' }).DATABASE_URL).toBe('pglite://.pglite/dev')
+    expect(() => parseServerEnv(local)).toThrow(/DATABASE_URL must not use pglite/)
+    expect(parseServerEnv({ ...local, ALLOW_PGLITE: 'true' }).DATABASE_URL).toBe('pglite://.pglite/dev')
+  })
+
   it('defaults to no extra origins', () => {
     expect(parseServerEnv({ ...VALID, API_ALLOWED_ORIGINS: undefined }).API_ALLOWED_ORIGINS).toEqual([])
   })

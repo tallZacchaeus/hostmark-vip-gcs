@@ -15,8 +15,8 @@ describe('development seed', () => {
   })
 
   it('creates a usable venue, drivers and one account per role', async () => {
-    const result = await seedDevData(app.db, app.auth, password, new Date('2026-10-16T09:00:00Z'))
-    expect(result).toMatchObject({ startsOn: '2026-11-15', rooms: 126, drivers: 15 })
+    const result = await seedDevData(app.db, app.auth, password, { now: new Date('2026-10-16T09:00:00Z') })
+    expect(result).toMatchObject({ startsOn: '2026-11-15', rooms: 120, drivers: 15 })
     expect(result.accounts).toHaveLength(7)
 
     const [shifts] = await app.sql<{ n: number }>('select count(*)::int as n from driver_shifts')
@@ -32,7 +32,18 @@ describe('development seed', () => {
     const rooms = await app.call<unknown[]>(listRooms, '/api/admin/rooms?limit=200', {
       as: { id: '', email: 'coordinator@vipgcs.test', password, token, role: 'coordinator' },
     })
-    expect(rooms.body.meta).toMatchObject({ total: 126 })
+    expect(rooms.body.meta).toMatchObject({ total: 120 })
+
+    // The Figma room grid: x01–x07 West, x08–x14 East, x15–x20 Garden.
+    const wings = await app.sql<{ number: string; wing: string }>(
+      `select number, wing from rooms where number in ('101', '108', '615', '620') order by number`,
+    )
+    expect(wings).toEqual([
+      { number: '101', wing: 'West' },
+      { number: '108', wing: 'East' },
+      { number: '615', wing: 'Garden' },
+      { number: '620', wing: 'Garden' },
+    ])
 
     // Seed data is recorded as system activity that cannot be undone.
     const [undoable] = await app.sql<{ n: number }>(`select count(*)::int as n from audit_log where undoable`)

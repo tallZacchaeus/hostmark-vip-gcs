@@ -1,10 +1,10 @@
 # 04 — UI/UX Design Brief
 
-**Status:** Draft v1, 2026-10-12. Design direction only; no screens built yet.
+**Status:** v2, 2026-10-19. The visual design is now the **Figma Make design "Hostmark"** ([`design/figma-make/`](../design/figma-make/README.md)), ported into the Next.js app. Where this brief and the Figma design differ, the design decides look and flow and the PRD decides rules (decision of 2026-10-19).
 
-**Related:** screens and flows in [`03-App-Flow.md`](03-App-Flow.md); components are built on shadcn/ui ([`02-TRD.md`](02-TRD.md)).
+**Related:** screens and flows in [`03-App-Flow.md`](03-App-Flow.md); components in `components/ui` and `components/shell`; styles in `styles/` ([`02-TRD.md`](02-TRD.md) §1).
 
-> **Brand:** no brand guidelines were supplied. The palette below is a neutral, accessible default. If the client (or Clintels) has brand colors, swap the `--accent` tokens. The status colors should stay as they are, because they carry meaning.
+> **Brand:** **Hostmark** (logo mark `public/hostmark-logo-C.svg`, wordmark "**Host**mark" with the second half in orange). The design is light-only; dark mode is not part of it.
 
 ---
 
@@ -25,56 +25,51 @@
 
 ## 2. Color
 
-All colors are CSS custom properties defined on `:root` and overridden for dark mode. Contrast ratios below were computed against the listed backgrounds. **All text tokens meet WCAG AA (≥ 4.5:1).**
+Taken from the design's stylesheet (`styles/01-base.css` and the per-screen files). Contrast ratios were measured on the backgrounds they are used on; **every text colour meets WCAG AA (≥ 4.5:1)**. The design's tertiary grey (`#6b7587`, 4.30:1 on the page background) was darkened to `#626d80` (≥ 4.62:1 on all light backgrounds) for that reason.
 
-### 2.1 Base tokens
+### 2.1 Base
 
-| Token | Light | Dark | Use |
+| Token | Value | Use | Contrast |
 |---|---|---|---|
-| `--bg` | `#FFFFFF` | `#0E1420` | Page background |
-| `--surface-muted` | `#F6F7F9` | `#161D2B` | Panels, table stripes, sidebar |
-| `--border` | `#E3E7EE` | `#263042` | Dividers, inputs |
-| `--ink` | `#0F172A` (17.9:1) | `#E6EAF2` (15.3:1) | Primary text |
-| `--ink-muted` | `#475569` (7.6:1) | `#9AA4B5` (7.3:1) | Secondary text, labels |
-| `--accent` | `#0F766E` (5.5:1) | `#2DD4BF` (9.9:1) | Primary buttons, links, focus ring, active nav. Text on accent: white (light) / `#0E1420` (dark) |
+| `--navy` | `#0e1a2c` | Sidebar, staff app headers, avatar | sidebar text `#c8d0de` 11.3:1, muted `#8794ab` 5.7:1 |
+| `--text` | `#0f1b2d` | Primary text | 17.3:1 on white, 16.0:1 on the page |
+| `--secondary` | `#566174` | Secondary text, labels | 6.3:1 / 5.8:1 |
+| `--tertiary` | `#626d80` | Helper text, timestamps | 4.8:1 on the page |
+| `--line` | `#e6eaf2` | Borders, dividers | — |
+| page background | `#f4f6fb` | Console background | — |
+| `--orange` (accent) | `#c8420f`, gradient `#d5440e → #b3300a` | Primary buttons, active nav marker, links (`#b83a0a`) | white on accent 4.95:1–6.3:1 |
+| focus ring | `#e8480c` 2 px, 2 px offset (`#2456b3` on some screens) | Keyboard focus | — |
 
-### 2.2 Status tokens (semantic — do not repurpose)
+### 2.2 Status (semantic — do not repurpose)
 
-| Token | Light | Dark | Meaning | Used for |
-|---|---|---|---|---|
-| `--ok` | `#15803D` (5.0:1) | `#4ADE80` | Good / ready / done | Landed, room ready, pickup completed, cleaning done |
-| `--warn` | `#B45309` (5.0:1) | `#FBBF24` | Attention / at risk | Delayed, program at risk, room not ready by arrival, needs review |
-| `--danger` | `#B91C1C` (6.5:1) | `#F87171` | Problem / blocked | Cancelled, diverted, hard-rule violation, no driver available |
-| `--info` | `#1D4ED8` (6.7:1) | `#60A5FA` | In progress | In the air, en route, cleaning in progress |
-| `--neutral` | `#475569` (7.6:1) | `#94A3B8` | Not started | Scheduled, queued, planned |
-| `--proposal` | `#6D28D9` (7.1:1) | `#A78BFA` | **System suggestion awaiting a decision** | Proposal cards, "Suggested" badges, Co-Pilot action cards |
-| `--sim` | `#B45309` bg tint + striped border | same | **Simulated mode** | Global banner whenever `flight_mode = simulated` or a simulation run is active |
+| Meaning | Text on tint | Contrast | Used for |
+|---|---|---|---|
+| Success / ready / done | `#146c36` on `#e4f6ec` | 5.8:1 | Landed, room ready, checked in, active account |
+| Warning / at risk | `#a84f08` on `#fff1da` | 5.0:1 | Delayed, needs review, programme at risk, invited account |
+| Error / blocked | `#b42318` on `#fdecea` | 5.8:1 | Cancelled, rule broken, no driver |
+| Info / in progress | `#2456b3` on `#e8f0ff` | 6.0:1 | In the air, in progress, cleaning |
+| Neutral / not started | `#566174` on `#eef1f6` | 5.5:1 | Scheduled, queued, deactivated |
+| **Suggested** (awaiting a decision) | `#6d3fc4` on `#f0eaff`, ✦ icon | 5.7:1 | Proposals, "Suggested" chips, Co-Pilot action cards |
+| **Simulated mode** | `#a84f08` on `#fff7e8`, dashed border | 5.2:1 | Top-bar "Simulated" badge and staff-app strip (FR-PL-10) |
 
-Rules:
-- **Never use color alone.** Every status has an icon and a text label as well (e.g. ⏱ "Delayed +45 min", ✓ "Ready").
-- Status badges use a tinted background (≈10% of the status color) with the full-strength color for text and icon.
-- Red is reserved for real problems. A delay is amber, not red.
+Rules (unchanged): **never colour alone** (every status has a text label and usually an icon); red only for real problems (a delay is amber); status pills are tinted backgrounds with full-strength text.
 
 ## 3. Typography
 
 | Role | Font | Notes |
 |---|---|---|
-| UI text | **Geist Sans** (fallback: system-ui) | Neutral and highly legible at small sizes. Ships easily with Next.js (`next/font`). |
-| Data | **Geist Mono**, or Geist Sans with `font-variant-numeric: tabular-nums` | Flight numbers (`EK783`), times (`14:05`), room numbers (`412`). Aligned columns make tables scannable. |
+| UI text | **Plus Jakarta Sans** (variable, self-hosted via `@fontsource-variable/plus-jakarta-sans`; fallback system-ui) | The design's typeface. Self-hosted, so no request goes to Google Fonts. |
+| Data | `ui-monospace, SFMono-Regular, Menlo` for references and flight numbers (`VIP-7K3Q`, `EK783`) | Times use tabular numbers. |
 
-**Scale (rem, 16px base):** 0.75 (meta) · 0.875 (table/body-dense) · 1 (body) · 1.125 (card titles) · 1.25 (section) · 1.5 (page title) · 2 (dashboard counters).
-
-**Weights:** 400 body, 500 labels/buttons, 600 titles. Avoid 700+ except for counters.
-
-**Times:** 24-hour clock in the event timezone (e.g. `14:05`), with relative time where useful ("in 35 min", "12 min ago"). The event clock is always visible in the console top bar.
+Page titles are 34 px / 800; card titles 15–20 px / 700–800; body 14 px; helper text 11–13 px. **Times:** 24-hour clock in the event time zone (`lib/client/format.ts`), with the event clock in the console top bar and sidebar.
 
 ## 4. Layout conventions
 
 ### Console (desktop/tablet)
-- **Sidebar** (collapsible): Dashboard, Decisions *(badge count)*, Guests, Intake review *(badge)*, Flights, Transport, Rooms, Housekeeping, Program, Activity, Simulation, Admin.
-- **Top bar:** event name · **event clock** · simulated-mode banner (full width, above the top bar, when active) · notifications bell · **Co-Pilot** button (keyboard: `/` or `Ctrl/⌘ K`).
-- **Dashboard grid:** left column (≈ 40%) = **Needs your decision** queue; right column = **Next 6 hours** arrivals timeline + alerts; counters strip on top.
-- **Tables** (TanStack): sticky headers, dense rows (36–40 px), column filters, saved filter chips, row → detail drawer (keeps the user in context) with "Open full page" for complex records.
+- **Sidebar** (collapses to a drawer below 1100 px): Dashboard, Programme, Guests, Intake *(count)*, Arrivals, Transport, Rooms, Sanitation · Activity, Simulation, Settings; event card and signed-in user at the bottom. Items a role cannot open are hidden.
+- **Top bar:** search · event name · **Simulated** badge (when active) · event clock · **Ask Co-Pilot** · notifications bell · account menu (change password, sign out).
+- **Dashboard:** greeting hero with the venue photo, KPI tiles, then **Waiting for your approval** (left) and recent activity / at a glance (right), quick actions at the bottom.
+- **Tables:** the design's grid rows (guests, intake, settings) and plain `data-table`s for admin lists; filters sit above the table and the row opens the detail page.
 - **Detail pages:** a header with name + honorific + VIP category chip + status, then tabs or sections: Overview · Members · Travel · Rooms · Program · History.
 - **Breakpoints:** ≥ 1280 full layout; 768–1279 the sidebar collapses to icons and the dashboard stacks; < 768 the console is usable for the Co-Pilot, decisions and lookups, while heavy editing (room grid) shows a "best on a larger screen" hint.
 
@@ -137,8 +132,10 @@ Rules:
 - Show the VIP category as a chip ("Cat. 1") rather than an explicit rank word on staff screens.
 - The confirmation page and intake form never echo other people's data.
 
-## 9. Open design questions
+## 9. Design decisions (2026-10-19)
 
-1. Client/brand colors and logo (Clintels or the event's own branding)?
-2. Do staff screens need a local language option for the MVP?
-3. Should the console default to light, dark, or follow the system setting? (Recommended: follow the system setting.)
+1. **Brand:** Hostmark, from the Figma design.
+2. **Staff screens language:** English only for the MVP (copy kept in components; a dictionary can be added later).
+3. **Theme:** light only, as designed. The design has no dark mode.
+4. **Design-review toggles** ("Preview: Default / Loading / Empty / Error") from the prototype were removed: those states now come from real data.
+5. **Images:** the Lagos skyline photo (Unsplash licence) and the font are served from this app, not hotlinked.

@@ -1,6 +1,6 @@
 # 05 — Backend Schema & API Surface
 
-**Status:** v2, 2026-10-16. **P1 tables are built** (`db/migrations/20261016100000…100400`) and covered by tests; tables for later phases are **planned** and marked as such. Update this file in the same change as any migration.
+**Status:** v2.1, 2026-10-19 (dashboard summary and activity filters added). **P1 tables are built** (`db/migrations/20261016100000…100400`) and covered by tests; tables for later phases are **planned** and marked as such. Update this file in the same change as any migration.
 
 **Database:** PostgreSQL 18, self-hosted on the droplet (see [`02-TRD.md`](02-TRD.md) §5). Extension: `btree_gist` (P1); `pg_trgm` arrives with intake in P2.
 
@@ -317,12 +317,13 @@ Tests: `tests/db/*.test.ts` check each cell above as the relevant role.
 | GET / POST | `/api/admin/driver-shifts` · GET / PATCH / DELETE `/[id]` | same | Shifts (`?driver_id=&from=&to=` overlap window) |
 | GET / POST | `/api/admin/vip-categories` · GET / PATCH / DELETE `/[id]` | read: coordinator+, programs; write: coordinator+ | VIP categories |
 | POST | `/api/admin/vip-categories/reorder` | coordinator+ | `{ ids: [highest … lowest] }` |
-| GET | `/api/audit` | coordinator+ | Activity log (`?entity_type=&entity_id=&actor_id=&automatic=&from=&to=`), with `actor_name` and `undone` |
+| GET | `/api/audit` | coordinator+ | Activity log (`?entity_type=&entity_types=a,b&actor_type=&entity_id=&actor_id=&automatic=&from=&to=`), with `actor_name` and `undone` |
 | POST | `/api/audit/[id]/undo` | coordinator+ | `{ reason? }` |
 | GET | `/api/notifications` | any | Own notifications + `unread_count` (`?unread_only=`) |
 | POST | `/api/notifications/read` | any | `{ ids? }`; omit to mark all read |
 | GET | `/api/notifications/stream` | any | Server-Sent Events (§8); max 5 open streams per account |
 | GET | `/api/decisions` | coordinator+ | Pending proposals, soonest-expiring first |
+| GET | `/api/dashboard/summary` | coordinator+ | Dashboard counters: rooms by readiness, open decisions (each phase adds its counters) |
 | POST | `/api/proposals/[id]/approve` · `/reject` | coordinator+ | `{ line_ids? }` / `{ note? }` |
 
 ### Planned
@@ -352,6 +353,6 @@ Clients refresh the affected list (decisions, arrivals, rooms, cleaning) when a 
 
 ## 9. Seed data
 
-✅ `pnpm db:seed` (`db/tooling/seed.ts`, tested) on an empty database creates: an event starting in 30 days (4 days, Africa/Lagos), 4 room types, **126 rooms** over 6 floors × 3 wings, 4 VIP categories, **15 drivers** with two shifts a day, and one account per role (`coordinator@vipgcs.test`, `super.admin@vipgcs.test`, …) sharing one printed password. Seed writes are audited as non-undoable system actions.
+✅ `pnpm db:seed` (Docker Postgres) and `pnpm local:setup` (PGlite, event starting today) use `db/tooling/seed.ts` (tested). On an empty database they create the Figma demo venue: "Lagos Leadership Summit 2026" at Harbour Point Hotel (4 days, Africa/Lagos), 4 room types, **120 rooms** over 6 floors in West (x01–x07), East (x08–x14) and Garden (x15–x20) wings, 4 VIP categories, **15 named drivers** with vehicles and two shifts a day, and one named account per role (`coordinator@vipgcs.test` is Ada Nwosu, `admin@vipgcs.test` is Tolu Adebayo, …) sharing one printed password. Seed writes are audited as non-undoable system actions.
 
 Planned (P2+): about 60 delegations (200 guests) across categories, arrival modes and entourage sizes, plus scenario fixtures for duplicates, missing information, contradictions, delays, cancellations, shared flights and room conflicts (`00` decision 5).

@@ -65,7 +65,7 @@ describe('staff accounts API', () => {
     const newcomer: StaffMember = { id: account.id, email: account.email, password, token, role: 'housekeeping' }
 
     const meResult = await app.call<{ user: { must_change_password: boolean }; home_route: string }>(me, '/api/me', { as: newcomer })
-    expect(meResult.body.data).toMatchObject({ user: { must_change_password: true }, home_route: '/cleaning' })
+    expect(meResult.body.data).toMatchObject({ user: { must_change_password: true }, home_route: '/staff/sanitation' })
 
     const blocked = await app.call(listRooms, '/api/admin/rooms', { as: newcomer })
     expect(blocked.status).toBe(403)

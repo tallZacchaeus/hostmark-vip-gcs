@@ -49,8 +49,9 @@ describe('roles', () => {
 
   it('sends every role to its own home screen', () => {
     expect(HOME_ROUTES.coordinator).toBe('/dashboard')
-    expect(HOME_ROUTES.programs).toBe('/program')
+    expect(HOME_ROUTES.programs).toBe('/programme')
     expect(HOME_ROUTES.driver).toBe('/driver')
-    expect(HOME_ROUTES.housekeeping).toBe('/cleaning')
+    expect(HOME_ROUTES.accommodation).toBe('/staff/front-desk')
+    expect(HOME_ROUTES.housekeeping).toBe('/staff/sanitation')
   })
 })

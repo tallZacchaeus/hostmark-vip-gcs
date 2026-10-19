@@ -5,3 +5,5 @@
 # Packages allowed to run install scripts (pnpm 11 blocks all others).
 allowBuilds:
   esbuild: true
+  # Only re-checks that its prebuilt native binding (an optional dependency) is present.
+  unrs-resolver: false

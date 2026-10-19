@@ -1,0 +1,10 @@
+{
+  "description": "Streamline VIP guest management for large-scale events with real-time coordination of arrivals, accommodations, and transportation for event coordinators.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

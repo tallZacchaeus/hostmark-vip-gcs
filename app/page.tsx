@@ -1,12 +1,12 @@
-// Placeholder until the Figma Make frontend is integrated. The API lives under /api.
-export default function HomePage() {
-  return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: '40rem' }}>
-      <h1>VIP Guest Coordination System</h1>
-      <p>The backend API is running. The staff interface is being designed separately.</p>
-      <p>
-        Health check: <a href="/api/health">/api/health</a>
-      </p>
-    </main>
-  )
+// The entry point sends people to their role's home screen, or to sign in.
+import { redirect } from 'next/navigation'
+import { readPageActor } from '@/lib/auth/page-guard'
+import { HOME_ROUTES } from '@/lib/auth/roles'
+
+export default async function HomePage() {
+  const resolution = await readPageActor()
+  if (resolution.status !== 'active') {
+    redirect('/sign-in')
+  }
+  redirect(resolution.actor.mustChangePassword ? '/account/password' : HOME_ROUTES[resolution.actor.role])
 }
