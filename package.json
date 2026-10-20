@@ -30,7 +30,9 @@
     "db:new": "dbmate new",
     "db:types": "node scripts/generate-db-types.ts",
     "db:seed": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/seed-dev.ts",
-    "admin:create": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/create-super-admin.ts"
+    "admin:create": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/create-super-admin.ts",
+    "eval:build": "node --import tsx eval/build-intake-dataset.ts",
+    "eval:intake": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx eval/run-intake.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.135.0",

@@ -6,6 +6,10 @@ import { type StaffMember, TestApp } from './support/test-app'
 interface Summary {
   rooms: { total: number; ready: number; needs_cleaning: number; cleaning: number; out_of_service: number }
   decisions_pending: number
+  guests: { guests: number; delegations: number }
+  arrivals_today: { total: number; flying: number; by_road: number }
+  pickups_today: { total: number; needs_driver: number }
+  intake_to_review: number
 }
 
 describe('console API: dashboard summary and activity filters', () => {
@@ -49,6 +53,10 @@ describe('console API: dashboard summary and activity filters', () => {
     expect(result.body.data).toEqual({
       rooms: { total: 5, ready: 2, needs_cleaning: 1, cleaning: 1, out_of_service: 1 },
       decisions_pending: 1,
+      guests: { guests: 0, delegations: 0 },
+      arrivals_today: { total: 0, flying: 0, by_road: 0 },
+      pickups_today: { total: 0, needs_driver: 0 },
+      intake_to_review: 0,
     })
   })
 

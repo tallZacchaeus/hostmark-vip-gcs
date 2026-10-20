@@ -21,6 +21,9 @@ export const COORDINATOR_PLUS: readonly AppRole[] = ['super_admin', 'admin', 'co
 
 export const ANY_ROLE: readonly AppRole[] = APP_ROLES
 
+/** Guests and arrivals are read by the programmes team and the front desk too (P2 migration RLS). */
+export const GUEST_READERS: readonly AppRole[] = [...COORDINATOR_PLUS, 'programs', 'accommodation']
+
 /** Where each role lands after signing in (03-App-Flow.md section 3; paths follow the Figma design). */
 export const HOME_ROUTES: Readonly<Record<AppRole, string>> = {
   super_admin: '/dashboard',

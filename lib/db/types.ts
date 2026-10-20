@@ -9,9 +9,17 @@ export type ActorType = "copilot" | "guest_intake" | "system" | "user";
 
 export type AppRole = "accommodation" | "admin" | "coordinator" | "driver" | "housekeeping" | "programs" | "super_admin";
 
+export type ArrivalMode = "flying" | "own_transport" | "pickup";
+
+export type DuplicateKind = "exact" | "likely" | "none";
+
+export type FlightPhase = "cancelled" | "diverted" | "in_air" | "landed" | "scheduled" | "unknown";
+
 export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
   : ColumnType<T, T | undefined, T>;
+
+export type GuestStatus = "arrived" | "cancelled" | "checked_in" | "checked_out" | "expected";
 
 export type HousekeepingStatus = "clean" | "cleaning" | "needs_cleaning";
 
@@ -29,11 +37,41 @@ export type JsonPrimitive = boolean | number | string | null;
 
 export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
+export type MemberRole = "assistant" | "family" | "other" | "performer" | "principal" | "representative" | "security";
+
+export type PickupKind = "airport" | "location";
+
+export type PickupStatus = "assigned" | "cancelled" | "completed" | "en_route" | "pending_assignment" | "picked_up";
+
 export type ProposalKind = "copilot_action" | "driver_assignment" | "driver_reassignment" | "release_pickup" | "room_assignment" | "room_plan";
 
 export type ProposalStatus = "approved" | "expired" | "failed" | "pending" | "rejected" | "superseded";
 
+export type ProximityPriority = "high" | "low" | "normal";
+
+export type RequirementCategory = "accessibility" | "dietary" | "medical" | "other" | "room_preference" | "schedule" | "security" | "transport";
+
+export type SubmissionSource = "form" | "pasted_message";
+
+export type SubmissionStatus = "approved" | "auto_processed" | "linked_duplicate" | "needs_review" | "processing" | "received" | "rejected";
+
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
+
+export interface Arrivals {
+  created_at: Generated<Timestamp>;
+  delegation_id: string;
+  event_id: Generated<string>;
+  expected_at_venue_at: Timestamp | null;
+  flight_id: string | null;
+  id: Generated<string>;
+  mode: ArrivalMode;
+  pickup_address: string | null;
+  requested_pickup_at: Timestamp | null;
+  stated_arrival_at: Timestamp | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
 
 export interface AuditLog {
   action: string;
@@ -90,6 +128,22 @@ export interface AuthVerifications {
   value: string;
 }
 
+export interface Delegations {
+  contact_email: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  created_at: Generated<Timestamp>;
+  created_from_submission_id: string | null;
+  event_id: Generated<string>;
+  id: Generated<string>;
+  name: string;
+  notes: string | null;
+  principal_guest_id: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Drivers {
   created_at: Generated<Timestamp>;
   event_id: Generated<string>;
@@ -135,6 +189,103 @@ export interface Events {
   venue_name: string;
 }
 
+export interface Flights {
+  actual_arrival_at: Timestamp | null;
+  airline_iata: string | null;
+  arrival_date_local: string;
+  created_at: Generated<Timestamp>;
+  destination_iata: string | null;
+  estimated_arrival_at: Timestamp | null;
+  event_id: Generated<string>;
+  flight_number: string;
+  id: Generated<string>;
+  last_checked_at: Timestamp | null;
+  last_payload: Json | null;
+  manual_arrival_at: Timestamp | null;
+  next_check_at: Timestamp | null;
+  origin_iata: string | null;
+  phase: Generated<FlightPhase>;
+  provider: string | null;
+  scheduled_arrival_at: Timestamp | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface GuestRequirements {
+  category: RequirementCategory;
+  conflicts_with: string | null;
+  created_at: Generated<Timestamp>;
+  detail: string;
+  event_id: Generated<string>;
+  guest_id: string;
+  id: Generated<string>;
+  needs_attention: Generated<boolean>;
+  resolved_at: Timestamp | null;
+  resolved_by: string | null;
+  source: string;
+  source_submission_id: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface Guests {
+  accessibility: string | null;
+  arrival_id: string | null;
+  created_at: Generated<Timestamp>;
+  delegation_id: string;
+  dietary: Generated<string[]>;
+  email: string | null;
+  event_id: Generated<string>;
+  expected_departure_at: Timestamp | null;
+  full_name: string | null;
+  id: Generated<string>;
+  is_placeholder: Generated<boolean>;
+  member_role: Generated<MemberRole>;
+  notes: string | null;
+  organisation: string | null;
+  phone: string | null;
+  position: string | null;
+  proximity_priority: Generated<ProximityPriority>;
+  share_group: string | null;
+  status: Generated<GuestStatus>;
+  title: string | null;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+  vip_category_id: string | null;
+}
+
+export interface IntakeRateLimits {
+  count: Generated<number>;
+  ip_hash: string;
+  window_start: Timestamp;
+}
+
+export interface IntakeSubmissions {
+  ai_input_tokens: number | null;
+  ai_latency_ms: number | null;
+  ai_model: string | null;
+  ai_output_tokens: number | null;
+  client_ip_hash: string | null;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  delegation_id: string | null;
+  duplicate_kind: Generated<DuplicateKind>;
+  event_id: Generated<string>;
+  extraction: Json | null;
+  id: Generated<string>;
+  is_high_confidence: Generated<boolean>;
+  issues: Generated<Json>;
+  matched_delegation_id: string | null;
+  normalized: Json | null;
+  payload: Json;
+  reference_code: string;
+  review_note: string | null;
+  reviewed_at: Timestamp | null;
+  reviewed_by: string | null;
+  source: SubmissionSource;
+  status: Generated<SubmissionStatus>;
+  submitted_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface Notifications {
   body: string | null;
   created_at: Generated<Timestamp>;
@@ -147,6 +298,22 @@ export interface Notifications {
   read_at: Timestamp | null;
   recipient_id: string;
   title: string;
+}
+
+export interface Pickups {
+  arrival_id: string;
+  created_at: Generated<Timestamp>;
+  dropoff_location: string | null;
+  event_id: Generated<string>;
+  id: Generated<string>;
+  kind: PickupKind;
+  notes: string | null;
+  passenger_count: number;
+  pickup_at: Timestamp;
+  pickup_location: string;
+  status: Generated<PickupStatus>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
 }
 
 export interface Profiles {
@@ -230,14 +397,22 @@ export interface VipCategories {
 }
 
 export interface DB {
+  arrivals: Arrivals;
   audit_log: AuditLog;
   auth_accounts: AuthAccounts;
   auth_sessions: AuthSessions;
   auth_verifications: AuthVerifications;
+  delegations: Delegations;
   driver_shifts: DriverShifts;
   drivers: Drivers;
   events: Events;
+  flights: Flights;
+  guest_requirements: GuestRequirements;
+  guests: Guests;
+  intake_rate_limits: IntakeRateLimits;
+  intake_submissions: IntakeSubmissions;
   notifications: Notifications;
+  pickups: Pickups;
   profiles: Profiles;
   proposals: Proposals;
   room_types: RoomTypes;

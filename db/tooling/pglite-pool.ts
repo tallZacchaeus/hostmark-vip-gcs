@@ -7,6 +7,22 @@ import type { PostgresPool, PostgresPoolClient, PostgresQueryResult } from 'kyse
 
 type QueryCommand = PostgresQueryResult<unknown>['command']
 
+/**
+ * node-postgres sends a JS array as a Postgres array literal. PGlite does that only for built-in
+ * array types, so an enum array (`$1::app_role[]`) would arrive as "a,b" and fail; match pg here.
+ */
+export function arrayLiteral(values: readonly unknown[]): string {
+  const items = values.map((value) => {
+    if (value === null || value === undefined) return 'NULL'
+    if (Array.isArray(value)) return arrayLiteral(value)
+    const text = value instanceof Date ? value.toISOString() : typeof value === 'object' ? JSON.stringify(value) : String(value)
+    return `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+  })
+  return `{${items.join(',')}}`
+}
+
+const prepareParameter = (value: unknown): unknown => (Array.isArray(value) ? arrayLiteral(value) : value)
+
 export function pglitePool(db: PGlite): PostgresPool {
   let queue: Promise<void> = Promise.resolve()
 
@@ -27,7 +43,7 @@ export function pglitePool(db: PGlite): PostgresPool {
       const release = await acquire()
       const client = {
         async query<R>(sql: string, parameters: ReadonlyArray<unknown>): Promise<PostgresQueryResult<R>> {
-          const result = await db.query<R>(sql, [...parameters])
+          const result = await db.query<R>(sql, parameters.map(prepareParameter))
           return {
             command: (result.command ?? 'SELECT') as QueryCommand,
             rowCount: result.affectedRows ?? result.rows.length,

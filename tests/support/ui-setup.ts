@@ -9,6 +9,9 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+// jsdom has no layout, so scrolling is a no-op (multi-step forms scroll to the top).
+window.scrollTo = () => undefined
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
   usePathname: () => '/dashboard',

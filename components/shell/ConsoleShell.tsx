@@ -5,11 +5,12 @@ import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
 import { type ReactNode, useCallback, useState } from 'react'
 import type { PageKey } from '@/lib/auth/page-access'
+import { COORDINATOR_PLUS, hasAnyRole } from '@/lib/auth/roles'
 import { useNotificationStream } from '@/lib/client/realtime'
 import { routeClass } from '@/lib/client/route-class'
 import { refreshApi, useApi } from '@/lib/client/use-api'
 import { NOTIFICATIONS_PATH, type NotificationList, NotificationsDrawer } from './NotificationsDrawer'
-import { SessionProvider, type SessionValue } from './SessionContext'
+import { SessionProvider, type SessionValue, useSession } from './SessionContext'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 
@@ -29,7 +30,10 @@ function ConsoleFrame({ children }: { readonly children: ReactNode }) {
     void refreshApi('/api/')
   })
 
-  const sidebarCounts: Partial<Record<PageKey, number>> = {}
+  // The summary is coordinator-only; the programmes team shares this shell without the counts.
+  const { user } = useSession()
+  const summary = useApi<{ intake_to_review: number }>(hasAnyRole(user.role, COORDINATOR_PLUS) ? '/api/dashboard/summary' : null)
+  const sidebarCounts: Partial<Record<PageKey, number>> = summary.data?.intake_to_review ? { intake: summary.data.intake_to_review } : {}
 
   return (
     <div className={`app-shell-v4 route-${routeClass(pathname)}`}>

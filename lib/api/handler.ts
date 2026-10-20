@@ -66,7 +66,8 @@ export interface HandlerContext<TBody, TQuery, TParams> {
 type SegmentParams = Record<string, string | string[] | undefined>
 export type NextRouteHandler = (request: Request, context: { params: Promise<SegmentParams> }) => Promise<Response>
 
-async function readJsonBody(request: Request): Promise<unknown> {
+/** Reads a JSON body (≤ 1 MB, application/json only). Shared with the public route wrapper. */
+export async function readJsonBody(request: Request): Promise<unknown> {
   const contentType = request.headers.get('content-type')?.toLowerCase() ?? ''
   if (!contentType.startsWith('application/json')) {
     // Also blocks cross-site HTML form posts, which cannot send application/json.
@@ -83,7 +84,7 @@ async function readJsonBody(request: Request): Promise<unknown> {
   }
 }
 
-function errorResponse(error: ApiError, requestId?: string): Response {
+export function errorResponse(error: ApiError, requestId?: string): Response {
   const details = requestId ? { ...(error.details as object | undefined), requestId } : error.details
   const body = { code: error.code, message: error.message, ...(details === undefined ? {} : { details }) }
   const retryAfter = (error.details as { retryAfterSeconds?: number } | undefined)?.retryAfterSeconds

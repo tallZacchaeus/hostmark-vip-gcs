@@ -1,15 +1,15 @@
 # 05 — Backend Schema & API Surface
 
-**Status:** v2.1, 2026-10-19 (dashboard summary and activity filters added). **P1 tables are built** (`db/migrations/20261016100000…100400`) and covered by tests; tables for later phases are **planned** and marked as such. Update this file in the same change as any migration.
+**Status:** v2.2, 2026-10-20. **P1 and P2 tables are built** (`db/migrations/20261016100000…100400`, `20261019100000_guests_intake.sql`) and covered by tests; tables for later phases are **planned** and marked as such. Update this file in the same change as any migration.
 
-**Database:** PostgreSQL 18, self-hosted on the droplet (see [`02-TRD.md`](02-TRD.md) §5). Extension: `btree_gist` (P1); `pg_trgm` arrives with intake in P2.
+**Database:** PostgreSQL 18, self-hosted on the droplet (see [`02-TRD.md`](02-TRD.md) §5). Extensions: `btree_gist` (P1), `pg_trgm` (P2, duplicate detection).
 
 **Conventions:**
 - `uuid` primary keys (`gen_random_uuid()`), except the append-only `audit_log` (`bigint` identity).
 - All times are `timestamptz` (UTC, displayed in `events.timezone`). `date` columns travel as `YYYY-MM-DD` strings end to end.
 - `snake_case` everywhere, including API JSON.
 - `created_at` and `updated_at` on every mutable table (`updated_at` maintained by a trigger).
-- A `version int` column on records edited concurrently (planned tables, for optimistic locking).
+- A `version int` column, bumped by a trigger, on records edited concurrently (`delegations`, `arrivals`, `guests`, `pickups`; optimistic locking).
 - Every business table carries `event_id`, defaulting to the single event (`private.current_event_id()`). The MVP has exactly one event (a unique index enforces it).
 - Every business table has the `audit_row_change` trigger and row-level security (§6).
 
@@ -17,7 +17,7 @@
 
 ## 1. Entity-relationship overview
 
-Relationships marked with a phase are planned; the rest are built (P1).
+Relationships marked P3 or later are planned; the rest are built (P1, P2).
 
 ```mermaid
 erDiagram
@@ -191,29 +191,31 @@ Triggers: `guard_last_super_admin` (never zero active Super Admins); `audit_row_
 
 **`notifications`**: id, event_id, recipient_id (FK → profiles), kind (`^[a-z_]+$`), priority (`normal`, `high`), title, body, entity_type, entity_id (deep link), created_at, read_at. An insert fires `pg_notify('vip_notifications', {id, recipient_id, kind, priority})` (§8).
 
-### 3.4 Guests and intake — planned (P2)
+### 3.4 Guests and intake — ✅ built (P2)
 
-**`delegations`**: id, event_id, name, principal_guest_id (FK → guests, deferrable), status (`expected`, `arrived`, `departed`, `cancelled`), created_from_submission_id, notes, version.
+**`delegations`**: id, event_id, name (the principal's display name, kept in step when the coordinator renames the principal), principal_guest_id (FK → guests, deferrable), status (`expected`, `arrived`, `departed`, `cancelled`), created_from_submission_id, contact_name, contact_email, contact_phone (E.164), notes, version.
 
-**`guests`**: id, event_id, delegation_id, member_role, full_name (null when `is_placeholder`), is_placeholder, title, organisation, position, vip_category_id (**set by the coordinator**; required for principals before allocation), proximity_priority (default `normal`), share_group (same value = share a room), arrival_id, expected_departure_at, dietary text[], phone, email, status, notes, version. Indexes: `gin (full_name gin_trgm_ops)`, `(delegation_id)`, `(arrival_id)`.
+**`guests`**: id, event_id, delegation_id, member_role, full_name (null when `is_placeholder`), is_placeholder, title, organisation, position, vip_category_id (**set by the coordinator only**), proximity_priority (default `normal`), share_group (same value = share a room), arrival_id, expected_departure_at (departure date at 12:00 event time), dietary text[], accessibility, phone, email, status, notes, version. Indexes: `gin (full_name gin_trgm_ops)`, `(delegation_id)`, `(arrival_id)`.
 
-**`guest_requirements`**: id, guest_id, category (`dietary`, `accessibility`, `room_preference`, `security`, `transport`, `schedule`, `medical`, `other`), detail, source (`form`, `ai_extraction`, `coordinator`), source_submission_id, needs_attention, conflicts_with, resolved_at, resolved_by.
+**`guest_requirements`**: id, guest_id, category (`dietary`, `accessibility`, `room_preference`, `security`, `transport`, `schedule`, `medical`, `other`), detail, source (`form`, `extraction`, `coordinator`; `extraction` covers Claude and the offline rules, the submission's `ai_model` says which), source_submission_id, needs_attention, conflicts_with, resolved_at, resolved_by.
 
-**`intake_submissions`**: id, event_id, reference_code (unique, e.g. `VIP-7K3Q`), source, submitted_at, payload (raw), normalized, extraction (AI output, Zod-validated), issues (`[{code, field, severity, message}]`), duplicate_kind, duplicate_of_submission_id, matched_delegation_id, is_high_confidence, status, delegation_id, ai_model, ai_input_tokens, ai_output_tokens, ai_latency_ms, client_ip_hash, created_by, reviewed_by, reviewed_at, review_note.
+**`intake_submissions`**: id, event_id, reference_code (unique, `VIP-` + 4 unambiguous characters), source, submitted_at, payload (as received: the form, or `{text}`), normalized (form-shaped, edited during review), extraction (`{items, method, error}`, Zod-validated), issues (`[{code, field, severity: error|warning|info, message}]`), duplicate_kind, matched_delegation_id, is_high_confidence, status, delegation_id, ai_model (`rules` or the Claude model), ai_input_tokens, ai_output_tokens, ai_latency_ms, client_ip_hash (HMAC-SHA256, never the raw IP), created_by, reviewed_by, reviewed_at, review_note.
 
-**`intake_rate_limits`**: (ip_hash, window_start) PK, count.
+**`intake_rate_limits`**: (ip_hash, window_start) PK, count. vip_system only; old windows are deleted as each IP returns.
 
-### 3.5 Flights and transport — planned (P2/P3)
+**Lifecycle.** Public form: `processing` → `auto_processed` (records created) | `linked_duplicate` (exact duplicate) | `needs_review`. Pasted messages start at `needs_review`. Review: `approved` | `linked_duplicate` | `rejected`. **Undo automatic processing** returns an `auto_processed` submission to `needs_review` and deletes the delegation it created.
 
-**`flights`**: one row per flight number + local arrival date. id, event_id, flight_number (IATA, e.g. `EK783`), airline_iata, arrival_date_local, origin_iata, destination_iata, scheduled/estimated/actual_arrival_at, manual_arrival_at (override wins), phase, delay_minutes (generated), provider, last_checked_at, next_check_at, last_payload; unique (event_id, flight_number, arrival_date_local).
+### 3.5 Flights and transport — basic tables built (P2), the rest planned (P3)
 
-**`flight_updates`**: append-only history and metrics: flight_id, observed_at, source (`live`, `simulated`, `manual`), changes (`{field: [old, new]}`), payload, simulation_run_id, cascade_completed_at, cascade_ms.
+**`flights`** ✅: one row per flight number + local arrival date, shared by every arrival on it. id, event_id, flight_number (IATA, e.g. `EK783`), airline_iata, arrival_date_local, origin_iata, destination_iata (set when the event has one arrival airport), scheduled/estimated/actual_arrival_at, manual_arrival_at (override wins), phase, provider, last_checked_at, next_check_at, last_payload; unique (event_id, flight_number, arrival_date_local). P2 fills the schedule from the guest's stated landing time; P3 tracking fills the rest. Planned: delay_minutes (generated).
 
-**`arrivals`**: id, event_id, delegation_id, mode, flight_id (required when flying), pickup_address + requested_pickup_at (required for pickup), stated_arrival_at (required for own transport), expected_at_venue_at (derived), status, version; check constraint on the required columns per mode.
+**`flight_updates`** (P3): append-only history and metrics: flight_id, observed_at, source (`live`, `simulated`, `manual`), changes (`{field: [old, new]}`), payload, simulation_run_id, cascade_completed_at, cascade_ms.
 
-**`pickups`**: id, event_id, arrival_id (at most one non-cancelled per arrival), kind, pickup_location, dropoff_location, pickup_at (derived, auto-updated on flight change), passenger_count, status, notes, version.
+**`arrivals`** ✅: id, event_id, delegation_id, mode, flight_id (required when flying), pickup_address + requested_pickup_at (required for pickup), stated_arrival_at (required for own transport; the stated landing time when flying), expected_at_venue_at (derived: landing + exit buffer + airport travel; pickup + local travel; own transport = arrival), status, version; check constraint on the required columns per mode.
 
-**`pickup_assignments`**: id, pickup_id, driver_id, status (only `active` counts for availability), proposal_id, acknowledged_at, en_route_at, picked_up_at, completed_at, created_at, created_by.
+**`pickups`** ✅: id, event_id, arrival_id (at most one non-cancelled per arrival), kind (`airport`, `location`), pickup_location, dropoff_location (the venue), pickup_at (landing + exit buffer, or the requested time), passenger_count (kept equal to the party size), status, notes, version. Created for pickup requests and for flights whose landing time is known; P3 creates the rest from flight data.
+
+**`pickup_assignments`** (P3): id, pickup_id, driver_id, status (only `active` counts for availability), proposal_id, acknowledged_at, en_route_at, picked_up_at, completed_at, created_at, created_by.
 
 ### 3.6 Rooms and cleaning — planned (P4/P5)
 
@@ -263,7 +265,9 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 | `private.notify_users(...)` / `private.notify_roles(...)` | vip_system | Notification fan-out (active accounts only) | ✅ |
 | `private.audit_profile_change(id, action)` | admin+ | Records account creation / password reset with the acting admin | ✅ |
 | `private.set_audit_context(...)` | server code | Transaction-local actor type, action name, reason, automatic/undoable flags | ✅ |
-| `create_records_from_submission`, `link_duplicate_submission` | system / coordinator | Intake (§3.4) | P2 |
+| `public.intake_link_context(token)` | vip_system | Is the registration link open; event name, venue, timezone, dates (never the token or other settings) | ✅ |
+| `public.similarity(text, text)` (pg_trgm) | vip_app, vip_system | Name similarity for duplicate candidates | ✅ |
+| Record creation for a submission | — | Done in TypeScript inside one audited transaction (`lib/services/intake/records.ts`), not a SQL function: shared by auto-processing, approval, manual entry and the seed | ✅ (replaces the planned `create_records_from_submission`) |
 | `ingest_flight_update` | vip_system | Diff, update flight, arrivals, pickups; return affected ids | P3 |
 | `assign_room`, `check_in_stay`, `check_out_stay`, `reverse_checkout` | coordinator+ / accommodation | Rooms and turnaround | P4/P5 |
 | `start_cleaning`, `complete_cleaning`, `set_trip_status` | housekeeping / driver | Staff app status buttons | P3/P5 |
@@ -286,7 +290,15 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 | audit_log | R | R | R | – | – | – | – |
 | notifications | R/mark read (own) | same | same | same | same | same | same |
 
-Column-level grants add to this: the API cannot write `events.intake_token`, `profiles.email` or `notifications` columns other than `read_at`. Planned tables follow the matrix in the PRD (e.g. housekeeping never sees guest names; drivers see only their own pickups).
+**P2 rows:**
+
+| Table | super_admin / admin / coordinator | programs | accommodation | driver, housekeeping |
+|---|---|---|---|---|
+| delegations, guests, guest_requirements, arrivals, flights, pickups | RW | R | R | – |
+| intake_submissions | R; insert pasted-message drafts only; update review columns only | – | – | – |
+| intake_rate_limits | – (vip_system only) | – | – | – |
+
+Column-level grants add to this: the API cannot write `events.intake_token`, `profiles.email`, `notifications` columns other than `read_at`, or a submission's `payload`, `source`, `client_ip_hash` and `submitted_at`. Public registrations are written by vip_system with the audit actor `guest_intake`. Planned tables follow the matrix in the PRD (e.g. housekeeping never sees guest names; drivers see only their own pickups).
 
 Tests: `tests/db/*.test.ts` check each cell above as the relevant role.
 
@@ -326,13 +338,31 @@ Tests: `tests/db/*.test.ts` check each cell above as the relevant role.
 | GET | `/api/dashboard/summary` | coordinator+ | Dashboard counters: rooms by readiness, open decisions (each phase adds its counters) |
 | POST | `/api/proposals/[id]/approve` · `/reject` | coordinator+ | `{ line_ids? }` / `{ note? }` |
 
+### Built (P2)
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| GET | `/register/[token]` · `/register/[token]/done` (pages) | public | Registration form and confirmation (receipt kept in the browser tab only) |
+| GET | `/api/intake/[token]` | public, 30/min per IP | Link context `{ open, event_name, venue_name, timezone, starts_on, ends_on, turnstile_site_key }`; 404 `invalid_link` |
+| POST | `/api/intake/[token]` | public, 30/min per IP + 10 per 15 min per IP hash | `{ form, consent: true, turnstile_token? }` → 201 `{ reference_code, follow_up, summary }`; 409 `intake_closed`, 403 `bot_check_failed`, 429 |
+| POST | `/api/intake/read-message` | coordinator+, 10/min | `{ text }` → `{ fields, extraction }`; saves nothing |
+| GET / POST | `/api/intake/submissions` | coordinator+ (POST 10/min) | Queue (`?tab=review|duplicates|missing|flagged|processed|rejected&search=&source=`) with `tabs` counts and the registration `link`; POST `{ text }` saves a pasted message as a draft |
+| GET / PATCH | `/api/intake/submissions/[id]` | coordinator+ | Detail with the matched delegation for comparison; PATCH `{ fields }` saves corrections and re-checks |
+| POST | `/api/intake/submissions/[id]/approve` | coordinator+ | `{ fields?, vip_category_id? }` → records; 400 `intake_incomplete` with the field problems; 409 `already_reviewed` |
+| POST | `/api/intake/submissions/[id]/link` · `/reject` | coordinator+ | `{ delegation_id, note? }` / `{ note? }` |
+| POST | `/api/intake/submissions/[id]/undo` | coordinator+ | Undo automatic processing; 409 `not_auto_processed` |
+| GET / POST | `/api/guests` | GET coordinator+, programs, accommodation; POST coordinator+ | One row per delegation (`?tab=all|today|attention|arrived&search=&category_id=`) with `tabs` and `totals`; POST `{ fields, vip_category_id?, allow_duplicate? }` adds a guest by hand (409 `possible_duplicate`) |
+| GET / PATCH / DELETE | `/api/guests/[id]` | GET as above; PATCH/DELETE coordinator+ | Profile (a delegation id resolves to its principal); PATCH with `version` (409 `stale_version`); DELETE removes a companion (409 `cannot_remove_principal`) |
+| POST | `/api/delegations/[id]/members` | coordinator+ | `{ member_role, full_name?, dietary?, accessibility?, requirement_id? }` (named or placeholder; resolves the issue it came from) |
+| POST | `/api/guest-requirements/[id]/resolve` | coordinator+ | Dismiss an open issue (409 `already_resolved`) |
+
+`GET /api/dashboard/summary` now also returns `guests`, `arrivals_today`, `pickups_today` and `intake_to_review`.
+
 ### Planned
 
 | Method | Path | Phase |
 |---|---|---|
-| GET / POST | `/intake/[token]` (page) · `/api/intake/[token]` | P2 |
-| POST | `/api/intake/paste`, `/api/submissions/[id]/{approve,reject,link,reprocess}` | P2 |
-| GET / PATCH | `/api/guests/[id]` · POST `/api/delegations/[id]/split-arrival` | P2 |
+| POST | `/api/delegations/[id]/split-arrival` | P3 |
 | POST | `/api/flights/[id]/{refresh,override}`, `/api/pickups/[id]/propose`, `/api/trips/[assignmentId]/status` | P3 |
 | POST | `/api/webhooks/flights` (optional), `/api/simulation/runs`, `/api/simulation/runs/[id]/stop` | P3 |
 | POST | `/api/allocation/{run,check}`, `/api/room-assignments`, `/[id]/{check-in,check-out,reverse-checkout}` | P4/P5 |
@@ -355,4 +385,4 @@ Clients refresh the affected list (decisions, arrivals, rooms, cleaning) when a 
 
 ✅ `pnpm db:seed` (Docker Postgres) and `pnpm local:setup` (PGlite, event starting today) use `db/tooling/seed.ts` (tested). On an empty database they create the Figma demo venue: "Lagos Leadership Summit 2026" at Harbour Point Hotel (4 days, Africa/Lagos), 4 room types, **120 rooms** over 6 floors in West (x01–x07), East (x08–x14) and Garden (x15–x20) wings, 4 VIP categories, **15 named drivers** with vehicles and two shifts a day, and one named account per role (`coordinator@vipgcs.test` is Ada Nwosu, `admin@vipgcs.test` is Tolu Adebayo, …) sharing one printed password. Seed writes are audited as non-undoable system actions.
 
-Planned (P2+): about 60 delegations (200 guests) across categories, arrival modes and entourage sizes, plus scenario fixtures for duplicates, missing information, contradictions, delays, cancellations, shared flights and room conflicts (`00` decision 5).
+✅ P2 adds the 6 Figma delegations (17 guests, 4 flights, 5 pickups; created by the same code as an approved registration, `db/tooling/seed-guests.ts`) and 3 submissions in the review queue: a likely duplicate, a registration with a flagged note and a pasted message. Planned (P3+): about 60 delegations across categories, arrival modes and entourage sizes, plus scenario fixtures for delays, cancellations, shared flights and room conflicts (`00` decision 5).

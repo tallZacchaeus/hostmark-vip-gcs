@@ -68,7 +68,7 @@ async function main(): Promise<void> {
     const password = process.env.SEED_PASSWORD ?? generateTemporaryPassword()
     const result = await seedDevData(db, auth, password, { startsInDays: 0 })
     const lines = [
-      `Seeded ${result.rooms} rooms and ${result.drivers} drivers; the event starts today (${result.startsOn}).`,
+      `Seeded ${result.rooms} rooms, ${result.drivers} drivers, ${result.guests.delegations} delegations and ${result.guests.queued} registrations to review; the event starts today (${result.startsOn}).`,
       'Sign in at http://localhost:3000 (all accounts share one password):',
       ...result.accounts.map((account) => `  ${account.role.padEnd(14)} ${account.email}`),
       `Password: ${password}`,

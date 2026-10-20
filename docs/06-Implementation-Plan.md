@@ -1,6 +1,6 @@
 # 06 — Implementation Plan
 
-**Status as of 2026-10-19:** P0 decisions confirmed. **P1 is done**: backend (2026-10-16) and the **Figma Make frontend "Hostmark", ported into the Next.js app** (2026-10-19): auth screens, console and staff shells, dashboard, activity and settings on the real API; the other screens show "coming soon" until their phase. 276 automated tests pass. Next: P2 guest intake. The project is now under git (one commit per phase).
+**Status as of 2026-10-20:** P0 decisions confirmed. **P1 is done** (backend 2026-10-16; the Figma Make frontend "Hostmark" ported into the Next.js app 2026-10-19). **P2 guest intake is done** (2026-10-20): public registration, the intake pipeline, the review queue, pasted messages, guests and guest profiles, dashboard counters, demo data and the intake evaluation. External services stay behind interfaces with offline stand-ins until keys are issued (Claude → offline rules, Turnstile → skipped, see [`02`](02-TRD.md) §4). Next: P3 flights and transport. One git commit per phase.
 
 **Rule from [`00` §10](00-Project-Breakdown.md#10-boundaries-to-keep-the-project-realistic):** a phase is done when it **works end to end and can be measured**, not when it has the most features. Each phase below has explicit exit criteria.
 
@@ -84,20 +84,23 @@ Frontend (2026-10-19, from the Figma Make export in `design/figma-make/`):
 
 **Exit:** each role can sign in and sees only its own shell. Admin can configure the full venue. RLS tests pass for every role ✅. An audited write + undo works on one sample entity ✅.
 
-### P2 — Guest intake and validation (M1) ⬜
-- ⬜ Migrations: `delegations`, `guests`, `guest_requirements`, `arrivals`, `flights` (basic), `pickups` (basic), `intake_submissions`, `intake_rate_limits`
-- ⬜ Public form `/intake/[token]` with conditional arrival-mode fields, members, consent, Turnstile, rate limit (FR-IN-01…03)
-- ⬜ Zod intake schema (shared by the form, API and AI structured output)
-- ⬜ Normalizers (names/titles, phone E.164, flight numbers, dates→UTC) (FR-IN-07)
-- ⬜ AI extraction of the "others" field + pasted-message draft (FR-IN-04/05)
-- ⬜ Validation checks (FR-IN-06) + duplicate detection (exact / likely, `pg_trgm`) (FR-IN-08)
-- ⬜ Rule-based high-confidence gate + `create_records_from_submission` RPC (FR-IN-09)
-- ⬜ Intake review screen (issues, side-by-side duplicates, approve/link/reject, paste tool) (FR-IN-10)
-- ⬜ Guests list + guest/delegation detail: VIP category, members, share groups, proximity priority (FR-IN-11)
-- ⬜ Dashboard v1: decisions queue (review items), counters
-- ⬜ **Eval:** `eval/datasets/intake.jsonl` (≥ 100 items, synthetic + volunteer) + `pnpm eval:intake` → field F1, problem detection P/R, auto-processing rate
+### P2 — Guest intake and validation (M1) ✅
+- ✅ Migration `20261019100000_guests_intake.sql`: `delegations`, `guests`, `guest_requirements`, `arrivals`, `flights` (basic), `pickups` (basic), `intake_submissions`, `intake_rate_limits`, `pg_trgm`, RLS + column grants, `intake_link_context()`
+- ✅ Public form `/register/[token]` (4 steps, fields by arrival mode, companions, consent, optional Turnstile) and confirmation page; per-IP-hash limit in Postgres (10 per 15 min) plus 30/min in memory (FR-IN-01…03)
+- ✅ One Zod intake schema shared by the form, the API, the review screen and AI structured output (`lib/domain/intake/schema.ts`)
+- ✅ Normalisers: titles split from names, casing, E.164 phones, IATA flight numbers, dates/times to UTC in the event zone (FR-IN-07)
+- ✅ Free-text reading behind one interface: Claude (structured output, prompt-injection wrapping, every failure falls back and forces review) or the offline rules (no key) — "anything else" items and pasted-message drafts (FR-IN-04/05)
+- ✅ Rule checks (required by mode, flight format, airline vs prefix, date window, departure ≥ arrival, AI-flagged items) and duplicate detection (exact → linked, likely → review; trigram + same date/flight/contact, or a partial name with the same date/flight/contact) (FR-IN-06/08)
+- ✅ High-confidence gate and record creation (delegation, principal, named or placeholder companions, arrival, shared flight, pickup) in one audited transaction; a failure falls back to review (savepoint); **Undo automatic processing** per submission (FR-IN-09). Implemented in TypeScript (`lib/services/intake/records.ts`) rather than the planned SQL function, so the same code serves auto-processing, approval, manual entry and the seed.
+- ✅ Intake queue (tabs by reason, search, source filter, copy link) and review screen (original vs what was read, checks, side-by-side duplicate, approve / link / treat as new / reject); paste drawer (FR-IN-10)
+- ✅ Guests list (tabs, search, category filter, Add guest with duplicate warning) and guest profile (party, arrival, transport, room placeholder, open issues with Dismiss / Add as guest, history, edit with optimistic locking: VIP category, proximity, share group) (FR-IN-11)
+- ✅ Dashboard: VIP guests, arrivals today, pickups today tiles; Intake badge in the sidebar. Review items live on Intake (the approvals card keeps proposals only).
+- ✅ Demo data: 6 Figma delegations through the real record builder + 3 queued submissions (likely duplicate, flagged note, pasted message)
+- ✅ **Eval:** `eval/datasets/intake.jsonl` (135 synthetic labelled items: 110 notes, 25 messages; `pnpm eval:build`) + `pnpm eval:intake`. Offline rules, 2026-10-20: category F1 88.6%, attention accuracy 100%, contradiction F1 100%, problem-detection F1 100%, auto-processing 35.5% (expected 35.5%), pasted-message field F1 100%. **The set is synthetic** and the rules were written alongside it, so these numbers are a regression baseline, not real-world accuracy; volunteer notes (P8) and a Claude run (`--reader claude`, needs a key) give the reportable figures.
 
-**Exit:** a volunteer can submit on a phone. Clean submissions auto-create records, and unclear ones land in review. The eval script produces the M1 metrics.
+**Exit:** ✅ a phone registration goes end to end (Playwright run, no browser errors); clean submissions auto-create records, unclear ones land in review; the eval script produces the M1 metrics.
+
+**Known gaps carried forward:** linking a duplicate does not copy chosen field updates (F3 "apply chosen updates") ⏸; global test coverage is 64% of lines against the 80% target, mostly P1 screens without component tests (settings, activity, shells) — closing it is in P8.
 
 ### P3 — Flight tracking and transport (M2) ⬜
 - ⬜ `FlightProvider` interface; `SimulatedProvider`; `AeroDataBoxProvider` (FR-FT-10)
@@ -157,7 +160,9 @@ Frontend (2026-10-19, from the Figma Make export in `design/figma-make/`):
 - ⬜ Volunteer data round (consented) through the real intake link
 - ⬜ Small usability test: 3 coordinator tasks vs a spreadsheet + chat baseline
 - ⬜ Accessibility audit (axe + manual keyboard/screen reader pass) against `04` §7
-- ⬜ Security review: RLS matrix re-test, secrets, rate limits, intake abuse, Co-Pilot prompt-injection via guest free-text
+- ⬜ Security review: RLS matrix re-test, secrets, rate limits, intake abuse, Co-Pilot prompt-injection via guest free-text (P2 intake reviewed 2026-10-20, see the P2 commit)
+- ⬜ Coverage to ≥ 80% lines/branches: component tests for settings, activity, shells, sign-in
+- ⬜ Content-Security-Policy in Caddy (allow `challenges.cloudflare.com` for scripts and frames when Turnstile is on)
 - ⬜ Performance check against the `02` §7 targets
 - ⬜ Demo script using simulated mode
 - ⬜ Droplet operations: nightly `pg_dump` to DigitalOcean Spaces, weekly droplet backups, a restore drill, firewall (22/80/443), unattended upgrades

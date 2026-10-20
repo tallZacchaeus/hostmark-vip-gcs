@@ -30,6 +30,14 @@ const databaseUrl = z
   .string()
   .regex(/^(postgres(ql)?|pglite):\/\//, 'must be a postgres:// connection URL (or pglite://<dir> in development)')
 
+/** An optional key: blank means "not configured". */
+const optionalSecret = z
+  .string()
+  .trim()
+  .max(500)
+  .optional()
+  .transform((value) => (value ? value : undefined))
+
 const serverEnvSchema = z.object({
   DATABASE_URL: databaseUrl,
   /** vip_service login: Better Auth's own queries (the only credential that can act as vip_system). */
@@ -40,6 +48,12 @@ const serverEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   /** Opt-in for a local production build (`next start`, end-to-end tests) on PGlite. Never on the droplet. */
   ALLOW_PGLITE: z.enum(['true', 'false']).default('false'),
+  /** Claude API key. Unset: free text is read by the offline rules instead (no external calls). */
+  ANTHROPIC_API_KEY: optionalSecret,
+  INTAKE_AI_MODEL: z.string().trim().min(1).max(100).default('claude-opus-5-5'),
+  /** Cloudflare Turnstile. Unset: the bot check is skipped and only rate limiting protects the form. */
+  TURNSTILE_SITE_KEY: optionalSecret,
+  TURNSTILE_SECRET_KEY: optionalSecret,
 }).superRefine((env, context) => {
   if (env.NODE_ENV !== 'production' || env.ALLOW_PGLITE === 'true') return
   for (const key of ['DATABASE_URL', 'SERVICE_DATABASE_URL'] as const) {

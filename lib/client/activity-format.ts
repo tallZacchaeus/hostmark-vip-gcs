@@ -30,14 +30,19 @@ export interface Change {
   readonly newValue: string
 }
 
+type Row = Record<string, unknown>
+
 interface TableInfo {
   readonly domain: ActivityDomain
   readonly noun: string
-  readonly name?: (row: Record<string, unknown>) => string | undefined
-  readonly href?: string
+  readonly name?: (row: Row) => string | undefined
+  /** A fixed screen, or one built from the record (e.g. its guest profile). */
+  readonly href?: string | ((row: Row, entityId: string) => string | undefined)
 }
 
 const text = (value: unknown): string | undefined => (typeof value === 'string' && value !== '' ? value : undefined)
+const joined = (...values: unknown[]): string | undefined => text(values.map(text).filter(Boolean).join(' '))
+const guestLink = (id: unknown): string | undefined => (text(id) ? `/guests/${String(id)}` : undefined)
 
 const TABLES: Readonly<Record<string, TableInfo>> = {
   rooms: { domain: 'Rooms', noun: 'room', name: (row) => text(row.number), href: '/rooms' },
@@ -48,6 +53,13 @@ const TABLES: Readonly<Record<string, TableInfo>> = {
   events: { domain: 'Setup', noun: 'event settings', href: '/settings?tab=system' },
   profiles: { domain: 'Setup', noun: 'account', name: (row) => text(row.full_name), href: '/settings?tab=users' },
   proposals: { domain: 'Setup', noun: 'suggestion', name: (row) => text(row.title), href: '/dashboard#approvals' },
+  intake_submissions: { domain: 'Intake', noun: 'registration', name: (row) => text(row.reference_code), href: (_row, id) => `/intake/${id}` },
+  delegations: { domain: 'Intake', noun: 'delegation', name: (row) => text(row.name), href: (_row, id) => guestLink(id) },
+  guests: { domain: 'Intake', noun: 'guest', name: (row) => joined(row.title, row.full_name), href: (_row, id) => guestLink(id) },
+  guest_requirements: { domain: 'Intake', noun: 'guest note', name: (row) => text(row.detail), href: (row) => guestLink(row.guest_id) },
+  arrivals: { domain: 'Arrivals', noun: 'arrival', href: (row) => guestLink(row.delegation_id) },
+  flights: { domain: 'Arrivals', noun: 'flight', name: (row) => text(row.flight_number), href: '/arrivals' },
+  pickups: { domain: 'Transport', noun: 'pickup', name: (row) => text(row.pickup_location), href: '/transport' },
 }
 
 /** Tables shown for each "Type" filter value. */
@@ -89,13 +101,14 @@ export interface ActivityObject {
   readonly href?: string
 }
 
-export function objectOf(entry: Pick<AuditEntry, 'entity_type' | 'before' | 'after'>): ActivityObject {
+export function objectOf(entry: Pick<AuditEntry, 'entity_type' | 'before' | 'after'> & { readonly entity_id?: string }): ActivityObject {
   const info = TABLES[entry.entity_type]
   const row = entry.after ?? entry.before ?? {}
   const noun = info?.noun ?? entry.entity_type.replace(/_/g, ' ').replace(/s$/, '')
   const name = info?.name?.(row)
   const label = name ? (info?.noun === 'suggestion' ? `“${name}”` : `${noun} ${name}`) : noun
-  return { label, href: info?.href }
+  const href = typeof info?.href === 'function' ? info.href(row, entry.entity_id ?? '') : info?.href
+  return { label, href }
 }
 
 const NAMED_VERBS: Readonly<Record<string, string>> = {

@@ -35,3 +35,6 @@ blob-report/
 
 # local PGlite databases (pnpm local:setup, e2e)
 .pglite/
+
+# Evaluation output (regenerate with pnpm eval:intake)
+eval/results/

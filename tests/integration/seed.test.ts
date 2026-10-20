@@ -16,7 +16,7 @@ describe('development seed', () => {
 
   it('creates a usable venue, drivers and one account per role', async () => {
     const result = await seedDevData(app.db, app.auth, password, { now: new Date('2026-10-16T09:00:00Z') })
-    expect(result).toMatchObject({ startsOn: '2026-11-15', rooms: 120, drivers: 15 })
+    expect(result).toMatchObject({ startsOn: '2026-11-15', rooms: 120, drivers: 15, guests: { delegations: 6, queued: 3 } })
     expect(result.accounts).toHaveLength(7)
 
     const [shifts] = await app.sql<{ n: number }>('select count(*)::int as n from driver_shifts')
@@ -44,6 +44,14 @@ describe('development seed', () => {
       { number: '615', wing: 'Garden' },
       { number: '620', wing: 'Garden' },
     ])
+
+    // Demo guests go through the real record builder: flights, pickups and a review queue.
+    const [counts] = await app.sql<{ flights: number; pickups: number; review: number; likely: number }>(
+      `select (select count(*)::int from flights) as flights, (select count(*)::int from pickups) as pickups,
+        (select count(*)::int from intake_submissions where status = 'needs_review') as review,
+        (select count(*)::int from intake_submissions where duplicate_kind = 'likely') as likely`,
+    )
+    expect(counts).toEqual({ flights: 4, pickups: 5, review: 3, likely: 2 })
 
     // Seed data is recorded as system activity that cannot be undone.
     const [undoable] = await app.sql<{ n: number }>(`select count(*)::int as n from audit_log where undoable`)

@@ -159,8 +159,62 @@ a:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-
 .activity-more { margin: 0; padding: 12px 18px; border-top: 1px solid #eef1f6; color: var(--secondary); font-size: 13px; }
 .recent-empty { margin: 0; padding: 12px 0 4px; color: var(--secondary); font-size: 12px; }
 
+/* Public registration additions (list semantics, fieldsets, the note field, the bot check) */
+.registration-bars { margin: 0; padding: 0; list-style: none; }
+.registration-bars li { min-width: 0; }
+.registration-bars button { width: 100%; }
+fieldset.registration-field { margin: 0; border: 0; padding: 0; }
+fieldset.registration-field > legend { margin-bottom: 7px; padding: 0; color: #17263b; font-size: 14px; font-weight: 600; }
+fieldset.registration-field > legend b { color: #b42318; }
+.registration-field > textarea { width: 100%; min-width: 0; min-height: 110px; border: 1px solid #cbd3e1; border-radius: 12px; padding: 12px 13px; outline: 0; color: #0f1b2d; background: #fff; font: inherit; font-size: 16px; resize: vertical; }
+.registration-field > textarea:focus { border-color: #2456b3; box-shadow: 0 0 0 3px rgba(36,86,179,.18); }
+.turnstile-box { min-height: 65px; margin-top: 14px; }
+.registration-closed { padding: 28px; text-align: center; }
+.registration-closed h1 { margin: 12px 0 8px; font-size: 22px; }
+.registration-closed p { margin: 0; color: #626d80; }
+
+/* Intake review additions */
+.review-field select, .companions-section select, .review-field textarea { width: 100%; height: 44px; padding: 0 11px; border: 1px solid #d9dfe8; border-radius: 10px; outline: 0; color: #17263b; background: #fff; font-size: 14px; }
+.review-field select:focus, .companions-section select:focus { border-color: #e46a38; box-shadow: 0 0 0 3px rgba(232,72,12,.12); }
+.review-field input[readonly], .companions-section input[readonly] { background: #f7f9fc; }
+.companion-actions { display: flex; align-items: center; gap: 8px; }
+.companion-actions select { width: auto; min-width: 150px; }
+.companions-section > .hm-button { margin-top: 12px; }
+.review-checks { display: flex; flex-direction: column; gap: 12px; margin: 20px 20px 0; }
+.review-checks .uncertain-review { margin: 0; }
+.review-checks .uncertain-review small { display: block; margin-top: 6px; color: #7a5a2b; font-size: 12px; }
+.review-issues { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.review-issues li { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 10px; color: #7a3b06; background: #fff7e8; font-size: 13px; line-height: 1.4; }
+.review-issues li.is-error { color: #8f1d14; background: #fdecea; }
+.review-issues li.is-info { color: #24456f; background: #eef4ff; }
+.review-items { margin: 0; color: var(--secondary); font-size: 13px; }
+.review-decided { margin: 0 0 18px; color: var(--secondary); font-size: 14px; }
+.review-switch { margin: 14px 0 0; }
+.review-switch button { border: 0; padding: 0; color: #b83a0a; background: transparent; font-size: 13px; font-weight: 700; text-decoration: underline; }
+.original-message-card > p.original-text { white-space: pre-wrap; }
+.original-form { margin: 0; padding: 18px 24px 24px; }
+.original-form > div { display: grid; grid-template-columns: 130px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px solid #eef1f7; }
+.original-form > div:last-child { border: 0; }
+.original-form dt { color: #626d80; font-size: 13px; }
+.original-form dd { margin: 0; color: #24354b; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.read-note { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; color: #7a3b06; background: #fff7e8; font-size: 13px; }
+select.filter-select { padding-right: 12px; }
+
+/* Guests and guest profile additions */
+a.guest-table-row { color: inherit; text-decoration: none; }
+.party-add { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid #eef1f7; }
+.party-add input, .party-add select { height: 40px; min-width: 0; padding: 0 10px; border: 1px solid #d9dfe8; border-radius: 10px; color: #17263b; background: #fff; font: inherit; font-size: 13px; }
+.profile-notes { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; color: #3d4b60; font-size: 13px; }
+.profile-notes a { color: #b83a0a; font-weight: 700; }
+.profile-card a[href^="tel:"], .profile-card a[href^="mailto:"] { color: inherit; }
+.add-guest-drawer .review-base-fields { grid-template-columns: 1fr 1fr; margin: 0; }
+.add-guest-drawer .companions-section { margin: 4px 0 0; }
+.add-guest-drawer .possible-match { margin: 0; }
+.add-guest-drawer .review-field > span { font-size: 11px; font-weight: 700; }
+
 /* Links that look like the design's buttons and tiles */
 a.hm-button, a.stat-tile, a.quick-action { text-decoration: none; }
+a.register-another { display: flex; align-items: center; justify-content: center; text-decoration: none; }
 .recent-card header a, .glance-card header a { color: #b83a0a; font-size: 11px; font-weight: 700; text-decoration: none; }
 
 @media (max-width: 767px) {

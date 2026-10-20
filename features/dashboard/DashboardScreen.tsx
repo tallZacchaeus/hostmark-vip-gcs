@@ -6,7 +6,7 @@ import { Icon, type IconName } from '@/components/ui/Icon'
 import { Skeleton } from '@/components/ui/Status'
 import { useSession } from '@/components/shell/SessionContext'
 import { useNow } from '@/components/shell/useNow'
-import { firstName, greeting } from '@/lib/client/format'
+import { firstName, greeting, plural } from '@/lib/client/format'
 import { useApi } from '@/lib/client/use-api'
 import { ApprovalsCard } from './ApprovalsCard'
 import { RecentActivityCard } from './RecentActivityCard'
@@ -14,6 +14,10 @@ import { RecentActivityCard } from './RecentActivityCard'
 export interface DashboardSummary {
   readonly rooms: { total: number; ready: number; needs_cleaning: number; cleaning: number; out_of_service: number }
   readonly decisions_pending: number
+  readonly guests: { guests: number; delegations: number }
+  readonly arrivals_today: { total: number; flying: number; by_road: number }
+  readonly pickups_today: { total: number; needs_driver: number }
+  readonly intake_to_review: number
 }
 
 interface TileProps {
@@ -85,7 +89,7 @@ function StatsRow() {
   if (!data) {
     return (
       <section className="stats-row" aria-busy="true">
-        {[0, 1].map((item) => (
+        {[0, 1, 2, 3, 4].map((item) => (
           <div className="stat-tile stat-tile--loading" key={item}>
             <Skeleton className="sk-circle" />
             <Skeleton className="sk-number" />
@@ -96,8 +100,33 @@ function StatsRow() {
     )
   }
   const waiting = data.rooms.needs_cleaning + data.rooms.cleaning
+  const arrivals = data.arrivals_today
   return (
     <section className="stats-row" aria-label="Today at a glance">
+      <StatTile
+        tone="guests"
+        icon="users"
+        value={data.guests.guests}
+        label="VIP guests"
+        helper={`${plural(data.guests.delegations, 'delegation')}${data.intake_to_review ? ` · ${data.intake_to_review} to review` : ''}`}
+        href={data.intake_to_review ? '/intake' : '/guests'}
+      />
+      <StatTile
+        tone="arrivals"
+        icon="plane"
+        value={arrivals.total}
+        label="Arrivals today"
+        helper={arrivals.total ? `${arrivals.flying} by air · ${arrivals.by_road} by road` : 'Nobody due today'}
+        href="/arrivals"
+      />
+      <StatTile
+        tone="pickups"
+        icon="car"
+        value={data.pickups_today.total}
+        label="Pickups today"
+        helper={data.pickups_today.needs_driver ? `${data.pickups_today.needs_driver} need a driver` : 'All covered'}
+        href="/transport"
+      />
       <StatTile
         tone="rooms"
         icon="bed"

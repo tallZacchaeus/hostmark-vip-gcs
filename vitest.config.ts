@@ -17,7 +17,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'unit',
-          include: ['lib/**/*.test.ts', 'app/**/*.test.ts', 'features/**/*.test.ts'],
+          include: ['lib/**/*.test.ts', 'app/**/*.test.ts', 'features/**/*.test.ts', 'eval/**/*.test.ts'],
           environment: 'node',
         },
       },

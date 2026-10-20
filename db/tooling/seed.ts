@@ -6,6 +6,7 @@ import { type Kysely, sql } from 'kysely'
 import type { Auth } from '@/lib/auth/auth'
 import { APP_ROLES, type AppRole } from '@/lib/auth/roles'
 import type { DB } from '@/lib/db/types'
+import { type GuestSeedResult, seedGuests } from './seed-guests'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const DEFAULT_STARTS_IN_DAYS = 30
@@ -63,6 +64,7 @@ export interface SeedResult {
   readonly rooms: number
   readonly drivers: number
   readonly accounts: ReadonlyArray<{ readonly role: AppRole; readonly email: string }>
+  readonly guests: GuestSeedResult
 }
 
 const isoDate = (date: Date): string => date.toISOString().slice(0, 10)
@@ -196,5 +198,6 @@ export async function seedDevData(db: Kysely<DB>, auth: Auth, password: string, 
   const days = eventDays(now, options.startsInDays ?? DEFAULT_STARTS_IN_DAYS)
   const venue = await seedVenue(db, days)
   const accounts = await seedAccounts(db, auth, password, venue.driverIds[0])
-  return { eventId: venue.eventId, startsOn: days[0] ?? '', rooms: venue.rooms, drivers: venue.driverIds.length, accounts }
+  const guests = await seedGuests(db, days[0] ?? '', days.at(-1) ?? '')
+  return { eventId: venue.eventId, startsOn: days[0] ?? '', rooms: venue.rooms, drivers: venue.driverIds.length, accounts, guests }
 }

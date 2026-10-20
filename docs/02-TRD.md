@@ -1,6 +1,6 @@
 # 02 — Technical Requirements Document (TRD)
 
-**Status:** v3, 2026-10-19. Hosting is **one DigitalOcean droplet** (decision 12 in [`00`](00-Project-Breakdown.md#decisions-log)). The P1 backend is built and tested, and the Figma Make frontend ("Hostmark") is ported into the same Next.js app (see [`06`](06-Implementation-Plan.md)).
+**Status:** v4, 2026-10-20. Hosting is **one DigitalOcean droplet** (decision 12 in [`00`](00-Project-Breakdown.md#decisions-log)). P1 (backend + the Figma Make frontend "Hostmark") and P2 (guest intake) are built and tested (see [`06`](06-Implementation-Plan.md)).
 
 **Related:** [`01-PRD.md`](01-PRD.md) (what), [`05-Backend-Schema.md`](05-Backend-Schema.md) (data and API), [`06-Implementation-Plan.md`](06-Implementation-Plan.md) (build order).
 
@@ -143,8 +143,13 @@ submit → [Turnstile + rate limit] → store raw submission
                            no  → review queue + coordinator notification
 ```
 
-- **Duplicate scoring:** normalized-name trigram similarity (`pg_trgm`) combined with the same flight + date, the same arrival date, or the same contact phone/email. *Exact* = all key fields identical after normalization → auto-link. *Likely* = similarity ≥ threshold (tuned on the eval set, start at 0.6) with a matching date/flight or contact → review.
+- **Duplicate scoring:** normalized-name trigram similarity (`pg_trgm`, candidates ≥ 0.3) combined with the same flight + date, the same arrival date, or the same contact phone/email. *Exact* = same name, arrival and contact, **and nothing new** (same party size and departure, no note) → auto-link. *Likely* = similarity ≥ 0.6, the same name, or a partial name ("Okafor" in "Augustine Okafor"), with a matching date/flight or contact → review.
 - **AI cost and latency** are recorded per submission (model, tokens, ms) for the evaluation chapter.
+
+**As built (P2).** `POST /api/intake/[token]` (`lib/services/intake/public-submit.ts`): link check and per-IP-hash allowance (one vip_system transaction) → Turnstile → read the "others" note (outside any transaction) → one vip_system transaction that stores the submission, then links an exact duplicate, creates the records (savepoint: a failure leaves the submission in review with `auto_process_failed`) or queues it and notifies coordinators. The pipeline's pure parts live in `lib/domain/intake/` (schema, normalize, extract-rules, validate, duplicates); record creation in `lib/services/intake/records.ts` serves auto-processing, approval, manual entry and the seed.
+- **Readers** (`lib/ai/intake-reader.ts`): Claude when `ANTHROPIC_API_KEY` is set, otherwise the offline rules. Guest text is wrapped as data with every `<`/`>` escaped; output is Zod-validated twice. A **safety floor** applies whatever the model says: medical, security, schedule and other items always need attention, medical/security/contradiction items the rules find are added if the model left them out, and a note that reads as empty goes to review (`ai_empty`). Refusal, invalid output, timeout or network failure fall back to the rules and mark `ai_unavailable`, which also forces review.
+- **Undo:** intake rows are audited as automatic but not undoable row by row; *Undo automatic processing* works per submission (deletes the delegation it created and returns the submission to review).
+- **Abuse limits:** 30 requests/min per IP (page and API, in memory) and 10 registrations per 15 min per IP hash (Postgres). The IP is stored only as an HMAC under a key derived from `BETTER_AUTH_SECRET`. The guest learns only their reference code and whether a coordinator will follow up because of problems in what they sent — never whether someone similar is already registered.
 
 ### 3.2 Flight tracking (M2) — P3
 
@@ -224,7 +229,15 @@ submit → [Turnstile + rate limit] → store raw submission
 - **Cost lever:** once the eval sets exist, measure whether Claude Haiku 5.5 ($0.10 / $0.50 per million) holds the extraction F1 target. Switch only if the numbers support it.
 
 ### 4.4 Cloudflare Turnstile
-- Widget on the intake form, verified server-side in `POST /api/intake/[token]`, combined with per-IP-hash rate limiting stored in Postgres (P2).
+- Widget on the registration form (rendered only when `TURNSTILE_SITE_KEY` is set), verified server-side in `POST /api/intake/[token]` with `TURNSTILE_SECRET_KEY`, including the hostname the token was solved on; Cloudflare unreachable = refused (fails closed). Without keys the check is skipped and the per-IP limits are the only protection; production logs a warning at startup. When a Content-Security-Policy is added (P8), allow `https://challenges.cloudflare.com` for `script-src` and `frame-src`.
+
+### 4.5 Configuration for external services
+
+| Variable | Default | Without it |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | unset | Free text is read by the offline rules (no network, no cost) |
+| `INTAKE_AI_MODEL` | `claude-opus-5-5` | — |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | unset | No bot check; rate limits only |
 
 ## 5. Hosting, environments, deployment
 
@@ -259,7 +272,7 @@ Technical constraints:
 
 | Area | Requirement (✅ = in place since P1) |
 |---|---|
-| **Security** | ✅ RLS on every table, deny by default; ✅ roles checked by the route wrapper *and* by RLS; ✅ Better Auth HTTP surface limited to an allowlist; ✅ temporary passwords with a forced change; ✅ sessions last 24 h, extended while used; ✅ sign-in limited to 5 attempts/min per IP; ✅ API limits of 120 req/min per user and 600 per IP; ✅ JSON bodies ≤ 1 MB and only `application/json`; ✅ CSV ≤ 2 MB, `text/csv` only; ✅ body limits enforced while streaming (chunked uploads cannot be buffered whole) and by Caddy (2 MB, slow-client timeouts); ✅ CSRF: cookie-authenticated writes must carry an allowed `Origin`; ✅ notification streams close after 15 min and reconnect through a fresh session check; ✅ password changes limited to 5 attempts/min; ✅ CORS allowlist; ✅ HSTS and security headers (Caddy); ✅ append-only audit log; ✅ error responses never contain database messages. P2: Turnstile + rate limiting on public intake. |
+| **Security** | ✅ RLS on every table, deny by default; ✅ roles checked by the route wrapper *and* by RLS; ✅ Better Auth HTTP surface limited to an allowlist; ✅ temporary passwords with a forced change; ✅ sessions last 24 h, extended while used; ✅ sign-in limited to 5 attempts/min per IP; ✅ API limits of 120 req/min per user and 600 per IP; ✅ JSON bodies ≤ 1 MB and only `application/json`; ✅ CSV ≤ 2 MB, `text/csv` only; ✅ body limits enforced while streaming (chunked uploads cannot be buffered whole) and by Caddy (2 MB, slow-client timeouts); ✅ CSRF: cookie-authenticated writes must carry an allowed `Origin`; ✅ notification streams close after 15 min and reconnect through a fresh session check; ✅ password changes limited to 5 attempts/min; ✅ CORS allowlist; ✅ HSTS and security headers (Caddy); ✅ append-only audit log; ✅ error responses never contain database messages. ✅ P2 public intake: per-IP limits in memory and in Postgres, optional Turnstile with hostname check, prompt-injection wrapping and a safety floor on AI output, no disclosure of other registrations (security review 2026-10-20: no critical or high findings; the medium ones fixed). |
 | **Privacy** | VIP itineraries are sensitive. Collect only what is needed. Least-privilege views (housekeeping sees no guest names; drivers see only their own jobs). Consent notice on intake. **[Proposed]** Purge or anonymize guest PII 90 days after the event. The applicable law depends on the venue country (e.g. Nigeria's NDPA 2023). TBD. |
 | **Performance** | A dashboard update appears within **2 s** of a database change (SSE). Cascade from flight update to proposal p95 ≤ 5 s. Intake submit → confirmation ≤ 3 s. Co-Pilot first token ≤ 3 s typical. |
 | **Reliability** | The LISTEN connection reconnects with backoff. Idempotent jobs. Provider errors mark the flight `unknown` and never crash the cascade. Approval re-validates against current data. Containers restart automatically (`unless-stopped`). |
@@ -271,16 +284,18 @@ Technical constraints:
 
 ## 8. Testing and evaluation strategy
 
-| Layer | Tooling | What | Status (2026-10-19) |
+| Layer | Tooling | What | Status (2026-10-20) |
 |---|---|---|---|
-| Unit | Vitest | Pure modules: roles, page access, envelope, error mapping, rate limiter, clock, CSV, passwords, env, CORS, route wrapper, notification hub; browser helpers (API client, formatting and time zones, activity sentences, password rules) | ✅ 142 tests |
-| UI | Vitest + jsdom + Testing Library | Modal focus trap, form dialog, toasts, sidebar by role, simulated-mode badge, change-password screen, activity rows | ✅ 16 tests |
-| Database | Vitest + PGlite | RLS per role, triggers, SQL functions, the security baseline | ✅ 63 tests |
-| Integration | Vitest + PGlite + real Better Auth | Route handlers end to end: auth, accounts, event, venue, CSV import, drivers, categories, audit/undo and filters, notifications incl. SSE, decisions, dashboard summary, seed | ✅ 55 tests |
+| Unit | Vitest | Pure modules: roles, page access, envelope, error mapping, rate limiter, clock, CSV, passwords, env, CORS, route wrapper, notification hub; intake schema, normalisers, rule reader, checks, duplicates; the Claude reader against a fake SDK (fallbacks, injection wrapping, safety floor); Turnstile; eval metrics; browser helpers | ✅ 212 tests |
+| UI | Vitest + jsdom + Testing Library | Modal focus trap, form dialog, toasts, sidebar by role, simulated-mode badge, change-password screen, activity rows; registration form and confirmation, intake queue + paste drawer, review screen, guests list, add guest, guest profile | ✅ 40 tests |
+| Database | Vitest + PGlite | RLS per role (incl. guests and intake), column grants, triggers, SQL functions, the security baseline | ✅ 69 tests |
+| Integration | Vitest + PGlite + real Better Auth | Route handlers end to end: auth, accounts, event, venue, CSV import, drivers, categories, audit/undo and filters, notifications incl. SSE, decisions, dashboard summary, seed; public registration, review queue, pasted messages, guests | ✅ 75 tests |
 | End-to-end | Playwright + axe, against `pnpm build && pnpm start` on PGlite | Main flows in `03-App-Flow.md` across roles, accessibility scan per screen | P8 |
-| **Evaluation** | `eval/` runners (`pnpm eval:<module>`) | The PRD §8 metrics as JSON + Markdown tables | From P2 |
+| **Evaluation** | `eval/` runners (`pnpm eval:<module>`) | The PRD §8 metrics as JSON + Markdown tables | ✅ `pnpm eval:intake` (offline rules by default; `--reader claude` with a key) |
 
-Commands: `pnpm test` (unit), `pnpm test:ui`, `pnpm test:db`, `pnpm test:integration`, `pnpm test:all`, `pnpm vitest run --coverage`, `pnpm lint`, `pnpm typecheck`.
+Commands: `pnpm test` (unit), `pnpm test:ui`, `pnpm test:db`, `pnpm test:integration`, `pnpm test:all`, `pnpm vitest run --coverage`, `pnpm lint`, `pnpm typecheck`, `pnpm eval:build`, `pnpm eval:intake`.
+
+**Coverage (2026-10-20):** 64% of lines across `lib`, `components` and `features` against the 80% target. The P2 domain, services and intake screens are at or near 80%; the gap is mostly P1 screens without component tests (settings, activity, shells, sign-in). Closing it is a P8 item.
 
 **Evaluation datasets** (versioned in `eval/datasets/`): `intake.jsonl` (≥ 100 texts), `scenarios/*.json` (flight scenarios), `allocation/*.json` (venues and guest sets), `copilot.jsonl` (≥ 50 questions, ≥ 20 actions), `voice/` (recorded name-heavy questions, with consent).
 

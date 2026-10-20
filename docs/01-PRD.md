@@ -262,6 +262,13 @@ Confirmed on 2026-10-19 (the [Proposed] markers above stand for these confirmed 
 Rule reconciliations with the Figma design (the PRD wins on rules):
 - The design's registration form asks the guest for a **VIP category**; FR-IN-11 says only the coordinator sets it, so the public form does not ask for it.
 - The design's form has no **"Others"** free-text field or airline field; they are added because FR-IN-04 (AI extraction) and the flying rules depend on them.
+- The design requires every companion's name and an arrival time for every mode. FR-IN-09 allows placeholder members, so companion names are optional (unnamed companions become placeholders and do not block automatic processing), and the landing time is optional when flying (flight tracking supplies it).
+
+Decisions made while building P2 (2026-10-20):
+- An *exact* duplicate is linked automatically only when it brings nothing new (same party size and departure, no note); otherwise it goes to review as a likely duplicate, so updates are never lost silently.
+- The guest is never told that a similar registration exists (that would let anyone with the link check who is coming); the "we may contact you" note reflects only problems in what they sent.
+- Automatic processing is undone per submission (the whole delegation it created), not row by row.
+- AI judgement can raise but never lower the bar: medical, security, schedule and other items always need a person, and an empty reading of a non-empty note goes to review.
 
 Still open:
 7. Venue location, timezone and arrival airport(s). The demo data assumes Lagos (LOS); they are editable in Settings → System.

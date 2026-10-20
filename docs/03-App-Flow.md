@@ -1,6 +1,6 @@
 # 03 — App Flow
 
-**Status:** v2, 2026-10-19. Routes now follow the Figma Make design (Hostmark). Built: sign-in, password change, dashboard (P1 data), activity, settings; the other screens show "coming soon" until their phase lands.
+**Status:** v3, 2026-10-20. Routes follow the Figma Make design (Hostmark). Built: sign-in, password change, dashboard, activity, settings (P1); registration, intake, review, guests and guest profile (P2). The other screens show "coming soon" until their phase lands.
 
 **Related:** requirements in [`01-PRD.md`](01-PRD.md), routes/API in [`05-Backend-Schema.md` §7](05-Backend-Schema.md#7-api-surface-nextjs), visual rules in [`04-UI-UX-Design-Brief.md`](04-UI-UX-Design-Brief.md).
 
@@ -22,8 +22,8 @@ Routes follow the Figma Make design ("Hostmark", see [`design/figma-make/`](../d
 ### Public
 | Route | Screen | Purpose | Status |
 |---|---|---|---|
-| `/register/[token]` | Registration form | Four steps (delegation, arrival, party, review) with conditional arrival-mode fields, consent, Turnstile | 🟨 P2 |
-| `/register/[token]/done` | Confirmation | Reference code, what happens next | 🟨 P2 |
+| `/register/[token]` | Registration form | Four steps (delegation, arrival, party + needs + "anything else", review) with conditional arrival-mode fields, consent, Turnstile when configured; no VIP category | ✅ |
+| `/register/[token]/done` | Confirmation | Reference code (copy), summary, "we may contact you" when something needs checking | ✅ |
 
 ### Auth
 | Route | Screen | Purpose | Status |
@@ -37,10 +37,10 @@ Routes follow the Figma Make design ("Hostmark", see [`design/figma-make/`](../d
 |---|---|---|---|
 | `/dashboard` | **Home** | Greeting and data mode, KPI tiles, **Waiting for your approval** (one-tap approve/reject), recent activity with Undo, quick actions. Flight alert and today's timeline arrive with P3. | ✅ (P1 data) |
 | `/programme` | Programme | Timeline by day, at-risk items, venues (programs team edits) | 🟨 P6 |
-| `/guests` | Guests | Delegations and guests: arrival, transport, room, issues; tabs and filters | 🟨 P2 |
-| `/guests/[id]` | Guest profile | Party, arrival, transport, room, open issues, history with Undo | 🟨 P2 |
-| `/intake` | Intake | Submissions needing review by reason; **Paste a message**; copy registration link | 🟨 P2 |
-| `/intake/[id]` | Review submission | Original message vs what was read; duplicate side-by-side; approve / link / reject | 🟨 P2 |
+| `/guests` | Guests | One row per delegation: arrival, transport, room (P4), open issues; tabs, search, category filter; **Add guest** | ✅ |
+| `/guests/[id]` | Guest profile | Party (add/remove), arrival, transport, room (P4), contact, open issues (Dismiss / Add as guest), history, registrations; **Edit** (category, proximity, share group, dietary, notes) | ✅ |
+| `/intake` | Intake | Submissions by reason (needs review, likely duplicates, missing details, flagged, processed); search, source filter; **Paste a message**; copy registration link | ✅ |
+| `/intake/[id]` | Review submission | Original vs what was read (editable), checks, VIP category; duplicate side-by-side; approve / link / treat as new / reject; **Undo automatic processing** on processed ones | ✅ |
 | `/arrivals` | Arrivals | Flight board by hour: flight phase and delay, pickup, driver, suggestions | 🟨 P3 |
 | `/transport` | Transport | Driver lanes timeline, suggested assignments/reassignments, driver drawer | 🟨 P3 |
 | `/rooms` | Rooms | Building grid by floor × wing with status, room inspector, run allocator | 🟨 P4 |
@@ -100,17 +100,17 @@ flowchart LR
 ```mermaid
 flowchart TD
   A[Guest opens /register/token] --> B{Arriving how?}
-  B -->|Flying| B1[Airline, flight no., arrival date]
+  B -->|Flying| B1[Airline, flight no., arrival date,<br/>landing time if known]
   B -->|Own transport| B2[Arrival date and time]
   B -->|Need pickup| B3[Pickup address, date and time]
   B1 & B2 & B3 --> C[Name, title, contact, departure date,<br/>team, diet, others, consent<br/>Submit + Turnstile - reference code shown]
   C --> P[Pipeline: normalize, AI extracts<br/>the others field, validation checks]
   P --> I{Duplicate?}
-  I -->|Exact| J[Link to existing record - logged, undoable]
+  I -->|Exact, nothing new| J[Link to existing record - logged]
   I -->|Likely| R[Review queue]
   I -->|None| K{High confidence?}
   K -.- KN[/All required fields present, all checks passed,<br/>no likely duplicate, nothing flagged in others/]
-  K -->|Yes| M[Auto-create delegation, guests,<br/>arrival, flight, pickup - logged, undoable]
+  K -->|Yes| M[Auto-create delegation, guests,<br/>arrival, flight, pickup - logged,<br/>undo per submission]
   K -->|No| R
   M --> N[Driver proposal + room proposal<br/>appear in Needs your decision]
   R --> O[Coordinator edits, approves, links or rejects]
@@ -118,12 +118,12 @@ flowchart TD
 ```
 
 ### F2 — Pasted message
-1. The coordinator opens **Intake review → Paste a message**, pastes the text and presses **Extract**.
-2. The AI returns a draft in the same shape as the form, with missing fields highlighted and extracted items listed.
-3. The coordinator completes or corrects the draft and presses **Create**. It then goes through validation and duplicate checks. Because a human created it, it never auto-processes silently: the coordinator sees the issues before confirming.
+1. The coordinator opens **Intake → Paste a message**, pastes the text and presses **Read message**. Nothing is saved.
+2. The drawer shows what was found (*Suggested*), what is *Missing* and what is *Uncertain*.
+3. **Create draft** saves it as a submission in *Needs review* (the same reading is reused, so the AI is not called twice) and opens the review screen. The coordinator completes the form; **Approve and create** re-checks it and refuses while required fields are missing. Because a person created it, it is never processed automatically.
 
 ### F3 — Duplicate review
-Side-by-side view: the existing delegation vs the new submission, with differences highlighted. Actions: **Link** (the submission becomes a linked duplicate; optionally apply chosen field updates), **Treat as new**, **Reject**. Nothing is auto-merged.
+Side-by-side view: the existing delegation vs the new submission, with differences highlighted. Actions: **Link to existing** (the submission becomes a linked duplicate), **Treat as new** (approve), **Reject**. Nothing is auto-merged. Copying chosen field updates onto the existing delegation is deferred (⏸).
 
 ### F4 — Flight delay cascade
 
@@ -272,7 +272,10 @@ stateDiagram-v2
   needs_review --> approved
   needs_review --> rejected
   needs_review --> linked_duplicate
+  auto_processed --> needs_review: undo automatic processing
 ```
+
+Pasted messages start at `needs_review`.
 
 **Stay (room assignment)**
 
