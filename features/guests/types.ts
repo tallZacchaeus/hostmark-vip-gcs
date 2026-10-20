@@ -97,12 +97,15 @@ export interface GuestProfile {
     readonly status: string
   } | null
   readonly flight: {
+    readonly id: string
     readonly flight_number: string
     readonly origin_iata: string | null
     readonly destination_iata: string | null
     readonly scheduled_arrival_at: string | null
     readonly estimated_arrival_at: string | null
     readonly actual_arrival_at: string | null
+    /** A coordinator's own landing time (FR-FT-11); wins over flight data. */
+    readonly manual_arrival_at: string | null
     readonly phase: string
   } | null
   readonly pickup: {

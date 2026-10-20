@@ -1,6 +1,6 @@
 # 02 — Technical Requirements Document (TRD)
 
-**Status:** v4, 2026-10-20. Hosting is **one DigitalOcean droplet** (decision 12 in [`00`](00-Project-Breakdown.md#decisions-log)). P1 (backend + the Figma Make frontend "Hostmark") and P2 (guest intake) are built and tested (see [`06`](06-Implementation-Plan.md)).
+**Status:** v4, 2026-10-20. Hosting is **one DigitalOcean droplet** (decision 12 in [`00`](00-Project-Breakdown.md#decisions-log)). P1 (backend + the Figma Make frontend "Hostmark"), P2 (guest intake) and P3 (flights, transport, driver app, simulation) are built and tested (see [`06`](06-Implementation-Plan.md)).
 
 **Related:** [`01-PRD.md`](01-PRD.md) (what), [`05-Backend-Schema.md`](05-Backend-Schema.md) (data and API), [`06-Implementation-Plan.md`](06-Implementation-Plan.md) (build order).
 
@@ -22,7 +22,7 @@
 | Auth | **Better Auth 1.7** (email + password, admin plugin, bearer plugin) | Battle-tested sessions, password hashing, rate limiting and account management, stored in our Postgres. No self sign-up. |
 | Authorization | **Postgres row-level security** with two runtime roles | Roles are enforced in the database, not only in the API (FR-PL-02). See §2.1. |
 | Realtime | **Postgres LISTEN/NOTIFY → Server-Sent Events** | Replaces Supabase Realtime. A long-lived Node process on a droplet can hold the connections. |
-| Scheduled jobs | **Worker process** (same codebase, own Compose service) *(P3)* | Replaces `pg_cron` + `pg_net`. A one-minute loop with a Postgres advisory lock, so only one instance polls. |
+| Scheduled jobs | **Worker** (same codebase) ✅ P3: runs inside the app server by default (`WORKER_MODE=in-process`, started from `instrumentation.ts`), or as its own process (`pnpm worker` with `WORKER_MODE=off` on the app) | Replaces `pg_cron` + `pg_net`. A pass every 5 s (simulation steps) and every minute (flight checks, driver suggestions). A 30-second lease row (`worker_leases`), renewed between units of work, makes sure only one process works at a time; a crashed holder's lease runs out. |
 | Validation | **Zod 4** | One schema per input, used for API validation and (from P2) AI structured outputs. |
 | AI (LLM) | **Claude API** via `@anthropic-ai/sdk`, model **`claude-opus-5-5`** *(P2, P7)* | Strong at messy-text extraction and tool use. See §4.3. |
 | Speech-to-text | **Deepgram Nova-3** with keyterm prompting *(P7)* | Keyterms (guest names, titles) address misheard names. |
@@ -153,8 +153,10 @@ submit → [Turnstile + rate limit] → store raw submission
 
 ### 3.2 Flight tracking (M2) — P3
 
-- **`FlightProvider` interface:** `getStatus(flightNumber, date) → FlightSnapshot`. Implementations: `AeroDataBoxProvider`, `SimulatedProvider` (reads `simulation_scenarios`), optionally `FlightAwareProvider`. `events.flight_mode` (`live | simulated`) picks the provider.
-- **Adaptive polling:** each flight row stores `next_check_at`. The **worker** wakes every minute, takes a Postgres advisory lock (so only one instance polls), polls only flights where `next_check_at ≤ now`, then sets the next check by distance to arrival:
+Built in P3 (`lib/flights/*`, `lib/services/flights/*`, `lib/services/worker/*`).
+
+- **`FlightProvider` interface:** `getStatus(flight, now) → FlightSnapshot | null`. Implementations: `AeroDataBoxProvider` (only with `AERODATABOX_API_KEY`; validated loosely with Zod, 10 s timeout, the leg landing at the event's airport) and `SimulatedProvider` (times stay as they are; the phase follows the clock). Scripted scenarios are not a provider: they are versioned in code (`lib/domain/simulation/scenarios.ts`) and their steps go through the same ingestion. `events.flight_mode` (`live | simulated`) picks the provider; live mode without a key polls nothing.
+- **Adaptive polling:** each flight row stores `next_check_at`. The **worker** polls flights where `next_check_at ≤ now` that someone is still expected on, one provider call per flight **outside any transaction**, then each answer is ingested in its own transaction and the next check is set by distance to arrival:
 
   | Time to scheduled arrival | Check every |
   |---|---|
@@ -164,6 +166,8 @@ submit → [Turnstile + rate limit] → store raw submission
   | < 2 h, until landed/cancelled | 10 min |
 
   This is about 15–25 calls per flight, and many guests share one flight. For example, 50 distinct flights ≈ 1,000 calls, which fits AeroDataBox's paid "Pro" quota once the per-endpoint unit cost is confirmed (§4.1).
+- **Quota:** live calls are counted per UTC day (`provider_usage_daily`, `FLIGHT_POLL_DAILY_LIMIT`, default 160 ≈ Pro's 5,000 units a month); coordinators are warned at 80%, polling pauses at 100% until the next day. "Check now" may use at most 80% of the day's calls, waits a minute between checks of the same flight and is refused for flights that have landed or will not arrive. A failed call is logged and the flight is retried 10 minutes later.
+- **Ingestion** (`ingestFlightUpdate`): lock the flight row, merge the snapshot (a provider's `unknown` phase never overwrites a known one; a manual time changes only through an override), record the change in `flight_updates`, and run the cascade (§3.3) when a time or the phase changed. The coordinator's manual landing time (FR-FT-11) and simulation steps enter here too.
 - **Push upgrade (optional):** AeroDataBox's Flight Alert API can POST to `/api/webhooks/flights`, so polling can become a safety net. Not required for the MVP.
 - **Delay is a badge, not a phase:** `status` ∈ {scheduled, in_air, landed, cancelled, diverted, unknown}; *delayed* = `estimated_arrival − scheduled_arrival > threshold`.
 
@@ -171,8 +175,10 @@ submit → [Turnstile + rate limit] → store raw submission
 
 - **Trip window** for a pickup = `[pickup_at − travel_time, pickup_at + travel_time]`, using fixed event buffers (no traffic prediction).
 - **Driver feasibility:** active, on shift for the whole window, no overlapping active assignment, capacity ≥ passengers (or a minimal set of drivers whose capacities add up).
-- **Ranking:** keep the current driver if feasible → fewest jobs that day → smallest idle gap. The top choice becomes the proposal, with up to 2 alternatives in `rationale`.
-- **Latency metric:** `flight_updates.observed_at` → `proposals.created_at`, stored per update.
+- **Ranking:** keep the current driver if feasible → fewest jobs that day → smallest idle gap → smallest adequate vehicle. The top choice becomes the proposal, with up to 2 alternatives in `rationale`.
+- **Held drivers:** a driver named in a pending suggestion counts as busy for other overlapping trips until it is approved, rejected or superseded; a suggestion made for a pickup time that has since moved is withdrawn (`expired`). Approval re-checks everything in SQL (`private.driver_unavailability`, seats) with the drivers' rows locked, and marks a proposal that no longer fits `failed` with the reason.
+- **Cascade** (pure plan in `lib/domain/transport/cascade.ts`, applied by `lib/services/transport/apply.ts`): new venue ETA; pickup moves when it differs by ≥ 1 minute and nobody is on the way yet; the current driver keeps the trip if still feasible (told, asked to confirm), else a reassignment proposal, else a coordinator alert; a party without a pickup gets one plus an assignment proposal; cancelled/diverted flights flag the parties and propose releasing their pickups (withdrawn again if the flight flies after all). The what-if preview runs the same planner without writing.
+- **Latency metric:** ingestion start (`flight_updates.created_at`, the transaction start) → cascade done (`cascade_completed_at`), stored as `cascade_ms` per update. `pnpm eval:cascade`: p95 10 ms on a 30-flight synthetic day (target ≤ 5 s; see `06` P3).
 
 ### 3.4 Room allocator (M3) — P4
 
@@ -238,6 +244,9 @@ submit → [Turnstile + rate limit] → store raw submission
 | `ANTHROPIC_API_KEY` | unset | Free text is read by the offline rules (no network, no cost) |
 | `INTAKE_AI_MODEL` | `claude-opus-5-5` | — |
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | unset | No bot check; rate limits only |
+| `AERODATABOX_API_KEY` | unset | Live mode polls nothing; landing times change only by hand or in simulated mode |
+| `FLIGHT_POLL_DAILY_LIMIT` | `160` | — (live calls per UTC day) |
+| `WORKER_MODE` | `in-process` | `off`: run `pnpm worker` as its own process (not with a `pglite://` database) |
 
 ## 5. Hosting, environments, deployment
 

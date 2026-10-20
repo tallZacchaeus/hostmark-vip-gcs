@@ -1,6 +1,6 @@
 # 03 — App Flow
 
-**Status:** v3, 2026-10-20. Routes follow the Figma Make design (Hostmark). Built: sign-in, password change, dashboard, activity, settings (P1); registration, intake, review, guests and guest profile (P2). The other screens show "coming soon" until their phase lands.
+**Status:** v3.1, 2026-10-20. Routes follow the Figma Make design (Hostmark). Built: sign-in, password change, dashboard, activity, settings (P1); registration, intake, review, guests and guest profile (P2); arrivals, transport, simulation and the driver app (P3). The other screens show "coming soon" until their phase lands.
 
 **Related:** requirements in [`01-PRD.md`](01-PRD.md), routes/API in [`05-Backend-Schema.md` §7](05-Backend-Schema.md#7-api-surface-nextjs), visual rules in [`04-UI-UX-Design-Brief.md`](04-UI-UX-Design-Brief.md).
 
@@ -35,19 +35,19 @@ Routes follow the Figma Make design ("Hostmark", see [`design/figma-make/`](../d
 ### Console (sidebar + top bar) — Coordinator, Admin, Super Admin; Programs sees Programme only
 | Route | Screen | Purpose / key actions | Status |
 |---|---|---|---|
-| `/dashboard` | **Home** | Greeting and data mode, KPI tiles, **Waiting for your approval** (one-tap approve/reject), recent activity with Undo, quick actions. Flight alert and today's timeline arrive with P3. | ✅ (P1 data) |
+| `/dashboard` | **Home** | Greeting and data mode, KPI tiles, **Waiting for your approval** (one-tap approve/reject; driver proposals from P3, and an approval that no longer fits says why instead of acting), recent activity with Undo, quick actions | ✅ |
 | `/programme` | Programme | Timeline by day, at-risk items, venues (programs team edits) | 🟨 P6 |
 | `/guests` | Guests | One row per delegation: arrival, transport, room (P4), open issues; tabs, search, category filter; **Add guest** | ✅ |
 | `/guests/[id]` | Guest profile | Party (add/remove), arrival, transport, room (P4), contact, open issues (Dismiss / Add as guest), history, registrations; **Edit** (category, proximity, share group, dietary, notes) | ✅ |
 | `/intake` | Intake | Submissions by reason (needs review, likely duplicates, missing details, flagged, processed); search, source filter; **Paste a message**; copy registration link | ✅ |
 | `/intake/[id]` | Review submission | Original vs what was read (editable), checks, VIP category; duplicate side-by-side; approve / link / treat as new / reject; **Undo automatic processing** on processed ones | ✅ |
-| `/arrivals` | Arrivals | Flight board by hour: flight phase and delay, pickup, driver, suggestions | 🟨 P3 |
-| `/transport` | Transport | Driver lanes timeline, suggested assignments/reassignments, driver drawer | 🟨 P3 |
+| `/arrivals` | Arrivals | Day board grouped by hour: landing time (with the old time struck through when it moved), principal, category, party, flight + status (landed / delayed / cancelled / early / time set by hand), pickup status, driver(s) or suggestion chip; next 2 h / 6 h / all day, status, search, day; rows open the guest profile, pickup/driver cells open Transport; a "now" line on today | ✅ P3 |
+| `/transport` | Transport | Day tabs; **decision cards** (assign / reassign / release: why, what else changes, alternatives, Approve / Reject; hovering lights the ghost block); **timeline** per driver (done, in progress, assigned, suggested; off-shift shaded; now line) with a "Needs a driver" row whose blocks ask for a suggestion; **driver drawer** (shift, trips, unconfirmed changes) | ✅ P3 |
 | `/rooms` | Rooms | Building grid by floor × wing with status, room inspector, run allocator | 🟨 P4 |
 | `/rooms/plan/[id]` | Allocation plan | Plan lines with match and rule checks, approve selected/all, reject | 🟨 P4 |
 | `/sanitation` | Sanitation | Cleaning queue by priority, estimated ready vs needed by, reverse checkout | 🟨 P5 |
 | `/activity` | Activity | Audit log by day with who/type filters, sentence + field changes, **Undo** on automatic changes | ✅ |
-| `/simulation` | Simulation | What-if scenarios (flight delay, room out of service, extra guests, driver unavailable) | 🟨 P3 |
+| `/simulation` | Simulation | **What-if preview** (flight delay ± minutes; driver unavailable from a time): what would move, who keeps a trip, decisions and conflicts — nothing written. **Scripted scenarios** (5, 1×–600×, simulated mode only) replay flight changes through the live pipeline, with progress and a simulated clock. Room scenarios arrive with P4, "Send to Co-Pilot" with P7 | ✅ P3 |
 | `/settings?tab=` | Settings | **Users** (invite with one-time temporary password, role, reset, deactivate), **Rooms** (room types, rooms, CSV import with dry run), **Drivers** (vehicles, app login, shifts), **VIP categories** (rank order), **System** (event, registration link, flight data mode). Coordinators see VIP categories only. | ✅ |
 
 The **Co-Pilot** drawer (top bar, coordinator+) and the **notifications** drawer (everyone) open over any console screen. The decisions queue lives on the dashboard (`/dashboard#approvals`) rather than on a separate page.
@@ -55,7 +55,7 @@ The **Co-Pilot** drawer (top bar, coordinator+) and the **notifications** drawer
 ### Staff app (phone)
 | Route | Role | Screen | Status |
 |---|---|---|---|
-| `/driver` | Driver | My pickups: current/next pickup with live flight status, Start → Picked up, later and done lists | 🟨 P3 |
+| `/driver` | Driver | My pickups (today / tomorrow): the current or next trip big with live flight status and one button (Start pickup → Picked up → Dropped off), "Time changed from …" / "New pickup" with **Got it**, later / moved / done lists, trip details sheet (destination, pickup point, passengers, flight), notifications, sign out | ✅ P3 |
 | `/staff/front-desk` | Accommodation (and coordinator+) | Arriving / In house / Leaving tabs, **Check in** / **Check out** (first wins) | 🟨 P4 |
 | `/staff/sanitation` | Housekeeping | Rooms to clean in priority order, **Start cleaning** → **Mark ready**, report a problem | 🟨 P5 |
 
@@ -130,34 +130,37 @@ Side-by-side view: the existing delegation vs the new submission, with differenc
 ```mermaid
 sequenceDiagram
   autonumber
-  participant Cron as Worker (every min)
-  participant Job as Flight poll job
+  participant W as Worker (lease; every min)
   participant FP as FlightProvider
-  participant DB as Postgres (SQL functions)
-  participant Dom as Domain core
+  participant Ing as ingestFlightUpdate (one transaction)
+  participant Plan as Cascade planner (pure)
+  participant DB as Postgres
   participant Coord as Coordinator UI
   participant Drv as Driver app
 
-  Cron->>Job: run due checks (advisory lock)
-  Job->>DB: select flights due for a check
-  Job->>FP: getStatus(EK783, date)
-  FP-->>Job: ETA +45 min
-  Job->>DB: ingest_flight_update - update ETA, arrivals, pickup_at (auto, logged)
-  DB-->>Job: affected arrivals and pickups
-  Job->>Dom: check driver feasibility at new time
-  alt same driver still free
-    Job->>DB: notify driver - pickup time changed
-    DB-->>Drv: realtime banner + acknowledge button
+  W->>DB: flights due for a check (someone still expected on them)
+  W->>FP: getStatus(EK783, date) (outside any transaction; live calls counted)
+  FP-->>W: ETA +45 min
+  W->>Ing: snapshot
+  Ing->>DB: lock flight, diff, update times and next check, record flight_updates
+  Ing->>Plan: flight, parties, pickups, drivers, shifts, live and held trips
+  Plan-->>Ing: new venue ETAs, moved pickups, kept drivers, proposals, alerts
+  Ing->>DB: move pickups (previous time kept), withdraw suggestions for the old time
+  alt same driver can still make it
+    Ing->>DB: keep the trip, ask the driver to confirm, notify
+    DB-->>Drv: live: "Time changed from 14:10" + Got it
   else driver now busy
-    Dom-->>Job: best alternative driver + 2 alternatives
-    Job->>DB: create_proposal(driver_reassignment)
-    DB-->>Coord: realtime - Needs your decision
-    Coord->>DB: approve_proposal (one tap)
-    DB-->>Drv: new driver notified, old driver told job removed
+    Ing->>DB: create_proposal(driver_reassignment) - the proposed driver is held
+    DB-->>Coord: live: decision card on Transport and the dashboard
+    Coord->>DB: approve_proposal (re-checks shift, overlap, seats)
+    DB-->>Drv: new driver notified, old driver told the trip moved
+  else nobody free
+    Ing->>DB: alert coordinators
   end
-  Job->>Dom: re-check room readiness and program conflicts
-  Dom-->>DB: proposals or at-risk notifications if needed
+  Note over Ing,DB: cascade_ms = ingestion to cascade done (PRD M2)
 ```
+
+Room readiness (P4) and programme conflicts (P6) join this cascade in their phases. A coordinator's manual landing time and the simulation's scripted steps enter at `ingestFlightUpdate` too.
 
 ### F5 — Driver trip lifecycle
 
@@ -165,10 +168,10 @@ sequenceDiagram
 stateDiagram-v2
   [*] --> pending_assignment
   pending_assignment --> assigned: proposal approved
-  assigned --> assigned: time changed - driver acknowledges
-  assigned --> en_route: driver taps En route
+  assigned --> assigned: time changed - driver taps Got it
+  assigned --> en_route: driver taps Start pickup
   en_route --> picked_up: driver taps Picked up
-  picked_up --> completed: driver taps Completed
+  picked_up --> completed: driver taps Dropped off (party marked arrived)
   assigned --> pending_assignment: driver reassigned away
   pending_assignment --> cancelled
   assigned --> cancelled: flight cancelled - release approved

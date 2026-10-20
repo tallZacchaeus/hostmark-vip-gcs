@@ -8,5 +8,10 @@ export async function register(): Promise<void> {
       const { logger } = await import('./lib/logger')
       logger.warn('Cloudflare Turnstile is not configured: the public registration form is protected by rate limits only')
     }
+    // The background worker (flight checks, simulation steps, driver suggestions); not while building.
+    if (env.WORKER_MODE === 'in-process' && process.env.NEXT_PHASE !== 'phase-production-build') {
+      const { startWorker } = await import('./lib/services/worker/runner')
+      startWorker()
+    }
   }
 }

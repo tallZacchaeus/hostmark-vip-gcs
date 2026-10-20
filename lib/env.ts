@@ -54,6 +54,12 @@ const serverEnvSchema = z.object({
   /** Cloudflare Turnstile. Unset: the bot check is skipped and only rate limiting protects the form. */
   TURNSTILE_SITE_KEY: optionalSecret,
   TURNSTILE_SECRET_KEY: optionalSecret,
+  /** AeroDataBox (RapidAPI) key for live flight status. Unset: live mode leaves flights as they are. */
+  AERODATABOX_API_KEY: optionalSecret,
+  /** Live flight-status calls allowed per day (TRD §9: Pro is 5,000 units a month). */
+  FLIGHT_POLL_DAILY_LIMIT: z.coerce.number().int().min(1).max(100_000).default(160),
+  /** in-process: the app server runs the background worker; off: run `pnpm worker` beside it. */
+  WORKER_MODE: z.enum(['in-process', 'off']).default('in-process'),
 }).superRefine((env, context) => {
   if (env.NODE_ENV !== 'production' || env.ALLOW_PGLITE === 'true') return
   for (const key of ['DATABASE_URL', 'SERVICE_DATABASE_URL'] as const) {

@@ -9,8 +9,9 @@ import { Icon, type IconName } from '@/components/ui/Icon'
 import { Skeleton, SuggestedChip } from '@/components/ui/Status'
 import { useToast } from '@/components/ui/Toast'
 import { useTimeZone } from '@/components/shell/SessionContext'
-import { apiSend, errorMessage } from '@/lib/client/api'
+import { errorMessage } from '@/lib/client/api'
 import { formatTime } from '@/lib/client/format'
+import { decideProposal } from '@/lib/client/proposals'
 import { refreshApi, useApi } from '@/lib/client/use-api'
 
 export interface Decision {
@@ -99,9 +100,9 @@ export function ApprovalsCard() {
   const decide = async (decision: Decision, approve: boolean) => {
     setBusyId(decision.id)
     try {
-      await apiSend(`/api/proposals/${decision.id}/${approve ? 'approve' : 'reject'}`, 'POST', {})
-      toast.show({ message: approve ? `Approved: ${decision.title}` : `Rejected: ${decision.title}` })
-      await refreshApi('/api/decisions', '/api/dashboard', '/api/audit')
+      const outcome = await decideProposal(decision.id, decision.title, approve)
+      toast.show({ message: outcome.message, tone: outcome.ok ? undefined : 'error' })
+      await refreshApi('/api/decisions', '/api/dashboard', '/api/audit', '/api/transport', '/api/arrivals')
     } catch (caught: unknown) {
       toast.show({ message: errorMessage(caught), tone: 'error' })
       await mutate()

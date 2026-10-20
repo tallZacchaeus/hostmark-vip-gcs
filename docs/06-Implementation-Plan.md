@@ -1,6 +1,6 @@
 # 06 — Implementation Plan
 
-**Status as of 2026-10-20:** P0 decisions confirmed. **P1 is done** (backend 2026-10-16; the Figma Make frontend "Hostmark" ported into the Next.js app 2026-10-19). **P2 guest intake is done** (2026-10-20): public registration, the intake pipeline, the review queue, pasted messages, guests and guest profiles, dashboard counters, demo data and the intake evaluation. External services stay behind interfaces with offline stand-ins until keys are issued (Claude → offline rules, Turnstile → skipped, see [`02`](02-TRD.md) §4). Next: P3 flights and transport. One git commit per phase.
+**Status as of 2026-10-20:** P0 decisions confirmed. **P1 is done** (backend 2026-10-16; the Figma Make frontend "Hostmark" ported into the Next.js app 2026-10-19). **P2 guest intake is done** (2026-10-20): public registration, the intake pipeline, the review queue, pasted messages, guests and guest profiles, dashboard counters, demo data and the intake evaluation. **P3 flights and transport is done** (2026-10-20): flight ingestion and the transport cascade, the driver matcher and proposals, the background worker, the arrivals and transport boards, the driver app, the simulation screen (what-if previews and scripted runs) and the cascade evaluation. External services stay behind interfaces with offline stand-ins until keys are issued (Claude → offline rules, Turnstile → skipped, AeroDataBox → no live polling; see [`02`](02-TRD.md) §4). Next: P4 room allocation. One git commit per phase.
 
 **Rule from [`00` §10](00-Project-Breakdown.md#10-boundaries-to-keep-the-project-realistic):** a phase is done when it **works end to end and can be measured**, not when it has the most features. Each phase below has explicit exit criteria.
 
@@ -36,8 +36,8 @@ flowchart TD
 |---|---|---|---|
 | P0 Docs and decisions | ✅ (venue airports and dates still open, §4) | — | — |
 | P1 Foundation | ✅ backend · ✅ frontend (Hostmark) | M0 Platform | P0 |
-| P2 Guest intake | ⬜ | M1 | P1 |
-| P3 Flights and transport | ⬜ | M2 | P2 |
+| P2 Guest intake | ✅ | M1 | P1 |
+| P3 Flights and transport | ✅ (live AeroDataBox run waits for a key) | M2 | P2 |
 | P4 Room allocation | ⬜ | M3 | P2 |
 | P5 Turnaround and cleaning | ⬜ | M5 | P4 |
 | P6 Event program | ⬜ | M6 | P2 (P3 for conflict checks) |
@@ -102,18 +102,25 @@ Frontend (2026-10-19, from the Figma Make export in `design/figma-make/`):
 
 **Known gaps carried forward:** linking a duplicate does not copy chosen field updates (F3 "apply chosen updates") ⏸; global test coverage is 64% of lines against the 80% target, mostly P1 screens without component tests (settings, activity, shells) — closing it is in P8.
 
-### P3 — Flight tracking and transport (M2) ⬜
-- ⬜ `FlightProvider` interface; `SimulatedProvider`; `AeroDataBoxProvider` (FR-FT-10)
-- ⬜ `flight_updates`, `pickup_assignments`, `simulation_scenarios`, `simulation_runs`, `provider_usage_daily`
-- ⬜ Worker process (own Compose service): one-minute loop with a Postgres advisory lock → flight poll with the adaptive schedule (FR-FT-03) + quota counter
-- ⬜ `ingest_flight_update` RPC: ETA → arrivals → pickups (FR-FT-04/05)
-- ⬜ Driver matcher (pure TS) + proposals for assignment/reassignment (FR-FT-06/07); cancellations/diversions (FR-FT-08)
-- ⬜ Flight board, transport board (driver lanes), manual refresh/override (FR-FT-11)
-- ⬜ Driver app: my pickups, acknowledge, status button (FR-FT-09)
-- ⬜ Simulation screen + worker simulation ticks + scenario fixtures
-- ⬜ **Eval:** `eval/datasets/scenarios/*` + `pnpm eval:cascade` → latency p50/p95, proposal feasibility %
+### P3 — Flight tracking and transport (M2) ✅
+- ✅ Migration `20261020100000_flights_transport.sql`: `flight_updates`, `pickup_assignments`, `simulation_runs`, `provider_usage_daily`, `worker_leases`; `flights.delay_minutes` (generated), `arrivals.attention`, `pickups.previous_pickup_at/changed_at`; RLS + grants; feasibility functions (`private.trip_window`, `private.driver_unavailability`); approval executors for driver assignment/reassignment and pickup release (`approve_proposal` re-checks shift, overlap and seats and marks a stale proposal **failed** with the reason); driver functions (`my_driver_pickups`, `set_trip_status`, `acknowledge_assignment`)
+- ✅ `FlightProvider` interface; `SimulatedProvider` (phase follows the clock); `AeroDataBoxProvider` (only with `AERODATABOX_API_KEY`) (FR-FT-10)
+- ✅ Adaptive polling (`nextCheckAt`: T−24h, every 2 h to T−6h, 30 min to T−2h, then 10 min; none once final), one provider call per flight outside any transaction, daily quota counter with a coordinator warning at 80% and a pause at 100% (FR-FT-02/03)
+- ✅ Ingestion `ingestFlightUpdate` → pure cascade plan (`lib/domain/transport/cascade.ts`) → `applyCascadePlan`: new venue ETA, moved pickups, missing pickups created, drivers who can still make it **kept and told** (they confirm again), otherwise a reassignment proposal or a coordinator alert; cancellations/diversions flag the party and propose releasing the pickup (FR-FT-04/05/07/08). Implemented in TypeScript rather than the planned `ingest_flight_update` SQL function, so the what-if preview runs the very same planner without writing.
+- ✅ Driver matcher (pure TS): active, one shift covering the whole trip window, no overlapping trip; ranking keeps the current driver, then fewest jobs, smallest idle gap, smallest adequate vehicle; large parties get the fewest vehicles that seat everyone; up to two alternatives (FR-FT-06). A driver named in a **pending suggestion is held** for it, and a suggestion made for a pickup time that has since moved is **withdrawn** (found by the cascade evaluation, below).
+- ✅ Suggestions outside a flight change: "Suggest a driver" on the board, and the worker suggests for every upcoming pickup without a driver or a pending suggestion
+- ✅ Background worker: in-process with the app server (`WORKER_MODE=in-process`, default) or `pnpm worker`; one pass every 5 s (simulation steps), flight checks and suggestions every minute; a short lease row (`worker_leases`) instead of an advisory lock so only one process works at a time, and a crashed holder's lease simply runs out
+- ✅ Arrivals board (`/arrivals`: hour groups, live status, changed times, pickup, driver, suggestion chips, window/status/search filters, day switch), transport board (`/transport`: decision cards with Approve/Reject, timeline per driver positioned from real times, off-shift shading, "Needs a driver" row with Suggest, driver drawer), manual landing time and "Check now" on the guest profile, attributed to the coordinator in the activity log (FR-FT-11)
+- ✅ Driver app (`/driver`): today/tomorrow, the current trip big with one button (start → picked up → dropped off), "Got it" for moved or new trips, moved-away and done sections, trip details sheet, notifications (FR-FT-09)
+- ✅ Simulation (`/simulation`): **what-if preview** (flight delay, driver unavailable from a time; read-only, same planner) and **scripted scenarios** (5 versioned in `lib/domain/simulation/scenarios.ts` instead of a `simulation_scenarios` table; 1×–600×; one run at a time; simulated mode only) through the live ingestion (FR-PL-10, FR-FT-10). Room scenarios arrive with P4; "Send to Co-Pilot" with P7.
+- ✅ Demo data: two seeded trips, ET512 runs 40 min late through the real pipeline (its driver keeps it and must confirm), and matcher suggestions for the rest; seeded shifts overlap at midday
+- ✅ **Eval:** `pnpm eval:cascade` (synthetic day generated from a seed instead of fixture files: 30 flights, 48 pickups, 18 drivers, 150 changes). 2026-10-20, seed 42: latency ingestion → cascade done **p50 8 ms, p95 10 ms, max 20 ms** (target p95 ≤ 5 s); **64 / 64** proposals feasible when made; of the 15 still pending at the end of the day, 12 approve and 3 fail safely (`driver_busy`: the driver's other trip moved into the window and nobody else was free — the coordinator was alerted); 3 double bookings before approvals, 2 after (each with an open alert). The evaluation found both rules: the first run (14 drivers) showed pending suggestions naming the same driver for overlapping trips; with the "held driver" rule but before "withdraw stale suggestion", the run above gave 57 / 58 feasible and 17 of 32 end-of-day approvals failing.
 
-**Exit:** a simulated 45-minute delay produces the right automatic updates or reassignment proposal within the latency target. Approving it reaches the driver's phone in real time. One real flight is tracked end to end in live mode.
+- ✅ **Security review** (2026-10-20, security-reviewer): no critical or high findings. Fixed: approvals lock the drivers' rows (no double booking when two coordinators approve at once); "Check now" cooldown, manual cap and no checks of finished flights (the daily quota cannot be drained by hand); the worker renews its lease between units of work and simulation steps are claimed atomically (never applied twice); runs stop when the event leaves simulated mode; drivers see only the time and party of a trip moved to someone else, and only event days; trip steps in order and not on closed pickups; `onBehalfOf` must be a user id; a malformed proposal payload is marked failed instead of erroring; release suggestions are withdrawn when a flight flies again. Left as is: the suggestion pass reloads the driver context after each suggestion (bounded by 48 h and one event).
+
+**Exit:** ✅ a simulated 45-minute delay moves the pickup, keeps the driver who can still make it (told in the driver app, which asks to confirm) or proposes a replacement, within the latency target; approving reaches the driver in real time (SSE); Playwright run of every P3 screen with no browser errors. ⏸ One real flight tracked end to end in live mode waits for an AeroDataBox key (the provider is unit-tested against recorded response shapes).
+
+**Known gaps carried forward:** live AeroDataBox run (needs a key, TRD §4.1); notifications for repeated "no driver free" alerts are not de-duplicated; "Call coordinator" from the Figma driver app is left out until staff phone numbers are part of the event settings.
 
 ### P4 — Room allocation (M3) ⬜
 - ⬜ `room_assignments` + capacity-aware availability checks in RPCs
@@ -160,7 +167,7 @@ Frontend (2026-10-19, from the Figma Make export in `design/figma-make/`):
 - ⬜ Volunteer data round (consented) through the real intake link
 - ⬜ Small usability test: 3 coordinator tasks vs a spreadsheet + chat baseline
 - ⬜ Accessibility audit (axe + manual keyboard/screen reader pass) against `04` §7
-- ⬜ Security review: RLS matrix re-test, secrets, rate limits, intake abuse, Co-Pilot prompt-injection via guest free-text (P2 intake reviewed 2026-10-20, see the P2 commit)
+- ⬜ Security review: RLS matrix re-test, secrets, rate limits, intake abuse, Co-Pilot prompt-injection via guest free-text (P2 intake and P3 transport reviewed 2026-10-20, see those commits)
 - ⬜ Coverage to ≥ 80% lines/branches: component tests for settings, activity, shells, sign-in
 - ⬜ Content-Security-Policy in Caddy (allow `challenges.cloudflare.com` for scripts and frames when Turnstile is on)
 - ⬜ Performance check against the `02` §7 targets

@@ -2,16 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { useTestDb } from './support/use-test-db'
 
 const CREATE_PROPOSAL = `select private.create_proposal(
-  p_kind => 'driver_assignment', p_title => $1, p_payload => '{}'::jsonb,
+  p_kind => $4::public.proposal_kind, p_title => $1, p_payload => '{}'::jsonb,
   p_created_by_type => 'system', p_target_type => 'pickups', p_target_id => $2::uuid,
   p_expires_at => $3::timestamptz)`
 
 describe('proposals', () => {
   const db = useTestDb()
 
-  async function createProposal(title: string, targetId: string, expiresAt: string | null = null): Promise<string> {
+  async function createProposal(title: string, targetId: string, expiresAt: string | null = null, kind = 'driver_assignment'): Promise<string> {
     await db().asSystem()
-    const id = await db().value<string>(CREATE_PROPOSAL, [title, targetId, expiresAt])
+    const id = await db().value<string>(CREATE_PROPOSAL, [title, targetId, expiresAt, kind])
     await db().asOwner()
     return id
   }
@@ -103,9 +103,9 @@ describe('proposals', () => {
     expect(error.code).toBe('42501')
   })
 
-  it('reports approval as not available until the module executor exists', async () => {
+  it('reports approval as not available until the module executor exists (rooms arrive in P4)', async () => {
     await db().createEvent()
-    const proposal = await createProposal('Assign driver', crypto.randomUUID())
+    const proposal = await createProposal('Assign room', crypto.randomUUID(), null, 'room_assignment')
     const coordinator = await db().createProfile('coordinator')
     await db().asUser(coordinator)
 

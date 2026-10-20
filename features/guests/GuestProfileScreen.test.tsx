@@ -32,7 +32,7 @@ const PROFILE = {
     { id: 'g-2', title: null, full_name: null, member_role: 'security', is_placeholder: true, status: 'expected', dietary: [], accessibility: null, category_name: null, version: 1 },
   ],
   arrival: { id: 'a-1', mode: 'flying', stated_arrival_at: '2026-10-28T12:40:00Z', requested_pickup_at: null, pickup_address: null, expected_at_venue_at: '2026-10-28T14:10:00Z', status: 'expected' },
-  flight: { flight_number: 'EK783', origin_iata: 'DXB', destination_iata: 'LOS', scheduled_arrival_at: '2026-10-28T12:40:00Z', estimated_arrival_at: null, actual_arrival_at: null, phase: 'scheduled' },
+  flight: { id: 'f-1', flight_number: 'EK783', origin_iata: 'DXB', destination_iata: 'LOS', scheduled_arrival_at: '2026-10-28T12:40:00Z', estimated_arrival_at: null, actual_arrival_at: null, manual_arrival_at: null, phase: 'scheduled' },
   pickup: { id: 'p-1', kind: 'airport', pickup_location: 'LOS airport, arrivals', dropoff_location: 'Harbour Point', pickup_at: '2026-10-28T13:10:00Z', passenger_count: 2, status: 'pending_assignment' },
   requirements: [
     { id: 'r-1', guest_id: 'g-1', category: 'schedule', detail: 'Rev Chidi may join later', source: 'extraction', needs_attention: true, conflicts_with: null, resolved_at: null, submission_source: 'pasted_message', reference_code: 'VIP-9M2X' },

@@ -7,6 +7,7 @@ import type { Auth } from '@/lib/auth/auth'
 import { APP_ROLES, type AppRole } from '@/lib/auth/roles'
 import type { DB } from '@/lib/db/types'
 import { type GuestSeedResult, seedGuests } from './seed-guests'
+import { type TransportSeedResult, seedTransport } from './seed-transport'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const DEFAULT_STARTS_IN_DAYS = 30
@@ -39,9 +40,11 @@ const ACCOUNT_NAMES: Readonly<Record<AppRole, string>> = {
   housekeeping: 'Chioma Eze',
 }
 /** Two shifts a day in UTC (06:00–14:00 and 14:00–22:00 in Lagos, UTC+1). */
+// Early and late shifts overlap at midday, as real rosters do, so an airport run that spans the
+// handover (busy from an hour before pickup to an hour after) still fits one driver's shift.
 const SHIFTS_UTC = [
-  { start: 'T05:00:00Z', end: 'T13:00:00Z' },
-  { start: 'T13:00:00Z', end: 'T21:00:00Z' },
+  { start: 'T05:00:00Z', end: 'T14:00:00Z' },
+  { start: 'T11:00:00Z', end: 'T21:00:00Z' },
 ] as const
 
 const ROOM_TYPES = [
@@ -65,6 +68,7 @@ export interface SeedResult {
   readonly drivers: number
   readonly accounts: ReadonlyArray<{ readonly role: AppRole; readonly email: string }>
   readonly guests: GuestSeedResult
+  readonly transport: TransportSeedResult
 }
 
 const isoDate = (date: Date): string => date.toISOString().slice(0, 10)
@@ -199,5 +203,6 @@ export async function seedDevData(db: Kysely<DB>, auth: Auth, password: string, 
   const venue = await seedVenue(db, days)
   const accounts = await seedAccounts(db, auth, password, venue.driverIds[0])
   const guests = await seedGuests(db, days[0] ?? '', days.at(-1) ?? '')
-  return { eventId: venue.eventId, startsOn: days[0] ?? '', rooms: venue.rooms, drivers: venue.driverIds.length, accounts, guests }
+  const transport = await seedTransport(db, days[0] ?? '', venue.driverIds)
+  return { eventId: venue.eventId, startsOn: days[0] ?? '', rooms: venue.rooms, drivers: venue.driverIds.length, accounts, guests, transport }
 }

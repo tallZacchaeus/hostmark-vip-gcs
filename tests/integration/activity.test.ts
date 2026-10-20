@@ -47,12 +47,12 @@ describe('notifications, decisions and undo API', () => {
     await app.sql(`select private.notify_users(array[$1::uuid], 'pickup_changed', $2)`, [recipient.id, title])
   }
 
-  async function createProposal(title: string): Promise<string> {
+  async function createProposal(title: string, kind = 'driver_assignment'): Promise<string> {
     const [row] = await app.sql<{ id: string }>(
       `select private.create_proposal(
-         p_kind => 'driver_assignment', p_title => $1, p_payload => '{}'::jsonb,
+         p_kind => $2::public.proposal_kind, p_title => $1, p_payload => '{}'::jsonb,
          p_created_by_type => 'system', p_target_type => 'pickups', p_target_id => gen_random_uuid()) as id`,
-      [title],
+      [title, kind],
     )
     return row?.id ?? ''
   }
@@ -105,7 +105,7 @@ describe('notifications, decisions and undo API', () => {
       expect((await app.call(listDecisions, '/api/decisions', { as: driver })).status).toBe(403)
     })
 
-    it('rejects a proposal and reports approval as not available until P3/P4', async () => {
+    it('rejects a proposal and reports approval as not available until P4 for rooms', async () => {
       const toReject = await createProposal('Assign driver to QR1405')
       const rejected = await app.call<{ status: string }>(reject, `/api/proposals/${toReject}/reject`, {
         as: coordinator,
@@ -118,7 +118,7 @@ describe('notifications, decisions and undo API', () => {
       expect(again.status).toBe(409)
       expect(again.body.error?.code).toBe('not_pending')
 
-      const toApprove = await createProposal('Assign driver to ET901')
+      const toApprove = await createProposal('Assign room 412', 'room_assignment')
       const approved = await app.call(approve, `/api/proposals/${toApprove}/approve`, { as: coordinator, params: { id: toApprove }, body: {} })
       expect(approved.status).toBe(501)
       expect(approved.body.error?.code).toBe('not_implemented')

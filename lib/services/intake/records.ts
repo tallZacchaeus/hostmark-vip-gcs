@@ -37,7 +37,6 @@ const MAX_CANDIDATES = 10
 /** `departure_date` has no time; guests are expected to leave at midday (check-out planning, P4). */
 const NOMINAL_DEPARTURE_TIME = '12:00'
 const MAX_REFERENCE_ATTEMPTS = 8
-const COORDINATOR_ROLES: readonly string[] = ['coordinator', 'admin', 'super_admin']
 
 /** jsonb parameter: pg would turn a JS array into a Postgres array literal, so serialise here. */
 export const jsonb = (value: unknown) => sql<Json>`${JSON.stringify(value)}::jsonb`
@@ -314,20 +313,5 @@ export async function createDelegationRecords(
   return { delegation_id: delegationId, principal_guest_id: principalId, arrival_id: arrival.id, pickup_id: pickupRow?.id ?? null }
 }
 
-export interface CoordinatorNotice {
-  readonly kind: string
-  readonly title: string
-  readonly body?: string | null
-  readonly priority?: 'normal' | 'high'
-  readonly entity_type: string
-  readonly entity_id: string
-}
-
-/** Tells every coordinator, admin and super admin (vip_system only). */
-export async function notifyCoordinators(tx: Tx, notice: CoordinatorNotice): Promise<void> {
-  await sql`select private.notify_roles(
-    ${COORDINATOR_ROLES}::public.app_role[],
-    ${notice.kind}, ${notice.title}, ${notice.body ?? null}, ${notice.priority ?? 'normal'},
-    ${notice.entity_type}, ${notice.entity_id}::uuid
-  )`.execute(tx)
-}
+/** Kept here for the intake services; the shared implementation lives in lib/services/notify.ts. */
+export { notifyCoordinators } from '../notify'

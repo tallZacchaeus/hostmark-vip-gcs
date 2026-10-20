@@ -37,6 +37,14 @@ describe('server environment', () => {
   it('defaults to no extra origins', () => {
     expect(parseServerEnv({ ...VALID, API_ALLOWED_ORIGINS: undefined }).API_ALLOWED_ORIGINS).toEqual([])
   })
+
+  it('runs the worker in-process, without live flight data, by default', () => {
+    const env = parseServerEnv({ ...VALID, AERODATABOX_API_KEY: '' })
+    expect(env).toMatchObject({ WORKER_MODE: 'in-process', FLIGHT_POLL_DAILY_LIMIT: 160, AERODATABOX_API_KEY: undefined })
+    expect(parseServerEnv({ ...VALID, FLIGHT_POLL_DAILY_LIMIT: '400', WORKER_MODE: 'off' })).toMatchObject({ FLIGHT_POLL_DAILY_LIMIT: 400, WORKER_MODE: 'off' })
+    expect(() => parseServerEnv({ ...VALID, FLIGHT_POLL_DAILY_LIMIT: '0' })).toThrow(/FLIGHT_POLL_DAILY_LIMIT/)
+    expect(() => parseServerEnv({ ...VALID, WORKER_MODE: 'cron' })).toThrow(/WORKER_MODE/)
+  })
 })
 
 describe('parseOrigins', () => {

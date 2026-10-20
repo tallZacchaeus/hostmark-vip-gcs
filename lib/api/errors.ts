@@ -53,6 +53,7 @@ const UNIQUE_MESSAGES: Readonly<Record<string, string>> = {
   profiles_email_key: 'An account with this email already exists',
   drivers_profile_id_key: 'This login is already linked to another driver',
   events_singleton: 'The event has already been set up',
+  simulation_runs_one_running: 'A simulation is already running; stop it first',
 }
 
 function isPgError(error: unknown): error is PgErrorLike {

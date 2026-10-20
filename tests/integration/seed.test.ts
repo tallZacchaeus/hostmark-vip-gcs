@@ -53,6 +53,20 @@ describe('development seed', () => {
     )
     expect(counts).toEqual({ flights: 4, pickups: 5, review: 3, likely: 2 })
 
+    // Transport goes through the real pipeline: ET512 is late, its driver (the driver login) keeps
+    // the trip and must confirm the new time; the matcher suggests drivers for the rest.
+    expect(result.transport.assigned).toBe(2)
+    expect(result.transport.suggestions).toBeGreaterThanOrEqual(1)
+    const [moved] = await app.sql<{ email: string; moved: boolean; acknowledged: boolean }>(
+      `select p.email, pk.previous_pickup_at is not null as moved, pa.acknowledged_at is not null as acknowledged
+       from pickup_assignments pa join pickups pk on pk.id = pa.pickup_id join arrivals a on a.id = pk.arrival_id
+       join flights f on f.id = a.flight_id join drivers d on d.id = pa.driver_id join profiles p on p.id = d.profile_id
+       where f.flight_number = 'ET512'`,
+    )
+    expect(moved).toEqual({ email: 'driver@vipgcs.test', moved: true, acknowledged: false })
+    const [pending] = await app.sql<{ n: number }>(`select count(*)::int as n from proposals where status = 'pending' and kind = 'driver_assignment'`)
+    expect(pending?.n).toBe(result.transport.suggestions)
+
     // Seed data is recorded as system activity that cannot be undone.
     const [undoable] = await app.sql<{ n: number }>(`select count(*)::int as n from audit_log where undoable`)
     expect(undoable?.n).toBe(0)

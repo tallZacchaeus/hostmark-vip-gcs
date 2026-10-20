@@ -1,6 +1,6 @@
 # 05 — Backend Schema & API Surface
 
-**Status:** v2.2, 2026-10-20. **P1 and P2 tables are built** (`db/migrations/20261016100000…100400`, `20261019100000_guests_intake.sql`) and covered by tests; tables for later phases are **planned** and marked as such. Update this file in the same change as any migration.
+**Status:** v2.3, 2026-10-20. **P1, P2 and P3 tables are built** (`db/migrations/20261016100000…100400`, `20261019100000_guests_intake.sql`, `20261020100000_flights_transport.sql`) and covered by tests; tables for later phases are **planned** and marked as such. Update this file in the same change as any migration.
 
 **Database:** PostgreSQL 18, self-hosted on the droplet (see [`02-TRD.md`](02-TRD.md) §5). Extensions: `btree_gist` (P1), `pg_trgm` (P2, duplicate detection).
 
@@ -17,7 +17,7 @@
 
 ## 1. Entity-relationship overview
 
-Relationships marked P3 or later are planned; the rest are built (P1, P2).
+Relationships marked P4 or later are planned; the rest are built (P1–P3).
 
 ```mermaid
 erDiagram
@@ -44,6 +44,8 @@ erDiagram
   DELEGATIONS ||--o{ ARRIVALS : "travels_as (P2)"
   FLIGHTS ||--o{ ARRIVALS : "brings (P2/P3)"
   FLIGHTS ||--o{ FLIGHT_UPDATES : "logs (P3)"
+  SIMULATION_RUNS ||--o{ FLIGHT_UPDATES : "drives (P3)"
+  PROPOSALS ||--o{ PICKUP_ASSIGNMENTS : "creates (P3)"
   ARRIVALS ||--o| PICKUPS : "needs (P2/P3)"
   PICKUPS ||--o{ PICKUP_ASSIGNMENTS : "served_by (P3)"
   DRIVERS ||--o{ PICKUP_ASSIGNMENTS : "drives (P3)"
@@ -71,10 +73,11 @@ erDiagram
 | `member_role` | `principal`, `assistant`, `security`, `performer`, `representative`, `family`, `other` | P2 |
 | `proximity_priority` | `high`, `normal`, `low` | P2 |
 | `guest_status` | `expected`, `arrived`, `checked_in`, `checked_out`, `cancelled` | P2 |
-| `flight_phase` | `scheduled`, `in_air`, `landed`, `cancelled`, `diverted`, `unknown` | P3 |
-| `pickup_kind` | `airport`, `location` | P3 |
-| `pickup_status` | `pending_assignment`, `assigned`, `en_route`, `picked_up`, `completed`, `cancelled` | P3 |
-| `assignment_status` | `active`, `superseded`, `cancelled` | P3 |
+| `flight_phase` | `scheduled`, `in_air`, `landed`, `cancelled`, `diverted`, `unknown` | ✅ P2 |
+| `pickup_kind` | `airport`, `location` | ✅ P2 |
+| `pickup_status` | `pending_assignment`, `assigned`, `en_route`, `picked_up`, `completed`, `cancelled` | ✅ P2 |
+| `flight_update_source` | `live`, `simulated`, `manual` | ✅ P3 |
+| `assignment_status` | `active`, `released` (moved to another driver or the pickup released), `completed` | ✅ P3 |
 | `stay_status` | `planned`, `checked_in`, `checked_out`, `cancelled` | P4 |
 | `cleaning_status` | `queued`, `in_progress`, `done`, `cancelled` | P5 |
 | `program_item_status` | `draft`, `published`, `cancelled` | P6 |
@@ -205,17 +208,17 @@ Triggers: `guard_last_super_admin` (never zero active Super Admins); `audit_row_
 
 **Lifecycle.** Public form: `processing` → `auto_processed` (records created) | `linked_duplicate` (exact duplicate) | `needs_review`. Pasted messages start at `needs_review`. Review: `approved` | `linked_duplicate` | `rejected`. **Undo automatic processing** returns an `auto_processed` submission to `needs_review` and deletes the delegation it created.
 
-### 3.5 Flights and transport — basic tables built (P2), the rest planned (P3)
+### 3.5 Flights and transport — ✅ built (P2 basic tables, P3 tracking and assignments)
 
-**`flights`** ✅: one row per flight number + local arrival date, shared by every arrival on it. id, event_id, flight_number (IATA, e.g. `EK783`), airline_iata, arrival_date_local, origin_iata, destination_iata (set when the event has one arrival airport), scheduled/estimated/actual_arrival_at, manual_arrival_at (override wins), phase, provider, last_checked_at, next_check_at, last_payload; unique (event_id, flight_number, arrival_date_local). P2 fills the schedule from the guest's stated landing time; P3 tracking fills the rest. Planned: delay_minutes (generated).
+**`flights`** ✅: one row per flight number + local arrival date, shared by every arrival on it. id, event_id, flight_number (IATA, e.g. `EK783`), airline_iata, arrival_date_local, origin_iata, destination_iata (set when the event has one arrival airport), scheduled/estimated/actual_arrival_at, manual_arrival_at (a coordinator's time; wins until cleared), **delay_minutes** (generated: best known landing − scheduled), phase, provider, last_checked_at, next_check_at (adaptive schedule; index on `next_check_at` for phases not yet final), last_payload; unique (event_id, flight_number, arrival_date_local). P2 fills the schedule from the guest's stated landing time; P3 ingestion fills the rest. Best known landing = manual → actual → estimated → scheduled.
 
-**`flight_updates`** (P3): append-only history and metrics: flight_id, observed_at, source (`live`, `simulated`, `manual`), changes (`{field: [old, new]}`), payload, simulation_run_id, cascade_completed_at, cascade_ms.
+**`flight_updates`** ✅ (P3): append-only history and metrics: id (bigint), flight_id, observed_at (the provider's or scenario's time), source (`live`, `simulated`, `manual`), changes (`{field: [old, new]}`), payload, simulation_run_id, created_at (= start of ingestion), cascade_completed_at, cascade_ms (ingestion → cascade done; PRD §8 M2). Coordinator+ read; written only by vip_system.
 
-**`arrivals`** ✅: id, event_id, delegation_id, mode, flight_id (required when flying), pickup_address + requested_pickup_at (required for pickup), stated_arrival_at (required for own transport; the stated landing time when flying), expected_at_venue_at (derived: landing + exit buffer + airport travel; pickup + local travel; own transport = arrival), status, version; check constraint on the required columns per mode.
+**`arrivals`** ✅: id, event_id, delegation_id, mode, flight_id (required when flying), pickup_address + requested_pickup_at (required for pickup), stated_arrival_at (required for own transport; the stated landing time when flying), expected_at_venue_at (derived: landing + exit buffer + airport travel; pickup + local travel; own transport = arrival; moved by the cascade), **attention** (P3: e.g. "Flight HF404 cancelled"), status, version; check constraint on the required columns per mode.
 
-**`pickups`** ✅: id, event_id, arrival_id (at most one non-cancelled per arrival), kind (`airport`, `location`), pickup_location, dropoff_location (the venue), pickup_at (landing + exit buffer, or the requested time), passenger_count (kept equal to the party size), status, notes, version. Created for pickup requests and for flights whose landing time is known; P3 creates the rest from flight data.
+**`pickups`** ✅: id, event_id, arrival_id (at most one non-cancelled per arrival), kind (`airport`, `location`), pickup_location, dropoff_location (the venue), pickup_at (landing + exit buffer, or the requested time), **previous_pickup_at**, **changed_at** (P3: the last move, shown to drivers and on the boards), passenger_count (kept equal to the party size), status, notes, version. The cascade creates the airport pickup once a flight's landing time is known.
 
-**`pickup_assignments`** (P3): id, pickup_id, driver_id, status (only `active` counts for availability), proposal_id, acknowledged_at, en_route_at, picked_up_at, completed_at, created_at, created_by.
+**`pickup_assignments`** ✅ (P3): id, event_id, pickup_id, driver_id, status (`active` counts for availability; one active row per pickup and driver), proposal_id, acknowledged_at ("Got it"; cleared when the trip moves), en_route_at, picked_up_at, completed_at, released_at, created_by, created_at, updated_at. Written only by `approve_proposal` (executors) and the driver functions; never directly by the API. Trip window = pickup ± the event's travel time (`private.trip_window`).
 
 ### 3.6 Rooms and cleaning — planned (P4/P5)
 
@@ -229,20 +232,22 @@ Triggers: `guard_last_super_admin` (never zero active Super Admins); `audit_row_
 
 **`program_participants`**: (program_item_id, guest_id) PK, role.
 
-### 3.8 Co-Pilot, simulation, ops — planned (P3/P7)
+### 3.8 Co-Pilot, simulation, ops — simulation and ops ✅ built (P3), Co-Pilot planned (P7)
 
-**`copilot_conversations`**: id, user_id, started_at, title. **`copilot_messages`**: id, conversation_id, role, content, input_mode, transcript_raw, transcript_edited, tool_calls, proposal_ids, model, input/output tokens, latency_ms, created_at.
+**`copilot_conversations`** (P7): id, user_id, started_at, title. **`copilot_messages`** (P7): id, conversation_id, role, content, input_mode, transcript_raw, transcript_edited, tool_calls, proposal_ids, model, input/output tokens, latency_ms, created_at.
 
-**`simulation_scenarios`**: id, event_id, name, description, steps jsonb, created_by. **`simulation_runs`**: id, scenario_id, started_by, started_at, virtual_start_at, speed, status, ended_at.
+**`simulation_runs`** ✅ (P3): id, event_id, scenario_key (scenarios are versioned with the code in `lib/domain/simulation/scenarios.ts`; the planned `simulation_scenarios` table is not needed), status (`running`, `stopped`, `completed`; one running run per event), speed (1–3600 virtual seconds per real second), flight_ids (≤ 10; the flights the steps act on, fixed at start), virtual_start, real_start, steps_applied, started_by, stopped_at. Coordinators insert (`running` only) and may change only `status` and `stopped_at`; the worker advances `steps_applied`.
 
-**`provider_usage_daily`**: (provider, day) PK, calls, units.
+**`provider_usage_daily`** ✅ (P3): (day, provider) PK, calls. Live flight-status calls per UTC day; coordinator+ read.
+
+**`worker_leases`** ✅ (P3): name PK, holder, expires_at. The background worker's 30-second lease so only one process works at a time; vip_system only.
 
 ## 4. Views — planned
 
 | View | Purpose | Phase |
 |---|---|---|
-| `v_arrivals_board` | Arrival + principal + VIP category + flight phase/delay + pickup + driver(s) + room readiness | P3 |
-| `v_driver_schedule` | Active assignments with trip windows per driver | P3 |
+| `v_arrivals_board` | Arrival + principal + VIP category + flight phase/delay + pickup + driver(s) + room readiness | ✅ P3 as a repository query (`lib/repositories/arrivals.ts`); room readiness joins in P4 |
+| `v_driver_schedule` | Active assignments with trip windows per driver | ✅ P3 as a repository query (`lib/repositories/transport.ts`) |
 | `v_room_status` | Room + current/next stay + open cleaning task + readiness | P4 |
 | `v_cleaning_queue` | Open cleaning tasks by `needed_by`, `estimated_ready_at`. **Room data only, no guest names.** | P5 |
 | `v_program_conflicts` | Participants whose `expected_at_venue_at + lead_time > starts_at` | P6 |
@@ -260,7 +265,7 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 | `public.reorder_vip_categories(ids)` | coordinator+ | Sets every category's rank in one step | ✅ |
 | `public.undo_audit_entry(id, reason)` | coordinator+ | Reverts an undoable entry if the row still matches; else 409 `undo_conflict` naming who changed it and when | ✅ |
 | `public.reject_proposal(id, note)` | coordinator+ | Rejects a pending proposal and its pending lines | ✅ |
-| `public.approve_proposal(id, line_ids)` | coordinator+ | Expires stale proposals; otherwise re-validates and executes. **Executors arrive in P3 (driver), P4 (rooms), P7 (Co-Pilot)**; until then it answers 501 `not_implemented` | ✅ skeleton |
+| `public.approve_proposal(id, line_ids)` | coordinator+ | Expires stale proposals; otherwise re-validates and executes. **Driver executors (P3)**: `driver_assignment` / `driver_reassignment` re-check shift, overlap and seats, release the old driver(s) and tell them, assign the new one(s) and tell them; `release_pickup` cancels the pickup and tells its driver. A proposal that no longer fits is marked **failed** with `execution_error` (`driver_busy`, `driver_off_shift`, `driver_inactive`, `not_enough_seats`, `pickup_closed`) and returns `{status: 'failed', error}`. Room (P4) and Co-Pilot (P7) kinds still answer 501 | ✅ P1 + P3 executors |
 | `private.create_proposal(...)` | vip_system | Inserts a proposal, supersedes older pending ones for the same target, notifies coordinators | ✅ |
 | `private.notify_users(...)` / `private.notify_roles(...)` | vip_system | Notification fan-out (active accounts only) | ✅ |
 | `private.audit_profile_change(id, action)` | admin+ | Records account creation / password reset with the acting admin | ✅ |
@@ -268,9 +273,13 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 | `public.intake_link_context(token)` | vip_system | Is the registration link open; event name, venue, timezone, dates (never the token or other settings) | ✅ |
 | `public.similarity(text, text)` (pg_trgm) | vip_app, vip_system | Name similarity for duplicate candidates | ✅ |
 | Record creation for a submission | — | Done in TypeScript inside one audited transaction (`lib/services/intake/records.ts`), not a SQL function: shared by auto-processing, approval, manual entry and the seed | ✅ (replaces the planned `create_records_from_submission`) |
-| `ingest_flight_update` | vip_system | Diff, update flight, arrivals, pickups; return affected ids | P3 |
+| Flight ingestion and the transport cascade | vip_system | Done in TypeScript (`lib/services/flights/ingest.ts` → pure plan `lib/domain/transport/cascade.ts` → `lib/services/transport/apply.ts`) inside one audited transaction: diff, update the flight and `next_check_at`, record `flight_updates`, move venue ETAs and pickups, create missing pickups, keep drivers who can still make it (they confirm again), propose reassignments / releases, withdraw suggestions made for a pickup time that moved, alert coordinators | ✅ (replaces the planned `ingest_flight_update`) |
+| `private.trip_window(pickup)` · `private.driver_unavailability(driver, window, exclude_pickup)` | vip_system (and the executors) | The busy window of a trip; why a driver cannot take it (`inactive`, `off_shift`, `busy`) or null — the same rules as the TypeScript matcher | ✅ P3 |
+| `public.my_driver_pickups(day)` | driver (linked to an active driver record) | The signed-in driver's trips that day with principal, passengers and flight; 403 `not_a_driver` otherwise | ✅ P3 |
+| `public.acknowledge_assignment(id)` | driver | "Got it" on the driver's own active trip | ✅ P3 |
 | `assign_room`, `check_in_stay`, `check_out_stay`, `reverse_checkout` | coordinator+ / accommodation | Rooms and turnaround | P4/P5 |
-| `start_cleaning`, `complete_cleaning`, `set_trip_status` | housekeeping / driver | Staff app status buttons | P3/P5 |
+| `public.set_trip_status(id, status)` | driver | `en_route` → `picked_up` → `completed` on the driver's own active trip (409 `not_active`, `not_picked_up`); completing marks the arrival, guests and delegation arrived | ✅ P3 |
+| `start_cleaning`, `complete_cleaning` | housekeeping | Staff app status buttons | P5 |
 
 ## 6. Access model and row-level security
 
@@ -297,6 +306,18 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 | delegations, guests, guest_requirements, arrivals, flights, pickups | RW | R | R | – |
 | intake_submissions | R; insert pasted-message drafts only; update review columns only | – | – | – |
 | intake_rate_limits | – (vip_system only) | – | – | – |
+
+**P3 rows:**
+
+| Table / function | super_admin / admin / coordinator | programs | accommodation | driver | housekeeping |
+|---|---|---|---|---|---|
+| pickup_assignments | R (writes only through `approve_proposal`) | R | R | R own; status/ack through the driver functions | – |
+| flight_updates, provider_usage_daily | R | – | – | – | – |
+| simulation_runs | R; insert `running`; update `status`, `stopped_at` | – | – | – | – |
+| worker_leases | – (vip_system only) | – | – | – | – |
+| `my_driver_pickups`, `set_trip_status`, `acknowledge_assignment` | – | – | – | own trips only | – |
+
+Work done for a signed-in coordinator outside RLS (a manual landing time, "Check now", "Suggest a driver") runs as vip_system with `app.user_id` set to that coordinator (`withSystem({ onBehalfOf })`), so the activity log names them.
 
 Column-level grants add to this: the API cannot write `events.intake_token`, `profiles.email`, `notifications` columns other than `read_at`, or a submission's `payload`, `source`, `client_ip_hash` and `submitted_at`. Public registrations are written by vip_system with the audit actor `guest_intake`. Planned tables follow the matrix in the PRD (e.g. housekeeping never sees guest names; drivers see only their own pickups).
 
@@ -358,20 +379,35 @@ Tests: `tests/db/*.test.ts` check each cell above as the relevant role.
 
 `GET /api/dashboard/summary` now also returns `guests`, `arrivals_today`, `pickups_today` and `intake_to_review`.
 
+### Built (P3)
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| GET | `/api/arrivals` | coordinator+ | Arrivals board for `?day=` (default: today, or the next day with arrivals): rows with status (`landed`, `delayed`, `cancelled`, `due`), flight, pickup, drivers, pending suggestion; `days`, `updated_at` |
+| GET | `/api/transport` | coordinator+ | Transport board for `?day=`: pending driver decisions, pickups needing a driver, drivers with shifts, state and trips (incl. suggested ghosts), timeline `range` |
+| POST | `/api/flights/[id]/refresh` | coordinator+ | Ask the event's provider now (counts towards the daily limit: 429 `quota_reached`; 409 `no_provider` in live mode without a key) → `{ changed, proposal_ids }` |
+| POST | `/api/flights/[id]/override` | coordinator+ | `{ manual_arrival_at: ISO with offset \| null }` → cascade → `{ changed, proposal_ids }` |
+| POST | `/api/pickups/[id]/suggest` | coordinator+ | Matcher suggestion as a proposal → `{ proposal_id }` or `{ reason: 'no_driver_free' \| 'already_covered' }`; 409 `pickup_closed` |
+| GET | `/api/driver/pickups` | driver | Own trips for `?day=` (default today) |
+| POST | `/api/driver/assignments/[id]/status` · `/acknowledge` | driver | `{ status: 'en_route' \| 'picked_up' \| 'completed' }` / Got it |
+| GET | `/api/simulation/options` | coordinator+ | Scenarios, upcoming flights and active drivers for the what-if form, flight mode |
+| GET / POST | `/api/simulation/runs` | coordinator+ | Recent runs / start `{ scenario_key, speed }` (409 `not_simulated`, `not_enough_flights`, `already_exists` while one runs) |
+| POST | `/api/simulation/runs/[id]/stop` | coordinator+ | 409 `not_running` |
+| POST | `/api/simulation/what-if` | coordinator+ | `{ kind: 'flight_delay', flight_id, minutes }` or `{ kind: 'driver_unavailable', driver_id, from? }` → `{ headline, decisions, lines }`; writes nothing |
+
+The background worker (in-process by default, or `pnpm worker`) polls flights, advances simulation runs and suggests drivers; no `/api/jobs/*` routes are needed.
+
 ### Planned
 
 | Method | Path | Phase |
 |---|---|---|
-| POST | `/api/delegations/[id]/split-arrival` | P3 |
-| POST | `/api/flights/[id]/{refresh,override}`, `/api/pickups/[id]/propose`, `/api/trips/[assignmentId]/status` | P3 |
-| POST | `/api/webhooks/flights` (optional), `/api/simulation/runs`, `/api/simulation/runs/[id]/stop` | P3 |
+| POST | `/api/delegations/[id]/split-arrival` | later (not needed by P3) |
+| POST | `/api/webhooks/flights` (optional AeroDataBox push) | P8 if adopted |
 | POST | `/api/allocation/{run,check}`, `/api/room-assignments`, `/[id]/{check-in,check-out,reverse-checkout}` | P4/P5 |
 | POST | `/api/cleaning-tasks/[id]/{start,complete}` | P5 |
 | GET / POST / PATCH / DELETE | `/api/program-items`, PUT `/[id]/participants` | P6 |
 | POST | `/api/copilot/chat`, `/api/copilot/transcribe` | P7 |
 | PATCH | `/api/admin/system` (data export/purge) | P8 |
-
-The P3 flight polling and simulation ticks run in the **worker** process, so the old `/api/jobs/*` routes are not needed.
 
 ## 8. Realtime
 
@@ -379,10 +415,10 @@ The P3 flight polling and simulation ticks run in the **worker** process, so the
 |---|---|---|
 | `vip_notifications` (Postgres NOTIFY) | Trigger on `notifications` insert | `GET /api/notifications/stream` → `event: notification` with `{ id, kind, priority }` for the recipient's open streams ✅ |
 
-Clients refresh the affected list (decisions, arrivals, rooms, cleaning) when a notification arrives. If later phases need live views without a notification (e.g. the room grid), they add a NOTIFY channel and a stream route the same way.
+Clients refresh the affected list (decisions, arrivals, transport, the driver's trips, rooms, cleaning) when a notification arrives; P3 sends `pickup_time_changed`, `pickup_assigned`, `pickup_moved`, `pickup_cancelled` to drivers and `flight_disrupted`, `transport_alert`, `provider_quota` (and proposal notices) to coordinators. If later phases need live views without a notification (e.g. the room grid), they add a NOTIFY channel and a stream route the same way.
 
 ## 9. Seed data
 
-✅ `pnpm db:seed` (Docker Postgres) and `pnpm local:setup` (PGlite, event starting today) use `db/tooling/seed.ts` (tested). On an empty database they create the Figma demo venue: "Lagos Leadership Summit 2026" at Harbour Point Hotel (4 days, Africa/Lagos), 4 room types, **120 rooms** over 6 floors in West (x01–x07), East (x08–x14) and Garden (x15–x20) wings, 4 VIP categories, **15 named drivers** with vehicles and two shifts a day, and one named account per role (`coordinator@vipgcs.test` is Ada Nwosu, `admin@vipgcs.test` is Tolu Adebayo, …) sharing one printed password. Seed writes are audited as non-undoable system actions.
+✅ `pnpm db:seed` (Docker Postgres) and `pnpm local:setup` (PGlite, event starting today) use `db/tooling/seed.ts` (tested). On an empty database they create the Figma demo venue: "Lagos Leadership Summit 2026" at Harbour Point Hotel (4 days, Africa/Lagos), 4 room types, **120 rooms** over 6 floors in West (x01–x07), East (x08–x14) and Garden (x15–x20) wings, 4 VIP categories, **15 named drivers** with vehicles and two overlapping shifts a day (05:00–14:00 and 11:00–21:00 UTC), and one named account per role (`coordinator@vipgcs.test` is Ada Nwosu, `admin@vipgcs.test` is Tolu Adebayo, …) sharing one printed password. Seed writes are audited as non-undoable system actions.
 
-✅ P2 adds the 6 Figma delegations (17 guests, 4 flights, 5 pickups; created by the same code as an approved registration, `db/tooling/seed-guests.ts`) and 3 submissions in the review queue: a likely duplicate, a registration with a flagged note and a pasted message. Planned (P3+): about 60 delegations across categories, arrival modes and entourage sizes, plus scenario fixtures for delays, cancellations, shared flights and room conflicts (`00` decision 5).
+✅ P2 adds the 6 Figma delegations (17 guests, 4 flights, 5 pickups; created by the same code as an approved registration, `db/tooling/seed-guests.ts`) and 3 submissions in the review queue: a likely duplicate, a registration with a flagged note and a pasted message. ✅ P3 (`db/tooling/seed-transport.ts`, through the real pipeline): two trips assigned (ET512 to the driver login's Emeka Oladipo), ET512 then 40 minutes late (Emeka keeps it and must confirm the new time) and matcher suggestions for the other pickups. Planned (P4+): about 60 delegations across categories, arrival modes and entourage sizes, plus scenario fixtures for delays, cancellations, shared flights and room conflicts (`00` decision 5).

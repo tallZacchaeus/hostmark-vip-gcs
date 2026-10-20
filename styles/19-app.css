@@ -220,3 +220,62 @@ a.register-another { display: flex; align-items: center; justify-content: center
 @media (max-width: 767px) {
   .shift-form { grid-template-columns: 1fr 1fr; }
 }
+
+/* P3: flights, transport, driver app and simulation ---------------------------------- */
+
+/* Transport board: blocks and ticks are placed from real times (inline left/width). */
+.board-axis.is-scaled > span { position: absolute; top: 50%; transform: translate(-50%, -50%); white-space: nowrap; }
+.board-axis.is-scaled > span:first-of-type { transform: translate(0, -50%); }
+.board-axis.is-scaled > span:last-of-type { transform: translate(-100%, -50%); }
+.transport-board .timeline-lines { background-image: linear-gradient(to right, #eef1f7 1px, transparent 1px); background-position: 0 0; }
+.timeline-block.is-planned { border: 1px solid #c9dafc; color: var(--info); background: #e8f0ff; }
+.legend-planned { border: 1px solid #c9dafc; background: #e8f0ff; }
+.timeline-action { font: inherit; cursor: pointer; }
+.timeline-action:hover:not(:disabled) { box-shadow: 0 0 0 3px rgba(229,100,90,.2); }
+.timeline-action:disabled { cursor: default; }
+.timeline-action:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.decision-copy > p.decision-also { margin-top: 6px; color: var(--proposal); font-weight: 600; }
+.transport-decision .transport-approve:disabled { opacity: .7; }
+a.driver-trip { display: block; text-decoration: none; }
+a.driver-trip:hover { border-color: #cfd8e6; }
+.driver-unread { color: var(--warn); font-weight: 600; }
+
+/* Arrivals */
+a.arrival-row { color: inherit; text-decoration: none; }
+.arrival-day-select { width: 170px; }
+
+/* Driver app */
+.driver-hero-open { display: block; width: 100%; border: 0; padding: 0; color: inherit; background: none; text-align: left; cursor: pointer; }
+.driver-hero-open strong { display: block; margin: 4px 0 8px; font-size: 36px; line-height: 42px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.driver-change > span { flex: 1; }
+.driver-ack { flex: 0 0 auto; height: 32px; border: 0; border-radius: 9px; padding: 0 12px; color: #0b1626; background: #ffd89a; font-size: 13px; font-weight: 700; }
+.driver-hero-actions button:disabled { opacity: .7; }
+
+/* Guest profile: manual landing time */
+.flight-time-actions, .flight-time-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.flight-time-actions .hm-button, .flight-time-form .hm-button { min-height: 36px; font-size: 13px; }
+.flight-time-note { width: 100%; margin: 0; color: var(--info); font-size: 13px; font-weight: 600; }
+.flight-time-form label { display: flex; flex-direction: column; gap: 4px; color: #566174; font-size: 12px; font-weight: 600; }
+.flight-time-form input { height: 38px; border: 1px solid #d9dfe8; border-radius: 10px; padding: 0 10px; color: #0f1b2d; font-size: 14px; }
+.flight-time-form > div { display: flex; gap: 8px; align-self: flex-end; }
+
+/* Simulation: what-if headline and scripted runs */
+.simulation-headline { margin: 14px 0 4px; color: #17263b; font-size: 14px; font-weight: 700; }
+.simulation-scripted { margin-top: 18px; padding: 18px 20px; }
+.simulation-scripted > header h2 { margin: 0; color: #17263b; font-size: 16px; font-weight: 700; }
+.simulation-scripted > header p { margin: 4px 0 0; color: #626d80; font-size: 13px; }
+.simulation-scripted-form { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr) auto; gap: 12px; align-items: end; }
+.simulation-scripted-form .hm-button { height: 44px; }
+.simulation-scenario-description { margin: 10px 0 0; color: #566174; font-size: 13px; line-height: 19px; }
+.simulation-note { display: flex; align-items: center; gap: 7px; margin: 12px 0 0; color: #566174; font-size: 13px; }
+.simulation-runs { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.simulation-run-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid #e6eaf2; border-radius: 12px; }
+.simulation-run-row.is-running { border-color: #c9dafa; background: #f5f9ff; }
+.simulation-run-row b { display: block; color: #17263b; font-size: 14px; }
+.simulation-run-row small { color: #626d80; font-size: 12.5px; }
+.simulation-run-clock { display: inline-flex; align-items: center; gap: 5px; color: var(--info); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) {
+  .simulation-scripted-form { grid-template-columns: 1fr; }
+  .simulation-run-row { grid-template-columns: 1fr auto; }
+}
+.simulation-hint { color: #626d80; font-size: 12.5px; }

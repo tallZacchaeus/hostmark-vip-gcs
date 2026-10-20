@@ -11,9 +11,13 @@ export type AppRole = "accommodation" | "admin" | "coordinator" | "driver" | "ho
 
 export type ArrivalMode = "flying" | "own_transport" | "pickup";
 
+export type AssignmentStatus = "active" | "completed" | "released";
+
 export type DuplicateKind = "exact" | "likely" | "none";
 
 export type FlightPhase = "cancelled" | "diverted" | "in_air" | "landed" | "scheduled" | "unknown";
+
+export type FlightUpdateSource = "live" | "manual" | "simulated";
 
 export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
@@ -58,6 +62,7 @@ export type SubmissionStatus = "approved" | "auto_processed" | "linked_duplicate
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
 export interface Arrivals {
+  attention: string | null;
   created_at: Generated<Timestamp>;
   delegation_id: string;
   event_id: Generated<string>;
@@ -194,6 +199,7 @@ export interface Flights {
   airline_iata: string | null;
   arrival_date_local: string;
   created_at: Generated<Timestamp>;
+  delay_minutes: Generated<number | null>;
   destination_iata: string | null;
   estimated_arrival_at: Timestamp | null;
   event_id: Generated<string>;
@@ -208,6 +214,20 @@ export interface Flights {
   provider: string | null;
   scheduled_arrival_at: Timestamp | null;
   updated_at: Generated<Timestamp>;
+}
+
+export interface FlightUpdates {
+  cascade_completed_at: Timestamp | null;
+  cascade_ms: number | null;
+  changes: Generated<Json>;
+  created_at: Generated<Timestamp>;
+  event_id: Generated<string>;
+  flight_id: string;
+  id: Generated<Int8>;
+  observed_at: Timestamp;
+  payload: Json | null;
+  simulation_run_id: string | null;
+  source: FlightUpdateSource;
 }
 
 export interface GuestRequirements {
@@ -300,8 +320,26 @@ export interface Notifications {
   title: string;
 }
 
+export interface PickupAssignments {
+  acknowledged_at: Timestamp | null;
+  completed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  driver_id: string;
+  en_route_at: Timestamp | null;
+  event_id: Generated<string>;
+  id: Generated<string>;
+  picked_up_at: Timestamp | null;
+  pickup_id: string;
+  proposal_id: string | null;
+  released_at: Timestamp | null;
+  status: Generated<AssignmentStatus>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface Pickups {
   arrival_id: string;
+  changed_at: Timestamp | null;
   created_at: Generated<Timestamp>;
   dropoff_location: string | null;
   event_id: Generated<string>;
@@ -311,6 +349,7 @@ export interface Pickups {
   passenger_count: number;
   pickup_at: Timestamp;
   pickup_location: string;
+  previous_pickup_at: Timestamp | null;
   status: Generated<PickupStatus>;
   updated_at: Generated<Timestamp>;
   version: Generated<number>;
@@ -358,6 +397,12 @@ export interface Proposals {
   updated_at: Generated<Timestamp>;
 }
 
+export interface ProviderUsageDaily {
+  calls: Generated<number>;
+  day: string;
+  provider: string;
+}
+
 export interface Rooms {
   capacity: number;
   created_at: Generated<Timestamp>;
@@ -386,6 +431,22 @@ export interface RoomTypes {
   updated_at: Generated<Timestamp>;
 }
 
+export interface SimulationRuns {
+  created_at: Generated<Timestamp>;
+  event_id: Generated<string>;
+  flight_ids: Generated<string[]>;
+  id: Generated<string>;
+  real_start: Generated<Timestamp>;
+  scenario_key: string;
+  speed: number;
+  started_by: string | null;
+  status: Generated<string>;
+  steps_applied: Generated<number>;
+  stopped_at: Timestamp | null;
+  updated_at: Generated<Timestamp>;
+  virtual_start: Timestamp;
+}
+
 export interface VipCategories {
   created_at: Generated<Timestamp>;
   event_id: Generated<string>;
@@ -394,6 +455,12 @@ export interface VipCategories {
   preferred_room_tier: number | null;
   rank: number;
   updated_at: Generated<Timestamp>;
+}
+
+export interface WorkerLeases {
+  expires_at: Timestamp;
+  holder: string;
+  name: string;
 }
 
 export interface DB {
@@ -406,16 +473,21 @@ export interface DB {
   driver_shifts: DriverShifts;
   drivers: Drivers;
   events: Events;
+  flight_updates: FlightUpdates;
   flights: Flights;
   guest_requirements: GuestRequirements;
   guests: Guests;
   intake_rate_limits: IntakeRateLimits;
   intake_submissions: IntakeSubmissions;
   notifications: Notifications;
+  pickup_assignments: PickupAssignments;
   pickups: Pickups;
   profiles: Profiles;
   proposals: Proposals;
+  provider_usage_daily: ProviderUsageDaily;
   room_types: RoomTypes;
   rooms: Rooms;
+  simulation_runs: SimulationRuns;
   vip_categories: VipCategories;
+  worker_leases: WorkerLeases;
 }

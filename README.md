@@ -4,9 +4,9 @@ Coordinate VIP guests at a large event: guest intake, live flight tracking, tran
 
 **Docs:** [`docs/`](docs/) holds the six core documents: [PRD](docs/01-PRD.md), [TRD](docs/02-TRD.md) (stack, hosting), [App flow](docs/03-App-Flow.md), [UI/UX brief](docs/04-UI-UX-Design-Brief.md), [Schema & API](docs/05-Backend-Schema.md), [Implementation plan](docs/06-Implementation-Plan.md) (what is built).
 
-**Status:** P1 (backend + the Figma Make frontend "Hostmark", source in [`design/figma-make/`](design/figma-make/README.md)) and **P2 guest intake** are done: public registration link, intake pipeline, review queue, pasted messages, guests and guest profiles. Other screens show "coming soon" until their phase (see the implementation plan).
+**Status:** P1 (backend + the Figma Make frontend "Hostmark", source in [`design/figma-make/`](design/figma-make/README.md)) **P2 guest intake** and **P3 flights and transport** are done: public registration link, intake pipeline, review queue, pasted messages, guests and guest profiles; flight tracking with the transport cascade, driver suggestions for approval, the arrivals and transport boards, the driver app and the simulation screen. Other screens show "coming soon" until their phase (see the implementation plan).
 
-**External services are optional.** Without keys the app makes no external calls: free text is read by offline rules instead of Claude, and the registration form skips the Turnstile bot check (rate limits still apply). Add `ANTHROPIC_API_KEY` and `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` to the environment when you have them ([`docs/02-TRD.md` §4.5](docs/02-TRD.md)).
+**External services are optional.** Without keys the app makes no external calls: free text is read by offline rules instead of Claude, the registration form skips the Turnstile bot check (rate limits still apply), and live flight status is not polled (use simulated mode, or set landing times by hand). Add `ANTHROPIC_API_KEY`, `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` and `AERODATABOX_API_KEY` to the environment when you have them ([`docs/02-TRD.md` §4.5](docs/02-TRD.md)).
 
 ## Local development
 
@@ -16,7 +16,7 @@ Requirements: Node 22.12+, pnpm 11. Docker is optional.
 
 ```bash
 pnpm install
-pnpm local:setup                     # creates .env.local and .pglite/dev (demo venue, 6 delegations, 3 registrations to review), prints the accounts and password
+pnpm local:setup                     # creates .env.local and .pglite/dev (demo venue, 6 delegations, 3 registrations to review, trips and driver suggestions), prints the accounts and password
                                      # --reset starts over
 pnpm dev                             # or: pnpm build && pnpm start   → http://localhost:3000
 ```
@@ -39,6 +39,8 @@ pnpm dev                             # http://localhost:3000
 | `pnpm typecheck` · `pnpm lint` · `pnpm build` | Type check · ESLint · production build |
 | `pnpm db:types` | Regenerate `lib/db/types.ts` from the migrations |
 | `pnpm eval:build` · `pnpm eval:intake` | Rebuild the labelled intake set · score the intake pipeline (offline; `-- --reader claude` with a key) |
+| `pnpm eval:cascade` | Transport cascade on a synthetic day: latency p50/p95, proposal feasibility, approvals (`-- --flights N --drivers N --updates N --seed N`) |
+| `pnpm worker` | Background worker as its own process (when the app runs with `WORKER_MODE=off`; by default the app server runs it) |
 | `pnpm admin:create --email … --name …` | Create a Super Admin (prints a one-time password) |
 
 ## Using the API from the frontend

@@ -9,6 +9,7 @@ import { MEMBER_ROLE_LABELS, PARTY_ROLE_LABELS, REQUIREMENT_LABELS, guestName } 
 import { type AuditEntry, actorLabel, objectOf, verbOf } from '@/lib/client/activity-format'
 import { formatDayTime, formatShortDay, formatTime, initials } from '@/lib/client/format'
 import { PARTY_ROLES, type PartyRole } from '@/lib/domain/intake/schema'
+import { FlightTimeEditor } from './FlightTimeEditor'
 import { type GuestProfile, PICKUP_STATUS, type Requirement } from './types'
 
 export function ProfileCard({ title, className = '', children }: { readonly title: string; readonly className?: string; readonly children: React.ReactNode }) {
@@ -79,6 +80,15 @@ export function PartyCard({ profile, busy, onAdd, onRemove }: PartyCardProps) {
   )
 }
 
+const PHASE_LABELS: Readonly<Record<string, string>> = {
+  scheduled: 'Scheduled',
+  in_air: 'In the air',
+  landed: 'Landed',
+  cancelled: 'Cancelled',
+  diverted: 'Diverted',
+  unknown: 'Status unknown',
+}
+
 export function ArrivalCard({ profile, timeZone }: { readonly profile: GuestProfile; readonly timeZone: string }) {
   const { arrival, flight } = profile
   if (!arrival) {
@@ -88,7 +98,7 @@ export function ArrivalCard({ profile, timeZone }: { readonly profile: GuestProf
       </ProfileCard>
     )
   }
-  const when = flight?.actual_arrival_at ?? flight?.estimated_arrival_at ?? flight?.scheduled_arrival_at ?? arrival.stated_arrival_at ?? arrival.requested_pickup_at
+  const when = flight?.manual_arrival_at ?? flight?.actual_arrival_at ?? flight?.estimated_arrival_at ?? flight?.scheduled_arrival_at ?? arrival.stated_arrival_at ?? arrival.requested_pickup_at
   const route = flight ? [flight.origin_iata, flight.destination_iata].filter(Boolean).join(' to ') : ''
   return (
     <ProfileCard title="Arrival" className="arrival-profile-card">
@@ -106,7 +116,7 @@ export function ArrivalCard({ profile, timeZone }: { readonly profile: GuestProf
       </p>
       <div className="profile-time">
         <strong>{when ? `${formatShortDay(when, timeZone)} ${formatTime(when, timeZone)}` : 'Time to follow'}</strong>
-        {flight && <StatusChip tone="neutral">{flight.phase === 'scheduled' ? 'Scheduled' : flight.phase.replace(/_/g, ' ')}</StatusChip>}
+        {flight && <StatusChip tone="neutral">{PHASE_LABELS[flight.phase] ?? flight.phase}</StatusChip>}
       </div>
       {arrival.expected_at_venue_at && (
         <p>
@@ -114,6 +124,7 @@ export function ArrivalCard({ profile, timeZone }: { readonly profile: GuestProf
         </p>
       )}
       {flight && !when && <p>The landing time will be filled in from flight tracking.</p>}
+      {flight && <FlightTimeEditor flightId={flight.id} manualArrivalAt={flight.manual_arrival_at} landingAt={when ?? null} timeZone={timeZone} />}
     </ProfileCard>
   )
 }

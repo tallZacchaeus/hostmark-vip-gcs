@@ -31,8 +31,10 @@
     "db:types": "node scripts/generate-db-types.ts",
     "db:seed": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/seed-dev.ts",
     "admin:create": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/create-super-admin.ts",
+    "worker": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx worker/index.ts",
     "eval:build": "node --import tsx eval/build-intake-dataset.ts",
-    "eval:intake": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx eval/run-intake.ts"
+    "eval:intake": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx eval/run-intake.ts",
+    "eval:cascade": "node --conditions=react-server --import tsx eval/run-cascade.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.135.0",
