@@ -103,9 +103,9 @@ describe('proposals', () => {
     expect(error.code).toBe('42501')
   })
 
-  it('reports approval as not available until the module executor exists (rooms arrive in P4)', async () => {
+  it('reports approval as not available until the module executor exists (Co-Pilot actions arrive in P7)', async () => {
     await db().createEvent()
-    const proposal = await createProposal('Assign room', crypto.randomUUID(), null, 'room_assignment')
+    const proposal = await createProposal('Add a note', crypto.randomUUID(), null, 'copilot_action')
     const coordinator = await db().createProfile('coordinator')
     await db().asUser(coordinator)
 

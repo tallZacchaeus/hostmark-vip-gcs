@@ -67,6 +67,24 @@ describe('development seed', () => {
     const [pending] = await app.sql<{ n: number }>(`select count(*)::int as n from proposals where status = 'pending' and kind = 'driver_assignment'`)
     expect(pending?.n).toBe(result.transport.suggestions)
 
+    // Rooms go through the real allocator: every room state is on the grid and a plan for every
+    // seeded guest is waiting for approval, none of it in a room that is out of service.
+    const [states] = await app.sql<{ dirty: number; cleaning: number; broken: number }>(
+      `select count(*) filter (where housekeeping_status = 'needs_cleaning')::int as dirty,
+        count(*) filter (where housekeeping_status = 'cleaning')::int as cleaning, count(*) filter (where out_of_service)::int as broken from rooms`,
+    )
+    expect(states).toEqual({ dirty: 3, cleaning: 2, broken: 1 })
+    const [plan] = await app.sql<{ status: string; lines: number; guests: number; in_broken: number }>(
+      `select p.status, (select count(*)::int from proposals l where l.parent_id = p.id) as lines,
+        (select count(*)::int from guests where status in ('expected', 'arrived')) as guests,
+        (select count(*)::int from proposals l join rooms r on r.id = (l.payload ->> 'room_id')::uuid where l.parent_id = p.id and r.out_of_service) as in_broken
+       from proposals p where p.id = $1 and p.kind = 'room_plan'`,
+      [result.allocation.planId],
+    )
+    expect(plan).toMatchObject({ status: 'pending', in_broken: 0 })
+    expect(plan?.lines).toBe(result.allocation.placed)
+    expect(result.allocation.placed + result.allocation.unplaced).toBe(plan?.guests)
+
     // Seed data is recorded as system activity that cannot be undone.
     const [undoable] = await app.sql<{ n: number }>(`select count(*)::int as n from audit_log where undoable`)
     expect(undoable?.n).toBe(0)

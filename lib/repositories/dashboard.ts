@@ -39,12 +39,20 @@ export interface DashboardSummary {
 /** "Today" is the event's calendar day: the zone comes from the event row itself. */
 const EVENT_TODAY = (now: Date) => sql<string>`(${now.toISOString()}::timestamptz at time zone (select e.timezone from public.events e limit 1))::date`
 
+/** Free as on the Rooms board: nobody planned or in it, and no pending suggestion for it. */
+const FREE = sql`not exists (select 1 from public.room_assignments a where a.room_id = rooms.id and a.status in ('planned', 'checked_in'))
+  and not exists (
+    select 1 from public.proposals p left join public.proposals parent on parent.id = p.parent_id
+    where p.kind = 'room_assignment' and p.status = 'pending' and p.payload ->> 'room_id' = rooms.id::text
+      and (p.parent_id is null or parent.status = 'pending')
+  )`
+
 export async function countRooms(tx: Tx): Promise<RoomCounts> {
   const row = await tx
     .selectFrom('rooms')
     .select([
       sql<number>`count(*)::int`.as('total'),
-      sql<number>`(count(*) filter (where housekeeping_status = 'clean' and not out_of_service))::int`.as('ready'),
+      sql<number>`(count(*) filter (where housekeeping_status = 'clean' and not out_of_service and ${FREE}))::int`.as('ready'),
       sql<number>`(count(*) filter (where housekeeping_status = 'needs_cleaning' and not out_of_service))::int`.as('needs_cleaning'),
       sql<number>`(count(*) filter (where housekeeping_status = 'cleaning' and not out_of_service))::int`.as('cleaning'),
       sql<number>`(count(*) filter (where out_of_service))::int`.as('out_of_service'),

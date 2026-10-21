@@ -26,6 +26,10 @@ const ROW = {
   pickup_at: '2026-10-28T15:30:00Z',
   open_issues: 1,
   reference_code: 'VIP-AB12',
+  room_number: '204',
+  rooms_placed: 1,
+  room_checked_in: false,
+  room_suggested: false,
 }
 const LIST = { rows: [ROW], tabs: { all: 1, today: 1, attention: 1, arrived: 0 }, totals: { delegations: 1, guests: 2 } }
 
@@ -45,6 +49,7 @@ describe('GuestsScreen', () => {
     expect(row).toHaveTextContent('Needs a driver')
     expect(row).toHaveTextContent('1 issue')
     expect(row).toHaveTextContent('Pickup requested')
+    expect(row).toHaveTextContent('Room 204 · 1 of 2 placed')
     expect(screen.getByText('1 delegation · 2 guests')).toBeInTheDocument()
   })
 

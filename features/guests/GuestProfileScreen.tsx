@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { ErrorBanner } from '@/components/ui/Feedback'
 import { Icon } from '@/components/ui/Icon'
-import { Pill, Skeleton, StatusChip } from '@/components/ui/Status'
+import { Pill, Skeleton, StatusChip, type Tone } from '@/components/ui/Status'
 import { useToast } from '@/components/ui/Toast'
 import { useTimeZone } from '@/components/shell/SessionContext'
 import { guestName } from '@/features/intake/model'
@@ -18,6 +18,7 @@ import { useAction } from '@/lib/client/use-action'
 import type { PartyRole } from '@/lib/domain/intake/schema'
 import { EditGuestDialog } from './EditGuestDialog'
 import { ArrivalCard, HistoryCard, IssuesCard, PartyCard, ProfileCard, TransportCard } from './ProfileCards'
+import { RoomCard } from './RoomCard'
 import { type GuestProfile, PICKUP_STATUS, type Requirement } from './types'
 
 function Loading() {
@@ -38,13 +39,23 @@ function Loading() {
   )
 }
 
+/** The guest's own room: checked in, kept, suggested or not planned. */
+function roomPill(profile: GuestProfile): { readonly label: string; readonly tone: Tone | 'suggested' } {
+  const stay = profile.stays?.find((item) => item.guest_id === profile.guest.id)
+  if (stay) return stay.status === 'checked_in' ? { label: `Room ${stay.number}: checked in`, tone: 'success' } : { label: `Room ${stay.number}`, tone: 'info' }
+  const suggestion = profile.room_suggestions?.find((item) => item.guest_id === profile.guest.id)
+  if (suggestion?.room_number) return { label: `Room ${suggestion.room_number} suggested`, tone: 'suggested' }
+  return { label: 'Room: not planned yet', tone: 'neutral' }
+}
+
 function Badges({ profile, openIssues }: { readonly profile: GuestProfile; readonly openIssues: number }) {
   const arrived = profile.arrival?.status === 'arrived'
+  const room = roomPill(profile)
   return (
     <div className="profile-badges">
       <StatusChip tone={arrived ? 'success' : 'neutral'}>{arrived ? 'Arrival: Arrived' : 'Arrival: Expected'}</StatusChip>
       {profile.pickup ? <StatusChip tone={PICKUP_STATUS[profile.pickup.status].tone}>{`Transport: ${PICKUP_STATUS[profile.pickup.status].label}`}</StatusChip> : null}
-      <Pill tone="neutral">Room: not planned yet</Pill>
+      <Pill tone={room.tone}>{room.label}</Pill>
       {openIssues > 0 && <StatusChip tone="warning">{`${plural(openIssues, 'open issue')}`}</StatusChip>}
     </div>
   )
@@ -132,9 +143,7 @@ export function GuestProfileScreen({ id }: { readonly id: string }) {
           <PartyCard profile={data} busy={action.busy} onAdd={(memberName, role) => void addMember(memberName, role)} onRemove={(memberId) => void removeMember(memberId)} />
           <ArrivalCard profile={data} timeZone={timeZone} />
           <TransportCard profile={data} timeZone={timeZone} />
-          <ProfileCard title="Room" className="room-profile-card">
-            <p>Rooms are suggested by the allocator in phase P4. Proximity: {guest.proximity_priority}{guest.share_group ? ` · shares with group “${guest.share_group}”` : ''}.</p>
-          </ProfileCard>
+          <RoomCard profile={data} timeZone={timeZone} />
           {(delegation.contact_name || delegation.contact_email || delegation.contact_phone) && (
             <ProfileCard title="Contact" className="contact-profile-card">
               <div className="profile-facts">

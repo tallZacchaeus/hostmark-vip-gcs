@@ -97,7 +97,7 @@
 .allocation-header i { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 999px; color: #6d3fc4; background: #f0eaff; font-size: 13px; line-height: 18px; font-style: normal; font-weight: 700; }
 .allocation-header p { margin: 3px 0 0; color: #566174; font-size: 14px; }
 .allocation-tabs { height: 50px; display: flex; align-items: flex-end; gap: 28px; border-bottom: 1px solid #e6eaf2; }
-.allocation-tabs button { position: relative; height: 50px; border: 0; padding: 0 1px; color: #566174; background: transparent; font-size: 13px; font-weight: 600; }
+.allocation-tabs button, .allocation-tabs a { position: relative; height: 50px; display: inline-flex; align-items: center; border: 0; padding: 0 1px; color: #566174; background: transparent; font-size: 13px; font-weight: 600; text-decoration: none; }.allocation-tabs a:hover { color: #17263b; }
 .allocation-tabs button::after { content: ""; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: transparent; }.allocation-tabs button.is-active { color: #17263b; }.allocation-tabs button.is-active::after { background: #d5440e; }
 .allocation-expired, .allocation-result { min-height: 52px; display: flex; align-items: center; gap: 10px; margin-top: 18px; padding: 7px 8px 7px 14px; border-radius: 12px; }
 .allocation-expired { color: #a84f08; background: #fff1da; }.allocation-expired > span, .allocation-result > span { flex: 1; font-size: 14px; font-weight: 600; }.allocation-expired .hm-button { min-height: 36px; background: #fff; font-size: 13px; }

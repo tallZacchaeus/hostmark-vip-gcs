@@ -55,6 +55,8 @@ export type ProximityPriority = "high" | "low" | "normal";
 
 export type RequirementCategory = "accessibility" | "dietary" | "medical" | "other" | "room_preference" | "schedule" | "security" | "transport";
 
+export type StayStatus = "cancelled" | "checked_in" | "checked_out" | "planned";
+
 export type SubmissionSource = "form" | "pasted_message";
 
 export type SubmissionStatus = "approved" | "auto_processed" | "linked_duplicate" | "needs_review" | "processing" | "received" | "rejected";
@@ -403,6 +405,29 @@ export interface ProviderUsageDaily {
   provider: string;
 }
 
+export interface RoomAssignments {
+  acknowledged_violations: Generated<string[]>;
+  checked_in_at: Timestamp | null;
+  checked_in_by: string | null;
+  checked_out_at: Timestamp | null;
+  checked_out_by: string | null;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  event_id: Generated<string>;
+  expected_check_in_at: Timestamp;
+  expected_check_out_at: Timestamp;
+  guest_id: string;
+  id: Generated<string>;
+  is_manual_override: Generated<boolean>;
+  moved_from_id: string | null;
+  override_reason: string | null;
+  proposal_id: string | null;
+  room_id: string;
+  status: Generated<StayStatus>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
 export interface Rooms {
   capacity: number;
   created_at: Generated<Timestamp>;
@@ -485,6 +510,7 @@ export interface DB {
   profiles: Profiles;
   proposals: Proposals;
   provider_usage_daily: ProviderUsageDaily;
+  room_assignments: RoomAssignments;
   room_types: RoomTypes;
   rooms: Rooms;
   simulation_runs: SimulationRuns;

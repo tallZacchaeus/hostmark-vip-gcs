@@ -6,12 +6,6 @@ import { PAGE_ACCESS, type PageKey } from '@/lib/auth/page-access'
 import { requirePageSession } from '@/lib/auth/page-guard'
 
 const PLACEHOLDERS: Readonly<Record<string, { page: PageKey; title: string; description: string; phase: string }>> = {
-  'front-desk': {
-    page: 'frontDesk',
-    title: 'Front desk',
-    description: 'Arriving, in-house and leaving guests with one button to check them in or out.',
-    phase: 'phase P4 (room allocation)',
-  },
   sanitation: {
     page: 'staffSanitation',
     title: 'Sanitation',

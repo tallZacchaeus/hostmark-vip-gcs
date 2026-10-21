@@ -26,6 +26,10 @@ export interface DelegationRow {
   readonly pickup_at: string | null
   readonly open_issues: number
   readonly reference_code: string | null
+  readonly room_number?: string | null
+  readonly rooms_placed?: number
+  readonly room_checked_in?: boolean
+  readonly room_suggested?: boolean
 }
 
 export interface GuestTabs {
@@ -67,6 +71,28 @@ export interface Requirement {
   readonly reference_code: string | null
 }
 
+export interface Stay {
+  readonly id: string
+  readonly guest_id: string
+  readonly status: 'planned' | 'checked_in'
+  readonly expected_check_in_at: string
+  readonly expected_check_out_at: string
+  readonly is_manual_override: boolean
+  readonly override_reason: string | null
+  readonly room_id: string
+  readonly number: string
+  readonly floor: number
+  readonly wing: string
+  readonly room_type: string
+}
+
+export interface RoomSuggestion {
+  readonly id: string
+  readonly parent_id: string | null
+  readonly guest_id: string
+  readonly room_number: string | null
+}
+
 export interface GuestProfile {
   readonly guest: Member & {
     readonly delegation_id: string
@@ -87,6 +113,9 @@ export interface GuestProfile {
     readonly contact_phone: string | null
   }
   readonly members: Member[]
+  /** Current stays of the party (absent for roles without room access). */
+  readonly stays?: Stay[]
+  readonly room_suggestions?: RoomSuggestion[]
   readonly arrival: {
     readonly id: string
     readonly mode: ArrivalMode

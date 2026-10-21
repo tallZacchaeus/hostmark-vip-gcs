@@ -1,6 +1,6 @@
 # 03 — App Flow
 
-**Status:** v3.1, 2026-10-20. Routes follow the Figma Make design (Hostmark). Built: sign-in, password change, dashboard, activity, settings (P1); registration, intake, review, guests and guest profile (P2); arrivals, transport, simulation and the driver app (P3). The other screens show "coming soon" until their phase lands.
+**Status:** v3.2, 2026-10-21. Routes follow the Figma Make design (Hostmark). Built: sign-in, password change, dashboard, activity, settings (P1); registration, intake, review, guests and guest profile (P2); arrivals, transport, simulation and the driver app (P3); rooms, the allocation plan, the move dialog and the front desk (P4). The other screens show "coming soon" until their phase lands.
 
 **Related:** requirements in [`01-PRD.md`](01-PRD.md), routes/API in [`05-Backend-Schema.md` §7](05-Backend-Schema.md#7-api-surface-nextjs), visual rules in [`04-UI-UX-Design-Brief.md`](04-UI-UX-Design-Brief.md).
 
@@ -37,17 +37,17 @@ Routes follow the Figma Make design ("Hostmark", see [`design/figma-make/`](../d
 |---|---|---|---|
 | `/dashboard` | **Home** | Greeting and data mode, KPI tiles, **Waiting for your approval** (one-tap approve/reject; driver proposals from P3, and an approval that no longer fits says why instead of acting), recent activity with Undo, quick actions | ✅ |
 | `/programme` | Programme | Timeline by day, at-risk items, venues (programs team edits) | 🟨 P6 |
-| `/guests` | Guests | One row per delegation: arrival, transport, room (P4), open issues; tabs, search, category filter; **Add guest** | ✅ |
-| `/guests/[id]` | Guest profile | Party (add/remove), arrival, transport, room (P4), contact, open issues (Dismiss / Add as guest), history, registrations; **Edit** (category, proximity, share group, dietary, notes) | ✅ |
+| `/guests` | Guests | One row per delegation: arrival, transport, room (the principal's room, "n of m placed", in house, suggested), open issues; tabs, search, category filter; **Add guest** | ✅ |
+| `/guests/[id]` | Guest profile | Party (add/remove), arrival, transport, **room** (each member's room or pending suggestion with a link to its plan; **Change room** / **Assign a room** open the move dialog), contact, open issues (Dismiss / Add as guest), history, registrations; **Edit** (category, proximity, share group, dietary, notes) | ✅ |
 | `/intake` | Intake | Submissions by reason (needs review, likely duplicates, missing details, flagged, processed); search, source filter; **Paste a message**; copy registration link | ✅ |
 | `/intake/[id]` | Review submission | Original vs what was read (editable), checks, VIP category; duplicate side-by-side; approve / link / treat as new / reject; **Undo automatic processing** on processed ones | ✅ |
 | `/arrivals` | Arrivals | Day board grouped by hour: landing time (with the old time struck through when it moved), principal, category, party, flight + status (landed / delayed / cancelled / early / time set by hand), pickup status, driver(s) or suggestion chip; next 2 h / 6 h / all day, status, search, day; rows open the guest profile, pickup/driver cells open Transport; a "now" line on today | ✅ P3 |
 | `/transport` | Transport | Day tabs; **decision cards** (assign / reassign / release: why, what else changes, alternatives, Approve / Reject; hovering lights the ghost block); **timeline** per driver (done, in progress, assigned, suggested; off-shift shaded; now line) with a "Needs a driver" row whose blocks ask for a suggestion; **driver drawer** (shift, trips, unconfirmed changes) | ✅ P3 |
-| `/rooms` | Rooms | Building grid by floor × wing with status, room inspector, run allocator | 🟨 P4 |
-| `/rooms/plan/[id]` | Allocation plan | Plan lines with match and rule checks, approve selected/all, reject | 🟨 P4 |
+| `/rooms` | Rooms | Seven status tiles that filter (ready, proposed, reserved, occupied, needs cleaning, cleaning, out of service), wing / floor / guest-or-room filters, building grid by floor × wing, **room inspector** (who is in it or kept for whom and when, or why it is empty; **Move guest**, **Open plan**, **View guest**), **Run allocator** → the plan; "Allocation plan" tab while a plan waits | ✅ P4 |
+| `/rooms/plan/[id]` | Allocation plan | Overall satisfaction, guests, lines meeting every preference, lines with warnings; guests no room was found for (with why); one line per guest: room, why, preference match, rules, and the reasons on demand; warning lines start unticked; **Approve selected** / **Approve all** / **Reject plan**; after a decision, the result per line (assigned / not applied with the reason / not chosen) | ✅ P4 |
 | `/sanitation` | Sanitation | Cleaning queue by priority, estimated ready vs needed by, reverse checkout | 🟨 P5 |
 | `/activity` | Activity | Audit log by day with who/type filters, sentence + field changes, **Undo** on automatic changes | ✅ |
-| `/simulation` | Simulation | **What-if preview** (flight delay ± minutes; driver unavailable from a time): what would move, who keeps a trip, decisions and conflicts — nothing written. **Scripted scenarios** (5, 1×–600×, simulated mode only) replay flight changes through the live pipeline, with progress and a simulated clock. Room scenarios arrive with P4, "Send to Co-Pilot" with P7 | ✅ P3 |
+| `/simulation` | Simulation | **What-if preview** (flight delay ± minutes; driver unavailable from a time): what would move, who keeps a trip, decisions and conflicts — nothing written. **Scripted scenarios** (5, 1×–600×, simulated mode only) replay flight changes through the live pipeline, with progress and a simulated clock. Room scenarios (room out of service, extra guests) moved to P5 with turnaround; "Send to Co-Pilot" with P7 | ✅ P3 |
 | `/settings?tab=` | Settings | **Users** (invite with one-time temporary password, role, reset, deactivate), **Rooms** (room types, rooms, CSV import with dry run), **Drivers** (vehicles, app login, shifts), **VIP categories** (rank order), **System** (event, registration link, flight data mode). Coordinators see VIP categories only. | ✅ |
 
 The **Co-Pilot** drawer (top bar, coordinator+) and the **notifications** drawer (everyone) open over any console screen. The decisions queue lives on the dashboard (`/dashboard#approvals`) rather than on a separate page.
@@ -56,7 +56,7 @@ The **Co-Pilot** drawer (top bar, coordinator+) and the **notifications** drawer
 | Route | Role | Screen | Status |
 |---|---|---|---|
 | `/driver` | Driver | My pickups (today / tomorrow): the current or next trip big with live flight status and one button (Start pickup → Picked up → Dropped off), "Time changed from …" / "New pickup" with **Got it**, later / moved / done lists, trip details sheet (destination, pickup point, passengers, flight), notifications, sign out | ✅ P3 |
-| `/staff/front-desk` | Accommodation (and coordinator+) | Arriving / In house / Leaving tabs, **Check in** / **Check out** (first wins) | 🟨 P4 |
+| `/staff/front-desk` | Accommodation (and coordinator+) | Arriving / In house / Leaving tabs, search by guest or room; one card per party (the principal's room on the key tag, category, expected / checked-in / departure time, on the way / expected / room not ready, the party's rooms); **Check in** with a confirm sheet, then **Undo** in the toast (10 min); a second confirmation is told who checked the party in and when; a room still being cleaned keeps the button off ("Housekeeping is on it."); offline banner. **Check out** arrives with P5 | ✅ P4 (check-out P5) |
 | `/staff/sanitation` | Housekeeping | Rooms to clean in priority order, **Start cleaning** → **Mark ready**, report a problem | 🟨 P5 |
 
 ## 3. Navigation map
@@ -160,7 +160,7 @@ sequenceDiagram
   Note over Ing,DB: cascade_ms = ingestion to cascade done (PRD M2)
 ```
 
-Room readiness (P4) and programme conflicts (P6) join this cascade in their phases. A coordinator's manual landing time and the simulation's scripted steps enter at `ingestFlightUpdate` too.
+✅ P4: the cascade also moves the party's planned stays to the new arrival time and, when a room no longer works for it (not cleanable in time, or someone else's stay now overlaps), proposes another room or alerts the coordinators (F6). Programme conflicts (P6) join in their phase. A coordinator's manual landing time and the simulation's scripted steps enter at `ingestFlightUpdate` too.
 
 ### F5 — Driver trip lifecycle
 
@@ -193,10 +193,16 @@ flowchart TD
   H -->|Violations| J[Warning: lists broken rules<br/>and preference loss]
   J -->|Assign anyway + reason| I
   J -->|Cancel| K[No change]
-  L[Cancellation or delay] --> M[Re-plan only not-checked-in<br/>affected stays] --> C
+  L[Delay or earlier arrival] --> M[Planned stays move with it;<br/>a room that no longer works gets<br/>a move proposal or an alert]
+  N[Guest cancelled] --> O[Planned stay released]
+  P[Guest added after allocation] --> Q[Worker proposes a room]
 ```
 
+Notes (✅ P4): "Assign anyway" needs every warning acknowledged and a reason of at least 10 characters; if something changed since the warning was shown, the dialog refreshes with what is true now. A suggestion or plan line is checked again at approval **for the guest's stay as it is then**, and fails with its reason if a rule no longer holds. Checked-in guests are never moved by the allocator; a coordinator may move one by hand (warned), which checks the old room out and continues the stay in the new one.
+
 ### F7 — Check-in, check-out and cleaning (first confirmation wins)
+
+✅ P4 builds the check-in half: `check_in_party` checks the whole party in at once, the second confirmation gets "Already checked in by Tolu at 14:05", a room not ready or still occupied by someone else refuses with the room numbers, and Undo works for 10 minutes. The checkout and cleaning half below arrives with P5.
 
 ```mermaid
 sequenceDiagram

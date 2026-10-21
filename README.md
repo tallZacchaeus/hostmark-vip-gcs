@@ -16,7 +16,7 @@ Requirements: Node 22.12+, pnpm 11. Docker is optional.
 
 ```bash
 pnpm install
-pnpm local:setup                     # creates .env.local and .pglite/dev (demo venue, 6 delegations, 3 registrations to review, trips and driver suggestions), prints the accounts and password
+pnpm local:setup                     # creates .env.local and .pglite/dev (demo venue, 6 delegations, 3 registrations to review, trips and driver suggestions, a room plan to approve), prints the accounts and password
                                      # --reset starts over
 pnpm dev                             # or: pnpm build && pnpm start   → http://localhost:3000
 ```
@@ -40,6 +40,7 @@ pnpm dev                             # http://localhost:3000
 | `pnpm db:types` | Regenerate `lib/db/types.ts` from the migrations |
 | `pnpm eval:build` · `pnpm eval:intake` | Rebuild the labelled intake set · score the intake pipeline (offline; `-- --reader claude` with a key) |
 | `pnpm eval:cascade` | Transport cascade on a synthetic day: latency p50/p95, proposal feasibility, approvals (`-- --flights N --drivers N --updates N --seed N`) |
+| `pnpm eval:allocation` | Room allocator on synthetic venues: hard-rule satisfaction (independently checked), preference % vs the first-free-room baseline, runtime (`-- --seeds N --seed N`) |
 | `pnpm worker` | Background worker as its own process (when the app runs with `WORKER_MODE=off`; by default the app server runs it) |
 | `pnpm admin:create --email … --name …` | Create a Super Admin (prints a one-time password) |
 

@@ -4,6 +4,7 @@
 import type { Tx } from '@/lib/db/context'
 import { type CascadePlan, clock } from '@/lib/domain/transport/cascade'
 import { notifyCoordinators, notifyUsers } from '@/lib/services/notify'
+import { reworkStays } from '@/lib/services/rooms/suggest'
 import type { TransportContext } from './context'
 import { type Trigger, createDriverProposal } from './proposals'
 
@@ -74,6 +75,8 @@ export async function clearDisruption(tx: Tx, flightId: string): Promise<void> {
 
 export async function applyCascadePlan(tx: Tx, plan: CascadePlan, context: TransportContext, origin: PlanOrigin): Promise<string[]> {
   const created = await applyTimes(tx, plan)
+  // Rooms follow the new arrival times (FR-RA-07): stays move, and a room that no longer works is re-planned.
+  await reworkStays(tx, plan.arrivals.map((arrival) => arrival.id), new Date(), origin.trigger)
   const proposalIds: string[] = []
   const replaced = new Set<string>()
   for (const proposal of plan.proposals) {

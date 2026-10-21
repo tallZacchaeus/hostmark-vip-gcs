@@ -21,6 +21,9 @@ export const COORDINATOR_PLUS: readonly AppRole[] = ['super_admin', 'admin', 'co
 
 export const ANY_ROLE: readonly AppRole[] = APP_ROLES
 
+/** The front desk app: accommodation staff, and coordinators who step in (FR-RA-09, FR-CL-01). */
+export const FRONT_DESK_ROLES: readonly AppRole[] = ['accommodation', ...COORDINATOR_PLUS]
+
 /** Guests and arrivals are read by the programmes team and the front desk too (P2 migration RLS). */
 export const GUEST_READERS: readonly AppRole[] = [...COORDINATOR_PLUS, 'programs', 'accommodation']
 

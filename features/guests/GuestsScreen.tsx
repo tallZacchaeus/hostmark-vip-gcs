@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { ErrorBanner } from '@/components/ui/Feedback'
 import { Icon } from '@/components/ui/Icon'
-import { Pill, Skeleton } from '@/components/ui/Status'
+import { Pill, Skeleton, type Tone } from '@/components/ui/Status'
 import { useTimeZone } from '@/components/shell/SessionContext'
 import { ARRIVAL_MODE_LABELS, guestName } from '@/features/intake/model'
 import type { VipCategory } from '@/features/settings/types'
@@ -32,8 +32,17 @@ function transportOf(row: DelegationRow): { label: string; tone: 'success' | 'wa
   return { label: 'Not planned', tone: 'neutral' }
 }
 
+function roomOf(row: DelegationRow): { readonly label: string; readonly tone: Tone | 'suggested' } {
+  const size = row.companions + 1
+  const placed = row.rooms_placed ?? 0
+  if (row.room_number && row.room_checked_in) return { label: `Room ${row.room_number} · in house`, tone: 'success' }
+  if (row.room_number) return { label: `Room ${row.room_number}${placed < size ? ` · ${placed} of ${size} placed` : ''}`, tone: 'info' }
+  return row.room_suggested ? { label: 'Suggested', tone: 'suggested' } : { label: 'Not planned', tone: 'neutral' }
+}
+
 function GuestRow({ row, timeZone }: { readonly row: DelegationRow; readonly timeZone: string }) {
   const transport = transportOf(row)
+  const room = roomOf(row)
   return (
     <Link className="guest-table-row" href={`/guests/${row.principal_guest_id}`}>
       <span className="guest-cell" data-label="Guest">
@@ -54,7 +63,7 @@ function GuestRow({ row, timeZone }: { readonly row: DelegationRow; readonly tim
         <Pill tone={transport.tone}>{transport.label}</Pill>
       </span>
       <span className="room-cell-v4" data-label="Room">
-        <Pill tone="neutral">Not planned</Pill>
+        <Pill tone={room.tone}>{room.label}</Pill>
       </span>
       <span className="issues-cell" data-label="Issues">
         {row.open_issues ? <Pill tone="warning">{plural(row.open_issues, 'issue')}</Pill> : <span aria-label="No open issues">–</span>}

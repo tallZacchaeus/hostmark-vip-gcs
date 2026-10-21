@@ -118,7 +118,7 @@ describe('notifications, decisions and undo API', () => {
       expect(again.status).toBe(409)
       expect(again.body.error?.code).toBe('not_pending')
 
-      const toApprove = await createProposal('Assign room 412', 'room_assignment')
+      const toApprove = await createProposal('Add a note for the Okafor party', 'copilot_action')
       const approved = await app.call(approve, `/api/proposals/${toApprove}/approve`, { as: coordinator, params: { id: toApprove }, body: {} })
       expect(approved.status).toBe(501)
       expect(approved.body.error?.code).toBe('not_implemented')

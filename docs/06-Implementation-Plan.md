@@ -1,6 +1,6 @@
 # 06 — Implementation Plan
 
-**Status as of 2026-10-20:** P0 decisions confirmed. **P1 is done** (backend 2026-10-16; the Figma Make frontend "Hostmark" ported into the Next.js app 2026-10-19). **P2 guest intake is done** (2026-10-20): public registration, the intake pipeline, the review queue, pasted messages, guests and guest profiles, dashboard counters, demo data and the intake evaluation. **P3 flights and transport is done** (2026-10-20): flight ingestion and the transport cascade, the driver matcher and proposals, the background worker, the arrivals and transport boards, the driver app, the simulation screen (what-if previews and scripted runs) and the cascade evaluation. External services stay behind interfaces with offline stand-ins until keys are issued (Claude → offline rules, Turnstile → skipped, AeroDataBox → no live polling; see [`02`](02-TRD.md) §4). Next: P4 room allocation. One git commit per phase.
+**Status as of 2026-10-21:** P0 decisions confirmed. **P1 is done** (backend 2026-10-16; the Figma Make frontend "Hostmark" ported into the Next.js app 2026-10-19). **P2 guest intake is done** (2026-10-20): public registration, the intake pipeline, the review queue, pasted messages, guests and guest profiles, dashboard counters, demo data and the intake evaluation. **P3 flights and transport is done** (2026-10-20): flight ingestion and the transport cascade, the driver matcher and proposals, the background worker, the arrivals and transport boards, the driver app, the simulation screen (what-if previews and scripted runs) and the cascade evaluation. **P4 room allocation is done** (2026-10-21): stays and the hard-rule checks in the database, the allocator with its baseline and evaluation, plan review with partial approval, manual moves with "assign anyway", incremental suggestions and re-planning, the rooms grid and the front desk check-in. External services stay behind interfaces with offline stand-ins until keys are issued (Claude → offline rules, Turnstile → skipped, AeroDataBox → no live polling; see [`02`](02-TRD.md) §4). Next: P5 turnaround and cleaning. One git commit per phase.
 
 **Rule from [`00` §10](00-Project-Breakdown.md#10-boundaries-to-keep-the-project-realistic):** a phase is done when it **works end to end and can be measured**, not when it has the most features. Each phase below has explicit exit criteria.
 
@@ -38,7 +38,7 @@ flowchart TD
 | P1 Foundation | ✅ backend · ✅ frontend (Hostmark) | M0 Platform | P0 |
 | P2 Guest intake | ✅ | M1 | P1 |
 | P3 Flights and transport | ✅ (live AeroDataBox run waits for a key) | M2 | P2 |
-| P4 Room allocation | ⬜ | M3 | P2 |
+| P4 Room allocation | ✅ | M3 | P2 |
 | P5 Turnaround and cleaning | ⬜ | M5 | P4 |
 | P6 Event program | ⬜ | M6 | P2 (P3 for conflict checks) |
 | P7 Co-Pilot | ⬜ | M4 | P3, P4, P5 |
@@ -112,7 +112,7 @@ Frontend (2026-10-19, from the Figma Make export in `design/figma-make/`):
 - ✅ Background worker: in-process with the app server (`WORKER_MODE=in-process`, default) or `pnpm worker`; one pass every 5 s (simulation steps), flight checks and suggestions every minute; a short lease row (`worker_leases`) instead of an advisory lock so only one process works at a time, and a crashed holder's lease simply runs out
 - ✅ Arrivals board (`/arrivals`: hour groups, live status, changed times, pickup, driver, suggestion chips, window/status/search filters, day switch), transport board (`/transport`: decision cards with Approve/Reject, timeline per driver positioned from real times, off-shift shading, "Needs a driver" row with Suggest, driver drawer), manual landing time and "Check now" on the guest profile, attributed to the coordinator in the activity log (FR-FT-11)
 - ✅ Driver app (`/driver`): today/tomorrow, the current trip big with one button (start → picked up → dropped off), "Got it" for moved or new trips, moved-away and done sections, trip details sheet, notifications (FR-FT-09)
-- ✅ Simulation (`/simulation`): **what-if preview** (flight delay, driver unavailable from a time; read-only, same planner) and **scripted scenarios** (5 versioned in `lib/domain/simulation/scenarios.ts` instead of a `simulation_scenarios` table; 1×–600×; one run at a time; simulated mode only) through the live ingestion (FR-PL-10, FR-FT-10). Room scenarios arrive with P4; "Send to Co-Pilot" with P7.
+- ✅ Simulation (`/simulation`): **what-if preview** (flight delay, driver unavailable from a time; read-only, same planner) and **scripted scenarios** (5 versioned in `lib/domain/simulation/scenarios.ts` instead of a `simulation_scenarios` table; 1×–600×; one run at a time; simulated mode only) through the live ingestion (FR-PL-10, FR-FT-10). Room scenarios moved to P5 (they need turnaround to be meaningful); "Send to Co-Pilot" with P7.
 - ✅ Demo data: two seeded trips, ET512 runs 40 min late through the real pipeline (its driver keeps it and must confirm), and matcher suggestions for the rest; seeded shifts overlap at midday
 - ✅ **Eval:** `pnpm eval:cascade` (synthetic day generated from a seed instead of fixture files: 30 flights, 48 pickups, 18 drivers, 150 changes). 2026-10-20, seed 42: latency ingestion → cascade done **p50 8 ms, p95 10 ms, max 20 ms** (target p95 ≤ 5 s); **64 / 64** proposals feasible when made; of the 15 still pending at the end of the day, 12 approve and 3 fail safely (`driver_busy`: the driver's other trip moved into the window and nobody else was free — the coordinator was alerted); 3 double bookings before approvals, 2 after (each with an open alert). The evaluation found both rules: the first run (14 drivers) showed pending suggestions naming the same driver for overlapping trips; with the "held driver" rule but before "withdraw stale suggestion", the run above gave 57 / 58 feasible and 17 of 32 end-of-day approvals failing.
 
@@ -122,21 +122,26 @@ Frontend (2026-10-19, from the Figma Make export in `design/figma-make/`):
 
 **Known gaps carried forward:** live AeroDataBox run (needs a key, TRD §4.1); notifications for repeated "no driver free" alerts are not de-duplicated; "Call coordinator" from the Figma driver app is left out until staff phone numbers are part of the event settings.
 
-### P4 — Room allocation (M3) ⬜
-- ⬜ `room_assignments` + capacity-aware availability checks in RPCs
-- ⬜ Allocator (pure TS): hard filter → weighted score → greedy by rank → local search; per-line explanations (FR-RA-01…04)
-- ⬜ Naive baseline allocator (for evaluation)
-- ⬜ Room grid UI, unallocated tray, plan review with partial approve (FR-RA-04/08)
-- ⬜ Manual assign/move with dry-run rule check + RuleWarningDialog (FR-RA-06)
-- ⬜ Incremental proposals for new guests; re-plan of not-checked-in stays on change (FR-RA-05/07)
-- ⬜ Accommodation app: today's arrivals, **Check in** (FR-RA-09)
-- ⬜ **Eval:** `eval/datasets/allocation/*` + `pnpm eval:allocation` → hard-rule satisfaction (must be 100%), preference % vs baseline, runtime
-- ⏸ Optional: HiGHS ILP comparison on small instances
+### P4 — Room allocation (M3) ✅
+- ✅ Migration `20261021100000_rooms_allocation.sql`: `room_assignments` (one current stay per guest, audited, no direct writes), `private.guest_stay_window` and `private.room_unavailability` (capacity-aware, share groups, cleaning time after each stay, readiness by arrival), executors for room plans (chosen lines; each line approved or failed with its reason) and single room proposals (re-checked for the guest's window **at approval**), `assign_room` (assign anyway), `check_in_party` / `undo_check_in`, release of a cancelled guest's planned stay (trigger) (FR-RA-01, -03, -06, -09)
+- ✅ Allocator (pure TS, `lib/domain/rooms/`): hard filter → weighted score (tier, accessible, ground floor, proximity to the principal by priority) → greedy by rank and party size, principal first → pairwise-swap local search re-scoring only what a swap touches; per-line "why", preference results and match level (FR-RA-01…04)
+- ✅ Naive "first free room" baseline (`allocateFirstFree`)
+- ✅ Rooms (`/rooms`): seven status tiles that filter, wing/floor/search filters, building grid, room inspector, **Run allocator**; plan review (`/rooms/plan/[id]`) with partial approval, reasons per line and unplaced guests (FR-RA-04/08). The Figma "unallocated tray" became the header count and the plan's "No room found for …" note
+- ✅ Manual assign/move with a dry-run rule check and the warning dialog: broken rules, lost preferences, "Assign anyway" with every warning acknowledged and a reason of ≥ 10 characters, kept on the stay and in Activity (FR-RA-06). The guest profile's Room card shows each member's room or suggestion with Change room / Assign a room
+- ✅ Incremental proposals for guests added after allocation started (worker, every minute); planned stays follow a moved arrival and a room that no longer works gets a move proposal or an alert (FR-RA-05/07); pending suggestions hold their rooms
+- ✅ Front desk (`/staff/front-desk`): arriving / in house / leaving, **Check in** for the whole party with confirm, Undo (10 min) and "already checked in by …" (FR-RA-09); guests list and dashboard show rooms
+- ✅ Demo data: three rooms needing cleaning, two being cleaned, one out of service, and a plan for all 17 guests waiting for approval
+- ✅ **Eval:** `pnpm eval:allocation` (synthetic venues and guests from a seed instead of dataset files; an independent hard-rule checker). 2026-10-21, 10 seeds × 3 scenarios: **hard rules 100%** (0 violations); preference satisfaction **84.1% / 83.1% / 75.9%** vs baseline 51.3% / 49.4% / 46.0% (**+30 to +34 points**); the swap pass adds 2–8 points; runtime ≤ 74 ms per plan (details in `02` §3.4). The first run measured 0.9 s per plan and 15 s for 300 guests; re-scoring only what a swap touches gave identical plans 36× faster.
+- ⏸ Optional: ILP comparison on small instances
+- ✅ **Security review** (2026-10-21, security-reviewer): no critical findings. Fixed: **(high)** a suggestion approved after its guest's arrival moved was placed for the old window — every room proposal is now checked and placed for the guest's window at approval, and pending holds use it too; **(medium)** a cancelled guest kept their room (trigger releases it; assign and check-in refuse cancelled guests); "assign anyway" accepted any reason without the coordinator acknowledging the warnings (the client now sends what it showed; reason ≥ 10 characters; a stale dialog gets a fresh 409); check-in did not refuse a room someone else is still checked into (`room_occupied`); undoing a check-in could undo a checked-in guest's move (`moved_from_id`, excluded); **(low)** one lock order guest → room → stay everywhere and share-locked rooms during check-in; override reasons hidden from the front desk (profile and notification); allocator runs limited to 6/min and serialised; no uuid casts of proposal payloads in reads. Left as is: the front desk's database role can read VIP category rows (the API serves names only; accepted for the front desk's category label).
 
-**Exit:** the allocator plans the seeded venue with 100% hard-rule satisfaction and beats the baseline on preferences. The coordinator can approve a plan and override by hand with warnings. Check-in locks stays.
+**Exit:** ✅ the allocator plans the seeded venue with 100% hard-rule satisfaction and beats the baseline on preferences by about 33 points; the coordinator approves a plan (all or some lines) and overrides by hand with warnings; check-in records who and when, and the allocator never moves checked-in guests. Playwright run of every P4 screen with no browser errors.
+
+**Known gaps carried forward:** check-out and its reversal, cleaning tasks and the housekeeping app (P5); room scenarios in the simulation (P5); "same team near each other" is scored only through proximity to the principal; the Figma "Change room" on plan lines is replaced by "View guest" (move after approving).
 
 ### P5 — Room turnaround and cleaning (M5) ⬜
-- ⬜ `cleaning_tasks`; `check_out_stay` (first wins), `reverse_checkout`, `start/complete_cleaning` RPCs (FR-CL-01/02/06)
+- ⬜ `cleaning_tasks`; `check_out_stay` (first wins), `reverse_checkout` (+ `room_assignments.checkout_reversed_at/by`), `start/complete_cleaning` RPCs (FR-CL-01/02/06)
+- ⬜ Simulation room scenarios (room out of service, extra guests) carried from P4
 - ⬜ Estimated ready time + priority ordering (`v_cleaning_queue`) (FR-CL-03/04)
 - ⬜ Accommodation app: **Check out** with the "already checked out by…" state
 - ⬜ Housekeeping app: ordered list, Start → Done (FR-CL-05)
@@ -167,8 +172,8 @@ Frontend (2026-10-19, from the Figma Make export in `design/figma-make/`):
 - ⬜ Volunteer data round (consented) through the real intake link
 - ⬜ Small usability test: 3 coordinator tasks vs a spreadsheet + chat baseline
 - ⬜ Accessibility audit (axe + manual keyboard/screen reader pass) against `04` §7
-- ⬜ Security review: RLS matrix re-test, secrets, rate limits, intake abuse, Co-Pilot prompt-injection via guest free-text (P2 intake and P3 transport reviewed 2026-10-20, see those commits)
-- ⬜ Coverage to ≥ 80% lines/branches: component tests for settings, activity, shells, sign-in
+- ⬜ Security review: RLS matrix re-test, secrets, rate limits, intake abuse, Co-Pilot prompt-injection via guest free-text (P2 intake and P3 transport reviewed 2026-10-20, P4 rooms 2026-10-21, see those commits)
+- ⬜ Coverage to ≥ 80% lines/branches: component tests for settings, activity, shells, sign-in (2026-10-21: 76% lines, 66% branches overall; P4 modules 92–98% lines)
 - ⬜ Content-Security-Policy in Caddy (allow `challenges.cloudflare.com` for scripts and frames when Turnstile is on)
 - ⬜ Performance check against the `02` §7 targets
 - ⬜ Demo script using simulated mode

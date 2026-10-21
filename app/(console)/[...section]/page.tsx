@@ -15,7 +15,6 @@ interface Placeholder {
 
 const PLACEHOLDERS: Readonly<Record<string, Placeholder>> = {
   programme: { page: 'programme', title: 'Programme', description: 'Draft the event programme, list VIP participants and see which items are at risk from late arrivals.', phase: 'phase P6 (event programme)' },
-  rooms: { page: 'rooms', title: 'Rooms', description: 'The room grid by floor and wing, the allocator and manual moves with rule checks.', phase: 'phase P4 (room allocation)' },
   sanitation: { page: 'sanitation', title: 'Sanitation', description: 'Rooms waiting to be cleaned, in priority order, with estimated ready times.', phase: 'phase P5 (turnaround and cleaning)' },
 }
 
@@ -24,9 +23,7 @@ interface PlaceholderPageProps {
 }
 
 function placeholderFor(section: readonly string[]): Placeholder | undefined {
-  return section.length === 1 || section[0] === 'rooms'
-    ? PLACEHOLDERS[section[0] ?? '']
-    : undefined
+  return section.length === 1 ? PLACEHOLDERS[section[0] ?? ''] : undefined
 }
 
 export async function generateMetadata({ params }: PlaceholderPageProps): Promise<Metadata> {

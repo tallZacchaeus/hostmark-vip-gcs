@@ -20,6 +20,19 @@ const COMPANIONS = sql<number>`(
   select greatest(count(*)::int - 1, 0) from public.guests m where m.delegation_id = d.id and m.status <> 'cancelled'
 )`
 
+/** The party's rooms: the principal's first (row-level security hides them from roles without room access). */
+const PARTY_STAYS = sql`from public.room_assignments ra join public.guests m on m.id = ra.guest_id where m.delegation_id = d.id`
+const ROOMS = sql`
+  (select r.number from public.room_assignments ra join public.guests m on m.id = ra.guest_id join public.rooms r on r.id = ra.room_id
+    where m.delegation_id = d.id and ra.status in ('planned', 'checked_in')
+    order by m.id = d.principal_guest_id desc, r.number limit 1) as room_number,
+  (select count(*)::int ${PARTY_STAYS} and ra.status in ('planned', 'checked_in')) as rooms_placed,
+  exists (select 1 ${PARTY_STAYS} and ra.status = 'checked_in') as room_checked_in,
+  exists (
+    select 1 from public.proposals pr join public.guests m on m.id = pr.target_id
+    where m.delegation_id = d.id and pr.kind = 'room_assignment' and pr.status = 'pending'
+  ) as room_suggested`
+
 const FROM_DELEGATIONS = sql`
   from public.delegations d
   join public.guests g on g.id = d.principal_guest_id
@@ -79,6 +92,10 @@ export interface DelegationRow {
   readonly pickup_at: string | null
   readonly open_issues: number
   readonly reference_code: string | null
+  readonly room_number: string | null
+  readonly rooms_placed: number
+  readonly room_checked_in: boolean
+  readonly room_suggested: boolean
 }
 
 const ROW_COLUMNS = sql`
@@ -86,7 +103,7 @@ const ROW_COLUMNS = sql`
   g.id as principal_guest_id, g.title, g.full_name, vc.id as category_id, vc.name as category_name,
   ${COMPANIONS} as companions, a.mode as arrival_mode, ${ARRIVAL_AT} as arrival_at, a.status as arrival_status,
   f.flight_number, f.phase as flight_phase, a.pickup_address, p.status as pickup_status, p.pickup_at,
-  ${OPEN_ISSUES} as open_issues, s.reference_code`
+  ${OPEN_ISSUES} as open_issues, s.reference_code, ${ROOMS}`
 
 export async function listDelegations(tx: Tx, filters: GuestFilters, pagination: Pagination, timeZone: string, today: string) {
   const where = conditions(filters, filters.tab, timeZone, today)
@@ -168,9 +185,34 @@ export async function getGuestProfile(tx: Tx, id: string) {
     .where((eb) => eb.or([eb('delegation_id', '=', delegation.id), eb('matched_delegation_id', '=', delegation.id)]))
     .orderBy('submitted_at', 'desc')
     .execute()
+  const { stays, roomSuggestions } = await readRooms(tx, members.map((member) => member.id))
   const entityIds = [delegation.id, ...members.map((member) => member.id), arrival?.id, pickup?.id].filter((value): value is string => Boolean(value))
   const history = await readHistory(tx, entityIds)
-  return { guest, delegation, members, arrival: arrival ?? null, flight: flight ?? null, pickup: pickup ?? null, requirements, submissions, history }
+  return { guest, delegation, members, arrival: arrival ?? null, flight: flight ?? null, pickup: pickup ?? null, requirements, submissions, history, stays, room_suggestions: roomSuggestions }
+}
+
+/** The party's current stays and pending room suggestions (hidden by RLS from roles without room access). */
+async function readRooms(tx: Tx, memberIds: readonly string[]) {
+  const stays = await tx
+    .selectFrom('room_assignments as a')
+    .innerJoin('rooms as r', 'r.id', 'a.room_id')
+    .innerJoin('room_types as rt', 'rt.id', 'r.room_type_id')
+    .select(['a.id', 'a.guest_id', 'a.status', 'a.expected_check_in_at', 'a.expected_check_out_at', 'a.is_manual_override', 'r.id as room_id', 'r.number', 'r.floor', 'r.wing', 'rt.name as room_type'])
+    // The coordinator's reason for an override is theirs; the front desk sees only that one was made.
+    .select(sql<string | null>`case when private.is_coordinator_plus() then a.override_reason end`.as('override_reason'))
+    .where('a.guest_id', 'in', [...memberIds])
+    .where('a.status', 'in', ['planned', 'checked_in'])
+    .execute()
+  const roomSuggestions = await tx
+    .selectFrom('proposals as p')
+    .leftJoin('proposals as parent', 'parent.id', 'p.parent_id')
+    .select(['p.id', 'p.parent_id', 'p.target_id as guest_id', sql<string>`p.rationale -> 'room' ->> 'number'`.as('room_number')])
+    .where('p.kind', '=', 'room_assignment')
+    .where('p.status', '=', 'pending')
+    .where('p.target_id', 'in', [...memberIds])
+    .where((eb) => eb.or([eb('p.parent_id', 'is', null), eb('parent.status', '=', 'pending')]))
+    .execute()
+  return { stays, roomSuggestions }
 }
 
 async function readHistory(tx: Tx, entityIds: readonly string[]) {

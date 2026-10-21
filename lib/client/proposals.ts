@@ -15,6 +15,13 @@ const FAILURES: Readonly<Record<string, string>> = {
   not_enough_seats: 'The vehicles no longer seat everyone.',
   pickup_closed: 'The pickup is already under way, done or cancelled.',
   no_driver: 'The suggestion names no driver.',
+  room_occupied: 'Someone else now has that room at that time.',
+  room_capacity: 'The room no longer has enough beds.',
+  room_not_ready: 'The room cannot be cleaned before the guest arrives.',
+  room_out_of_service: 'The room is out of service.',
+  already_placed: 'The guest has been given a room in the meantime.',
+  checked_in: 'The guest is already checked in.',
+  guest_gone: 'The guest is no longer expected.',
 }
 
 export function failureMessage(code: string | undefined): string {

@@ -93,6 +93,20 @@ describe('GuestProfileScreen', () => {
     expect(within(screen.getByRole('region', { name: 'History' })).getByText(/Guest registration added delegation Bishop Augustine Okafor/)).toBeInTheDocument()
   })
 
+  it('shows each member’s room or suggestion, and the guest’s own room in the header', async () => {
+    const stay = { id: 's-1', guest_id: 'g-1', status: 'planned' as const, expected_check_in_at: '2026-10-28T14:10:00Z', expected_check_out_at: '2026-10-31T11:00:00Z', is_manual_override: true, override_reason: 'Asked for it', room_id: 'r-501', number: '501', floor: 5, wing: 'West', room_type: 'Executive Suite' }
+    mockApi([{ path: '/api/guests/g-1', body: { ...PROFILE, stays: [stay], room_suggestions: [{ id: 'p-9', parent_id: 'plan-1', guest_id: 'g-2', room_number: '502' }] } }, ...ROUTES.slice(1)])
+    renderWithApp(<GuestProfileScreen id="g-1" />)
+
+    expect(await screen.findByText('Room 501')).toBeInTheDocument()
+    const card = screen.getByRole('region', { name: 'Room' })
+    expect(within(card).getByText('501')).toBeInTheDocument()
+    expect(within(card).getByText(/Executive Suite · West wing, floor 5 · From Wed 28 Oct · placed by hand/)).toBeInTheDocument()
+    expect(within(card).getByRole('link', { name: 'waiting for approval' })).toHaveAttribute('href', '/rooms/plan/plan-1')
+    expect(within(card).getByRole('button', { name: 'Change room' })).toBeInTheDocument()
+    expect(within(card).getByRole('button', { name: 'Assign a room' })).toBeInTheDocument()
+  })
+
   it('dismisses an issue, adds an uncertain person as a guest and removes a member', async () => {
     const fetchMock = mockApi(ROUTES)
     const user = userEvent.setup()

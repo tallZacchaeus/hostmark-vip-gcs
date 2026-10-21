@@ -1,4 +1,5 @@
-// One pass of the background worker (02-TRD.md §3.2). Only one process works at a time, whether
+// One pass of the background worker (02-TRD.md §3.2): simulation steps; every minute, flight
+// checks and driver and room suggestions. Only one process works at a time, whether
 // the app server or `pnpm worker`: a pass first claims a short lease (worker_leases), renewed on
 // every pass; a crashed holder's lease simply runs out. Each part is isolated, so a failing
 // flight check never stops simulation steps or driver suggestions.
@@ -10,6 +11,7 @@ import { logger } from '@/lib/logger'
 import { type PollReport, pollDueFlights } from '@/lib/services/flights/poll'
 import { advanceSimulationRuns } from '@/lib/services/simulation/runner'
 import { loadTransportEvent } from '@/lib/services/transport/context'
+import { suggestRoomsForNewGuests } from '@/lib/services/rooms/suggest'
 import { suggestForUnassignedPickups } from '@/lib/services/transport/suggest'
 import { flightProviderFor } from './provider'
 
@@ -30,6 +32,7 @@ export interface TickReport {
   readonly simulation_steps: number
   readonly poll: PollReport | null
   readonly suggestions: number
+  readonly room_suggestions: number
 }
 
 export async function claimLease(db: Kysely<DB>, holder: string, now: Date): Promise<boolean> {
@@ -66,10 +69,13 @@ export async function runWorkerTick(db: Kysely<DB>, options: TickOptions): Promi
   // Long passes renew the lease between units of work and stop as soon as it is lost.
   const stillHolder = () => claimLease(db, options.holder, new Date(Math.max(Date.now(), options.now.getTime())))
   const simulationSteps = await isolated('simulation', 0, () => advanceSimulationRuns(db, options.now, stillHolder))
-  if (!options.poll) return { simulation_steps: simulationSteps, poll: null, suggestions: 0 }
+  if (!options.poll) return { simulation_steps: simulationSteps, poll: null, suggestions: 0, room_suggestions: 0 }
   const poll = await isolated('flights', null, () => pollFlights(db, options, stillHolder))
   const suggestions = await isolated('suggestions', 0, () =>
     withSystem(db, { actor: 'system', action: 'transport.suggest', undoable: false }, (tx) => suggestForUnassignedPickups(tx, options.now)),
   )
-  return { simulation_steps: simulationSteps, poll, suggestions }
+  const roomSuggestions = await isolated('rooms', 0, () =>
+    withSystem(db, { actor: 'system', action: 'rooms.suggest', undoable: false }, (tx) => suggestRoomsForNewGuests(tx, options.now)),
+  )
+  return { simulation_steps: simulationSteps, poll, suggestions, room_suggestions: roomSuggestions }
 }

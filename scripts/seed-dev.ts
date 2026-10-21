@@ -25,6 +25,7 @@ async function main(): Promise<void> {
     const lines = [
       `Seeded event ${result.eventId} starting ${result.startsOn}: ${result.rooms} rooms, ${result.drivers} drivers.`,
       `Transport: ${result.transport.assigned} trips assigned, ${result.transport.suggestions} driver suggestions waiting for approval.`,
+      `Rooms: a plan placing ${result.allocation.placed} guests waits for approval at /rooms/plan/${result.allocation.planId}.`,
       'Accounts (all use the same password):',
       ...result.accounts.map((account) => `  ${account.role.padEnd(14)} ${account.email}`),
       `Password: ${password}`,
