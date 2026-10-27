@@ -20,6 +20,11 @@ export interface AllocRoom {
   readonly housekeeping_status: HousekeepingStatus
   /** Cleaning minutes for the room type plus the event's delay buffer. */
   readonly turnaround_min: number
+  /**
+   * When the room is expected to be clean (private.room_ready_at, P5): null when clean now. When
+   * absent, a room that is not clean is assumed to need a full turnaround from now.
+   */
+  readonly ready_at?: number | null
 }
 
 /** A guest in a room (existing or planned). */
@@ -47,7 +52,8 @@ const overlaps = (aStart: number, aEnd: number, bStart: number, bEnd: number): b
 export function roomBlocker(room: AllocRoom, request: StayRequest, occupants: readonly Occupant[], now: number): RoomBlocker | null {
   if (room.out_of_service) return 'out_of_service'
   const turnaround = room.turnaround_min * MINUTE
-  if (room.housekeeping_status !== 'clean' && now + turnaround > request.check_in) return 'not_ready'
+  const readyAt = room.ready_at !== undefined ? room.ready_at : room.housekeeping_status === 'clean' ? null : now + turnaround
+  if (readyAt !== null && readyAt > request.check_in) return 'not_ready'
   const sharing = occupants.filter(
     (occupant) =>
       occupant.room_id === room.id &&

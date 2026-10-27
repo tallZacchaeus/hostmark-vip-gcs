@@ -74,6 +74,12 @@ describe('development seed', () => {
         count(*) filter (where housekeeping_status = 'cleaning')::int as cleaning, count(*) filter (where out_of_service)::int as broken from rooms`,
     )
     expect(states).toEqual({ dirty: 3, cleaning: 2, broken: 1 })
+    // Each dirty or cleaning room has its task, so Sanitation agrees with the rooms grid (P5).
+    const tasks = await app.sql<{ status: string; count: number }>(`select status::text, count(*)::int from cleaning_tasks group by status order by status`)
+    expect(tasks).toEqual([
+      { status: 'in_progress', count: 2 },
+      { status: 'pending', count: 3 },
+    ])
     const [plan] = await app.sql<{ status: string; lines: number; guests: number; in_broken: number }>(
       `select p.status, (select count(*)::int from proposals l where l.parent_id = p.id) as lines,
         (select count(*)::int from guests where status in ('expected', 'arrived')) as guests,

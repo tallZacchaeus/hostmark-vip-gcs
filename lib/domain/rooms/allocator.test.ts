@@ -58,6 +58,10 @@ describe('roomBlocker', () => {
     expect(roomBlocker({ ...room('101'), out_of_service: true }, request, [], NOW)).toBe('out_of_service')
     expect(roomBlocker({ ...room('101'), housekeeping_status: 'needs_cleaning' }, { ...request, check_in: NOW + 30 * 60_000 }, [], NOW)).toBe('not_ready')
     expect(roomBlocker({ ...room('101'), housekeeping_status: 'needs_cleaning' }, request, [], NOW)).toBeNull()
+    // With the database's estimate (a clean that started earlier), that time decides.
+    const beingCleaned = { ...room('101'), housekeeping_status: 'cleaning' as const, ready_at: NOW + 20 * 60_000 }
+    expect(roomBlocker(beingCleaned, { ...request, check_in: NOW + 30 * 60_000 }, [], NOW)).toBeNull()
+    expect(roomBlocker(beingCleaned, { ...request, check_in: NOW + 10 * 60_000 }, [], NOW)).toBe('not_ready')
   })
 
   it('keeps a room for its stay plus cleaning time, and lets only a share group share it', () => {

@@ -32,7 +32,9 @@ describe('activity sentences', () => {
     expect(domainOf('rooms')).toBe('Rooms')
     expect(domainOf('drivers')).toBe('Transport')
     expect(domainOf('unknown')).toBe('Setup')
-    expect(tablesForDomain('Rooms')).toEqual(['rooms', 'room_types'])
+    expect(tablesForDomain('Rooms')).toEqual(['rooms', 'room_types', 'room_assignments'])
+    expect(tablesForDomain('Sanitation')).toEqual(['cleaning_tasks'])
+    expect(verbOf('rooms.check_out')).toBe('checked out the')
   })
 })
 

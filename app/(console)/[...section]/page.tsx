@@ -14,9 +14,7 @@ interface Placeholder {
 }
 
 const PLACEHOLDERS: Readonly<Record<string, Placeholder>> = {
-  programme: { page: 'programme', title: 'Programme', description: 'Draft the event programme, list VIP participants and see which items are at risk from late arrivals.', phase: 'phase P6 (event programme)' },
-  sanitation: { page: 'sanitation', title: 'Sanitation', description: 'Rooms waiting to be cleaned, in priority order, with estimated ready times.', phase: 'phase P5 (turnaround and cleaning)' },
-}
+  programme: { page: 'programme', title: 'Programme', description: 'Draft the event programme, list VIP participants and see which items are at risk from late arrivals.', phase: 'phase P6 (event programme)' },}
 
 interface PlaceholderPageProps {
   readonly params: Promise<{ section: string[] }>

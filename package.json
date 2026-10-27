@@ -35,7 +35,8 @@
     "eval:build": "node --import tsx eval/build-intake-dataset.ts",
     "eval:intake": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx eval/run-intake.ts",
     "eval:cascade": "node --conditions=react-server --import tsx eval/run-cascade.ts",
-    "eval:allocation": "node --import tsx eval/run-allocation.ts"
+    "eval:allocation": "node --import tsx eval/run-allocation.ts",
+    "eval:cleaning": "node --conditions=react-server --import tsx eval/run-cleaning.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.135.0",

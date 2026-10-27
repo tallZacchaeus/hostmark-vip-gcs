@@ -2,7 +2,8 @@
 // Front desk (03-App-Flow.md /staff/front-desk, Figma "Front desk", FR-RA-09): parties arriving,
 // in house and leaving, one card per party with its rooms. Check in confirms in a sheet, can be
 // undone for a few minutes, and the first confirmation wins — a second one is told who did it.
-// Check-out arrives with room turnaround (P5).
+// Check out (In house and Leaving, FR-CL-01) sends each emptied room to housekeeping; the
+// coordinator can reverse a mistaken one from Sanitation.
 import { useId, useState } from 'react'
 import { Icon, type IconName } from '@/components/ui/Icon'
 import { Modal } from '@/components/ui/Modal'
@@ -29,6 +30,7 @@ const EMPTY: Readonly<Record<DeskTab, readonly [string, string]>> = {
 }
 
 type Conflict = { readonly by: string; readonly at: string }
+type DeskAction = 'check-in' | 'check-out'
 
 function badge(party: DeskParty, tab: DeskTab): { readonly label: string; readonly tone: string; readonly icon: IconName } {
   if (tab !== 'arriving') return tab === 'leaving' ? { label: 'Leaving today', tone: 'neutral', icon: 'clock' } : { label: 'In house', tone: 'ready', icon: 'check' }
@@ -42,7 +44,15 @@ function timing(party: DeskParty, tab: DeskTab, timeZone: string): string {
   return party.checked_in_at ? `Checked in ${formatTime(party.checked_in_at, timeZone)}` : 'In house'
 }
 
-function Card({ party, tab, timeZone, conflict, onCheckIn }: { readonly party: DeskParty; readonly tab: DeskTab; readonly timeZone: string; readonly conflict: Conflict | undefined; readonly onCheckIn: () => void }) {
+interface CardProps {
+  readonly party: DeskParty
+  readonly tab: DeskTab
+  readonly timeZone: string
+  readonly conflict: Conflict | undefined
+  readonly onAction: (action: DeskAction) => void
+}
+
+function Card({ party, tab, timeZone, conflict, onAction }: CardProps) {
   const status = badge(party, tab)
   const arriving = tab === 'arriving'
   const blocked = arriving && !party.rooms_ready
@@ -81,7 +91,7 @@ function Card({ party, tab, timeZone, conflict, onCheckIn }: { readonly party: D
         </div>
       ) : arriving ? (
         <>
-          <button type="button" className="front-desk-action is-primary" disabled={blocked} onClick={onCheckIn}>
+          <button type="button" className="front-desk-action is-primary" disabled={blocked} onClick={() => onAction('check-in')}>
             <Icon name="logIn" />
             Check in
           </button>
@@ -92,24 +102,35 @@ function Card({ party, tab, timeZone, conflict, onCheckIn }: { readonly party: D
             </div>
           ) : null}
         </>
-      ) : null}
+      ) : (
+        <button type="button" className="front-desk-action is-secondary" onClick={() => onAction('check-out')}>
+          <Icon name="logOut" />
+          Check out
+        </button>
+      )}
     </article>
   )
 }
 
-function ConfirmSheet({ party, onConfirm, onClose, busy }: { readonly party: DeskParty; readonly onConfirm: () => void; readonly onClose: () => void; readonly busy: boolean }) {
+interface ConfirmSheetProps {
+  readonly party: DeskParty
+  readonly action: DeskAction
+  readonly onConfirm: () => void
+  readonly onClose: () => void
+  readonly busy: boolean
+}
+
+function ConfirmSheet({ party, action, onConfirm, onClose, busy }: ConfirmSheetProps) {
   const titleId = useId()
+  const roomList = party.rooms.length === 1 ? `room ${party.rooms[0]}` : `rooms ${party.rooms.join(', ')}`
+  const checkingIn = action === 'check-in'
   return (
     <Modal onClose={onClose} scrimClassName="front-desk-sheet-scrim" className="front-desk-sheet" labelledBy={titleId}>
       <i className="sheet-grab" />
-      <h2 id={titleId}>
-        Check in {party.name} to room {party.rooms[0]}?
-      </h2>
-      <p>
-        The party of {party.party_size} will be checked in to {party.rooms.length === 1 ? `room ${party.rooms[0]}` : `rooms ${party.rooms.join(', ')}`}.
-      </p>
+      <h2 id={titleId}>{checkingIn ? `Check in ${party.name} to room ${party.rooms[0]}?` : `Check out ${party.name} from ${roomList}?`}</h2>
+      <p>{checkingIn ? `The party of ${party.party_size} will be checked in to ${roomList}.` : `The ${party.rooms.length === 1 ? 'room goes' : 'rooms go'} to housekeeping.`}</p>
       <button type="button" className="front-desk-confirm" disabled={busy} onClick={onConfirm}>
-        {busy ? 'Checking in…' : 'Confirm'}
+        {busy ? (checkingIn ? 'Checking in…' : 'Checking out…') : 'Confirm'}
       </button>
       <button type="button" className="front-desk-cancel" onClick={onClose}>
         Cancel
@@ -118,7 +139,7 @@ function ConfirmSheet({ party, onConfirm, onClose, busy }: { readonly party: Des
   )
 }
 
-function useCheckIn() {
+function useDeskActions(timeZone: string) {
   const toast = useToast()
   const [busy, setBusy] = useState(false)
   const [conflicts, setConflicts] = useState<Readonly<Record<string, Conflict>>>({})
@@ -145,16 +166,30 @@ function useCheckIn() {
       await refreshApi(DESK_PATH, '/api/rooms', '/api/guests')
     }
   }
-  return { busy, conflicts, checkIn }
+  // The checked-out party leaves the list on refresh, so a lost race is told in a toast.
+  const checkOut = async (party: DeskParty): Promise<void> => {
+    setBusy(true)
+    try {
+      await apiSend(`/api/front-desk/${party.delegation_id}/check-out`, 'POST', {})
+      toast.show({ message: `Checked out. ${party.rooms.length === 1 ? `Room ${party.rooms[0]} goes` : 'The rooms go'} to housekeeping.` })
+    } catch (caught: unknown) {
+      const details = caught instanceof ApiClientError && caught.code === 'already_checked_out' ? (caught.details as Conflict | undefined) : undefined
+      toast.show(details ? { message: `Already checked out by ${details.by} at ${formatTime(details.at, timeZone)}.`, tone: 'info' } : { message: errorMessage(caught), tone: 'error' })
+    } finally {
+      setBusy(false)
+      await refreshApi(DESK_PATH, '/api/rooms', '/api/guests', '/api/cleaning')
+    }
+  }
+  return { busy, conflicts, checkIn, checkOut }
 }
 
 export function FrontDeskScreen() {
   const timeZone = useTimeZone()
   const [tab, setTab] = useState<DeskTab>('arriving')
   const [query, setQuery] = useState('')
-  const [sheet, setSheet] = useState<DeskParty | null>(null)
+  const [sheet, setSheet] = useState<{ readonly party: DeskParty; readonly action: DeskAction } | null>(null)
   const { data, error } = useApi<FrontDesk>(DESK_PATH, { refreshInterval: REFRESH_MS })
-  const actions = useCheckIn()
+  const actions = useDeskActions(timeZone)
   const needle = query.trim().toLowerCase()
   const parties = (data?.[tab] ?? []).filter((party) => !needle || `${party.name} ${party.rooms.join(' ')}`.toLowerCase().includes(needle))
   const [emptyTitle, emptyText] = needle ? ['No guest or room matches.', 'Check the spelling or try a room number.'] : EMPTY[tab]
@@ -187,7 +222,7 @@ export function FrontDeskScreen() {
                 <p>{emptyText}</p>
               </div>
             ) : (
-              parties.map((party) => <Card key={party.delegation_id} party={party} tab={tab} timeZone={timeZone} conflict={actions.conflicts[party.delegation_id]} onCheckIn={() => setSheet(party)} />)
+              parties.map((party) => <Card key={party.delegation_id} party={party} tab={tab} timeZone={timeZone} conflict={actions.conflicts[party.delegation_id]} onAction={(action) => setSheet({ party, action })} />)
             )}
           </section>
         </div>
@@ -202,11 +237,13 @@ export function FrontDeskScreen() {
         </nav>
         {sheet ? (
           <ConfirmSheet
-            party={sheet}
+            party={sheet.party}
+            action={sheet.action}
             busy={actions.busy}
             onClose={() => setSheet(null)}
             onConfirm={() => {
-              void actions.checkIn(sheet).then(() => setSheet(null))
+              const run = sheet.action === 'check-in' ? actions.checkIn : actions.checkOut
+              void run(sheet.party).then(() => setSheet(null))
             }}
           />
         ) : null}

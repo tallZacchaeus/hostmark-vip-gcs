@@ -1,6 +1,6 @@
 # 06 — Implementation Plan
 
-**Status as of 2026-10-21:** P0 decisions confirmed. **P1 is done** (backend 2026-10-16; the Figma Make frontend "Hostmark" ported into the Next.js app 2026-10-19). **P2 guest intake is done** (2026-10-20): public registration, the intake pipeline, the review queue, pasted messages, guests and guest profiles, dashboard counters, demo data and the intake evaluation. **P3 flights and transport is done** (2026-10-20): flight ingestion and the transport cascade, the driver matcher and proposals, the background worker, the arrivals and transport boards, the driver app, the simulation screen (what-if previews and scripted runs) and the cascade evaluation. **P4 room allocation is done** (2026-10-21): stays and the hard-rule checks in the database, the allocator with its baseline and evaluation, plan review with partial approval, manual moves with "assign anyway", incremental suggestions and re-planning, the rooms grid and the front desk check-in. External services stay behind interfaces with offline stand-ins until keys are issued (Claude → offline rules, Turnstile → skipped, AeroDataBox → no live polling; see [`02`](02-TRD.md) §4). Next: P5 turnaround and cleaning. One git commit per phase.
+**Status as of 2026-10-21:** P0 decisions confirmed. **P1 is done** (backend 2026-10-16; the Figma Make frontend "Hostmark" ported into the Next.js app 2026-10-19). **P2 guest intake is done** (2026-10-20): public registration, the intake pipeline, the review queue, pasted messages, guests and guest profiles, dashboard counters, demo data and the intake evaluation. **P3 flights and transport is done** (2026-10-20): flight ingestion and the transport cascade, the driver matcher and proposals, the background worker, the arrivals and transport boards, the driver app, the simulation screen (what-if previews and scripted runs) and the cascade evaluation. **P4 room allocation is done** (2026-10-21): stays and the hard-rule checks in the database, the allocator with its baseline and evaluation, plan review with partial approval, manual moves with "assign anyway", incremental suggestions and re-planning, the rooms grid and the front desk check-in. **P5 turnaround and cleaning is done** (2026-10-27): check-out (first wins) and its reversal, cleaning tasks with live ready estimates and priority order, the housekeeping phone and the coordinator's Sanitation screen, readiness feeding the allocator, and the cleaning evaluation. External services stay behind interfaces with offline stand-ins until keys are issued (Claude → offline rules, Turnstile → skipped, AeroDataBox → no live polling; see [`02`](02-TRD.md) §4). Next: P6 event programme. One git commit per phase.
 
 **Rule from [`00` §10](00-Project-Breakdown.md#10-boundaries-to-keep-the-project-realistic):** a phase is done when it **works end to end and can be measured**, not when it has the most features. Each phase below has explicit exit criteria.
 
@@ -39,7 +39,7 @@ flowchart TD
 | P2 Guest intake | ✅ | M1 | P1 |
 | P3 Flights and transport | ✅ (live AeroDataBox run waits for a key) | M2 | P2 |
 | P4 Room allocation | ✅ | M3 | P2 |
-| P5 Turnaround and cleaning | ⬜ | M5 | P4 |
+| P5 Turnaround and cleaning | ✅ | M5 | P4 |
 | P6 Event program | ⬜ | M6 | P2 (P3 for conflict checks) |
 | P7 Co-Pilot | ⬜ | M4 | P3, P4, P5 |
 | P8 Evaluation and hardening | ⬜ | All | All |
@@ -139,16 +139,20 @@ Frontend (2026-10-19, from the Figma Make export in `design/figma-make/`):
 
 **Known gaps carried forward:** check-out and its reversal, cleaning tasks and the housekeeping app (P5); room scenarios in the simulation (P5); "same team near each other" is scored only through proximity to the principal; the Figma "Change room" on plan lines is replaced by "View guest" (move after approving).
 
-### P5 — Room turnaround and cleaning (M5) ⬜
-- ⬜ `cleaning_tasks`; `check_out_stay` (first wins), `reverse_checkout` (+ `room_assignments.checkout_reversed_at/by`), `start/complete_cleaning` RPCs (FR-CL-01/02/06)
-- ⬜ Simulation room scenarios (room out of service, extra guests) carried from P4
-- ⬜ Estimated ready time + priority ordering (`v_cleaning_queue`) (FR-CL-03/04)
-- ⬜ Accommodation app: **Check out** with the "already checked out by…" state
-- ⬜ Housekeeping app: ordered list, Start → Done (FR-CL-05)
-- ⬜ Room readiness feeds back into the allocator's hard rule and the dashboard
-- ⬜ **Eval:** scripted checkout trials → notification reliability %, estimate MAE; a concurrency test for first-wins
+### P5 — Room turnaround and cleaning (M5) ✅
+- ✅ Migration `20261027100000_turnaround_cleaning.sql`: `cleaning_tasks` (one open task per room, the stays it covers, problem reports; column grant hides `stay_ids`), `room_assignments.checkout_reversed_at/by`; `check_out_party` (per delegation, first wins), trigger `queue_cleaning` (any check-out that empties a room — including a checked-in guest's move — queues it and notifies housekeeping by room number), `reverse_checkout`, `start_cleaning` / `complete_cleaning` / `undo_complete_cleaning`, `report_cleaning_problem`, `cleaning_queue(since)` (rooms only, no guest data) (FR-CL-01/02/05/06)
+- ✅ Estimated ready time + priority ordering (FR-CL-03/04): FR-CL-03 stored at check-out; live estimate and working order (in progress, then soonest next guests, then earliest ready) in pure `lib/domain/cleaning/queue.ts` instead of a `v_cleaning_queue` view
+- ✅ Room readiness feeds back: `private.room_ready_at` (a started clean counts from its start) drives the `not_ready` hard rule in the database and the allocator (`AllocRoom.ready_at`); the dashboard and rooms grid read the room status the workflow now keeps
+- ✅ Front desk: **Check out** on In house and Leaving with a confirm sheet; a lost race says "Already checked out by … at …"
+- ✅ Housekeeping app (`/staff/sanitation`): summary and progress, ordered cards, Start cleaning → Mark ready (confirm sheet, Undo for 10 min), Report a problem, Profile with sign out
+- ✅ Coordinator Sanitation (`/sanitation`): summary tiles, queue table with checked-out time, live ready estimate, "Ready N min after it is needed", needed by, reported problems, **Reverse check-out** (unstarted only), Done today
+- ✅ Activity log names stays and cleaning tasks ("checked out the stay", "finished the cleaning task"); demo seed gives the five dirty/cleaning rooms their tasks
+- ✅ **Eval:** `pnpm eval:cleaning` (2026-10-27, seed 42): **100 / 100** check-outs produced the task and every housekeeper's notification, check-out → visible p50 3 ms, p95 4 ms, max 11 ms (target ≥ 99 % within 5 s). Estimate error of the FR-CL-03 formula, 40 check-outs: over an 8-hour day MAE 11.8 min with 8 cleaners ✓, 18.6 with 6, 57.5 with 4, 112.5 with 3; over a 5-hour peak 17.9–161.7 min (8 → 3 cleaners). Priority ordering left **0** rooms ready after their next guests in every setting. Finding: the formula ignores the queue ahead of a room, so it meets ≤ 15 min only while housekeeping keeps up; a queue-aware estimate needs housekeeping shifts (open item 6)
+- ✅ First wins tested in the database, through the API, and with two simultaneous check-outs (one 200, one 409, one task)
+- ✅ Security review (2026-10-27): no critical/high; fixed — Undo of Mark ready after the room was turned around again (was a 500, now 409 `room_in_use`), a reversal can no longer restore more than one party (409 `shared_room`), reversal re-reads the task's stays under lock (409 `changed`), housekeeping cannot select `stay_ids`. Left for P8: rate limit on problem reports
+- ⏸ Simulation room scenarios (room out of service, extra guests) carried from P4 → P8 demo script; they need scenario steps that act on rooms, not flights
 
-**Exit:** a checkout appears on the housekeeping phone within 5 s. A double checkout shows the right message. The reversal works. MAE is reported.
+**Exit:** met — a check-out reaches housekeeping (task + notification) in milliseconds and the phone refreshes on the notification stream; a double check-out shows who did it; the reversal works; MAE is reported with the staffing it depends on.
 
 ### P6 — Event program (M6) ⬜
 - ⬜ `program_items`, `program_participants`, `v_program_conflicts` (FR-PG-01…03)
@@ -198,4 +202,5 @@ Frontend (2026-10-19, from the Figma Make export in `design/figma-make/`):
 | 3 | Submission and demo dates | Scheduling these phases |
 | 4 | ~~Brand colors~~ Hostmark design adopted | — |
 | 5 | ~~Figma Make design~~ received 2026-10-19 and ported | — |
+| 6 | Queue-aware cleaning estimate: the FR-CL-03 formula meets MAE ≤ 15 min only with enough cleaners (P5 eval). Estimating from the queue needs how many housekeepers are on shift (not modelled yet). Decide: accept and report, or add housekeeping shifts | M5 estimate target |
 | 6 | Domain name pointing at the droplet | Production deploy (HTTPS via Caddy) |

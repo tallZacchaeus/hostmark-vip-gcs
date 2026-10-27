@@ -24,6 +24,12 @@ export const ANY_ROLE: readonly AppRole[] = APP_ROLES
 /** The front desk app: accommodation staff, and coordinators who step in (FR-RA-09, FR-CL-01). */
 export const FRONT_DESK_ROLES: readonly AppRole[] = ['accommodation', ...COORDINATOR_PLUS]
 
+/** Start → Done on cleaning tasks (FR-CL-05); coordinators may step in. */
+export const HOUSEKEEPING_ROLES: readonly AppRole[] = ['housekeeping', ...COORDINATOR_PLUS]
+
+/** The cleaning queue (rooms only, no guest identities): housekeeping, the front desk and coordinators. */
+export const CLEANING_READERS: readonly AppRole[] = ['housekeeping', 'accommodation', ...COORDINATOR_PLUS]
+
 /** Guests and arrivals are read by the programmes team and the front desk too (P2 migration RLS). */
 export const GUEST_READERS: readonly AppRole[] = [...COORDINATOR_PLUS, 'programs', 'accommodation']
 

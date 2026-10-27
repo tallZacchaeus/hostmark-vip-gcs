@@ -21,14 +21,15 @@ const ROLE_LABELS: Readonly<Record<string, string>> = {
 const ms = (value: Date | string): number => new Date(value).getTime()
 
 export async function loadRooms(tx: Tx): Promise<AllocRoom[]> {
-  const { rows } = await sql<Omit<AllocRoom, 'housekeeping_status'> & { housekeeping_status: HousekeepingStatus }>`
+  const { rows } = await sql<Omit<AllocRoom, 'housekeeping_status' | 'ready_at'> & { housekeeping_status: HousekeepingStatus; ready_at: Date | null }>`
     select r.id, r.number, r.floor, r.wing, r.position, rt.name as type_name, rt.tier, r.capacity, r.is_accessible,
-      r.out_of_service, r.housekeeping_status, rt.cleaning_minutes + e.cleaning_delay_buffer_min as turnaround_min
+      r.out_of_service, r.housekeeping_status, rt.cleaning_minutes + e.cleaning_delay_buffer_min as turnaround_min,
+      private.room_ready_at(r.id) as ready_at
     from public.rooms r
     join public.room_types rt on rt.id = r.room_type_id
     join public.events e on e.id = r.event_id
     order by r.floor, r.wing, r.position, r.number`.execute(tx)
-  return rows
+  return rows.map((row) => ({ ...row, ready_at: row.ready_at === null ? null : ms(row.ready_at) }))
 }
 
 export interface CurrentStay extends Occupant {

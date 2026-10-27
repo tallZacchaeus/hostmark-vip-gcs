@@ -81,7 +81,8 @@ erDiagram
 | `flight_update_source` | `live`, `simulated`, `manual` | ✅ P3 |
 | `assignment_status` | `active`, `released` (moved to another driver or the pickup released), `completed` | ✅ P3 |
 | `stay_status` | `planned`, `checked_in`, `checked_out`, `cancelled` | ✅ P4 |
-| `cleaning_status` | `queued`, `in_progress`, `done`, `cancelled` | P5 |
+| `cleaning_status` | `pending`, `in_progress`, `done`, `cancelled` | ✅ P5 |
+| `cleaning_problem` | `maintenance`, `supplies`, `other` | ✅ P5 |
 | `program_item_status` | `draft`, `published`, `cancelled` | P6 |
 | `participant_role` | `speaker`, `honoree`, `performer`, `attendee`, `other` | P6 |
 
@@ -222,7 +223,7 @@ Triggers: `guard_last_super_admin` (never zero active Super Admins); `audit_row_
 
 **`pickup_assignments`** ✅ (P3): id, event_id, pickup_id, driver_id, status (`active` counts for availability; one active row per pickup and driver), proposal_id, acknowledged_at ("Got it"; cleared when the trip moves), en_route_at, picked_up_at, completed_at, released_at, created_by, created_at, updated_at. Written only by `approve_proposal` (executors) and the driver functions; never directly by the API. Trip window = pickup ± the event's travel time (`private.trip_window`).
 
-### 3.6 Rooms and cleaning — stays ✅ built (P4), cleaning planned (P5)
+### 3.6 Rooms and cleaning — stays ✅ built (P4), cleaning ✅ built (P5)
 
 **`room_assignments`** ✅ (P4, migration `20261021100000_rooms_allocation.sql`): one guest's stay in one room.
 
@@ -243,7 +244,23 @@ Triggers: `guard_last_super_admin` (never zero active Super Admins); `audit_row_
 
 Written only through `approve_proposal`, `assign_room`, `check_in_party`, `undo_check_in` and the cancellation trigger (§5); never directly by the API. Audited. Trigger `release_cancelled_stays` on `guests`: a guest set to `cancelled` loses their planned stay at once.
 
-**`cleaning_tasks`** (P5): id, event_id, room_id (one open task per room), room_assignment_id, status, estimated_ready_at, needed_by, created_at, started_at/by, completed_at/by, cancelled_at, cancel_reason. P5 also adds `checkout_reversed_at/by` to `room_assignments`.
+P5 adds `checkout_reversed_at`, `checkout_reversed_by` (FK → profiles) to `room_assignments`, set when a coordinator reverses a mistaken check-out. Trigger `queue_cleaning` (after a stay goes `checked_in` → `checked_out`, from the front desk or a checked-in guest's move): when nobody is left checked into the room, it joins the room's open task or creates one, sets the room to `needs_cleaning` and notifies housekeeping (`room_needs_cleaning`, room number only).
+
+**`cleaning_tasks`** ✅ (P5, migration `20261027100000_turnaround_cleaning.sql`): one turnaround of one room. Audited.
+
+| Column | Type | Notes |
+|---|---|---|
+| id, event_id | uuid | |
+| room_id | uuid FK → rooms (cascade) | Unique among open tasks (`pending`, `in_progress`) |
+| stay_ids | uuid[] | The stays whose check-out emptied the room — what a reversal restores |
+| status | cleaning_status default `pending` | `pending` → `in_progress` → `done`; `cancelled` when the check-out is reversed |
+| checked_out_at | timestamptz | |
+| estimated_ready_at | timestamptz | FR-CL-03 at check-out: checkout + room type cleaning minutes + event buffer (the live estimate is computed by `lib/domain/cleaning/queue.ts`) |
+| started_at/by, completed_at/by, cancelled_at/by | timestamptz / uuid FK → profiles | |
+| problem_kind, problem_note, problem_reported_at/by | cleaning_problem / text ≤ 500 / … | Housekeeping's "Report a problem" |
+| version, created_at, updated_at | | |
+
+Written only through the functions in §5. The "needed by" time (next planned arrival into the room) is not stored: `cleaning_queue()` reads it from `room_assignments` without returning who is coming.
 
 ### 3.7 Program — planned (P6)
 
@@ -269,7 +286,7 @@ Written only through `approve_proposal`, `assign_room`, `check_in_party`, `undo_
 | `v_driver_schedule` | Active assignments with trip windows per driver | ✅ P3 as a repository query (`lib/repositories/transport.ts`) |
 | `v_room_status` | Room + current/next stay + open cleaning task + readiness | ✅ P4 as a repository query (`lib/repositories/rooms-board.ts`: status `ready`, `proposed`, `reserved`, `occupied`, `needs-cleaning`, `cleaning`, `out-of-service`, the stays and pending suggestions); the cleaning task joins in P5 |
 | Front desk | Parties arriving / in house / leaving on a day, with rooms (principal's first), readiness, "on the way" | ✅ P4 as a repository query (`lib/repositories/front-desk.ts`) |
-| `v_cleaning_queue` | Open cleaning tasks by `needed_by`, `estimated_ready_at`. **Room data only, no guest names.** | P5 |
+| `v_cleaning_queue` | Open cleaning tasks by `needed_by`, `estimated_ready_at`. **Room data only, no guest names.** | ✅ P5 as the security-definer function `public.cleaning_queue(since)` (rows) + `lib/repositories/cleaning.ts` (ordering and live estimates in pure TypeScript, `lib/domain/cleaning/queue.ts`) |
 | `v_program_conflicts` | Participants whose `expected_at_venue_at + lead_time > starts_at` | P6 |
 | `v_pending_decisions` | Pending proposals + submissions needing review | P2 (proposals part is served by `GET /api/decisions` today) |
 
@@ -297,14 +314,18 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 | `private.trip_window(pickup)` · `private.driver_unavailability(driver, window, exclude_pickup)` | vip_system (and the executors) | The busy window of a trip; why a driver cannot take it (`inactive`, `off_shift`, `busy`) or null — the same rules as the TypeScript matcher | ✅ P3 |
 | `public.my_driver_pickups(day)` | driver (linked to an active driver record) | The signed-in driver's trips that day with principal, passengers and flight; 403 `not_a_driver` otherwise | ✅ P3 |
 | `public.acknowledge_assignment(id)` | driver | "Got it" on the driver's own active trip | ✅ P3 |
-| `private.guest_stay_window(guest)` · `private.room_unavailability(room, guest, in, out, ignore)` | vip_app (invoker), vip_system | A guest's stay window; why a room cannot take that stay (`out_of_service`, `not_ready` — not clean and cannot be cleaned before arrival, `occupied` — another room group overlaps, counting cleaning time after each stay, `capacity`) or null. Same rules as the TypeScript `roomBlocker` | ✅ P4 |
+| `private.guest_stay_window(guest)` · `private.room_unavailability(room, guest, in, out, ignore)` | vip_app (invoker), vip_system | A guest's stay window; why a room cannot take that stay (`out_of_service`, `not_ready` — expected ready time after the arrival, `occupied` — another room group overlaps, counting cleaning time after each stay, `capacity`) or null. Same rules as the TypeScript `roomBlocker` | ✅ P4, readiness from `room_ready_at` since P5 |
+| `private.room_ready_at(room)` | vip_app, vip_system (definer) | Null when clean; otherwise the end of the clean: started time (or now, if not started) + cleaning minutes + buffer, never in the past. The allocator reads it too (`AllocRoom.ready_at`) | ✅ P5 |
 | Allocation, incremental suggestions and re-planning | vip_system | Done in TypeScript (`lib/services/rooms/{plan,suggest}.ts` → pure allocator `lib/domain/rooms/allocator.ts`) as proposals; one allocator run at a time (transaction advisory lock) | ✅ P4 |
 | `public.assign_room(guest, room, reason, acknowledged[])` | coordinator+ | Places or moves a guest by hand. A broken rule (or moving a checked-in guest) needs every violation in `acknowledged` and a reason of ≥ 10 characters, else 409 `needs_confirmation` with `{violations}`; 409 `same_room`, `guest_gone`. A checked-in guest's move checks the old stay out and starts a checked-in one (`moved_from_id`). Tells the front desk (`room_changed`, without the reason) | ✅ P4 |
 | `public.check_in_party(delegation)` | accommodation, coordinator+ | Checks in the party's planned stays; first wins (409 `already_checked_in` with `{by, at}`), 409 `room_not_ready` / `room_occupied` with `{rooms}`; guests become `checked_in`. Locks guest → room (share) → stay, the order used by every room function | ✅ P4 |
 | `public.undo_check_in(delegation)` | whoever checked in, or coordinator+ | Within 10 minutes; never a move's stay; 409 `nothing_to_undo` | ✅ P4 |
-| `check_out_stay`, `reverse_checkout` | accommodation / coordinator+ | Turnaround | P5 |
+| `public.check_out_party(delegation)` | accommodation, coordinator+ | Checks out the party's checked-in stays; first wins (409 `already_checked_out` with `{by, at}`); guests become `checked_out`; each emptied room is queued by the `queue_cleaning` trigger. Locks guest → room → stay | ✅ P5 |
+| `public.reverse_checkout(task)` | coordinator+ | FR-CL-06: stays and guests checked in again, room `clean`, task `cancelled`; 409 `cleaning_started`, `already_reversed`, `moved`, `guest_has_room`, `shared_room` (stays of more than one party), `changed` (a check-out joined the task meanwhile) | ✅ P5 |
+| `public.cleaning_queue(since)` | housekeeping, accommodation, coordinator+ (definer) | Open tasks plus tasks done since `since`: room number, floor, wing, type, times, cleaning minutes, buffer, needed by, problem, `undoable`. **No guest data** | ✅ P5 |
+| `public.report_cleaning_problem(task, kind, note)` | housekeeping, coordinator+ | Stores the problem on the task and notifies coordinators (`cleaning_problem`) | ✅ P5 |
 | `public.set_trip_status(id, status)` | driver | `en_route` → `picked_up` → `completed` on the driver's own active trip (409 `not_active`, `not_picked_up`); completing marks the arrival, guests and delegation arrived | ✅ P3 |
-| `start_cleaning`, `complete_cleaning` | housekeeping | Staff app status buttons | P5 |
+| `public.start_cleaning(task)` · `complete_cleaning(task)` · `undo_complete_cleaning(task)` | housekeeping, coordinator+ | Start → Done (FR-CL-05). Start: room `cleaning`; 409 `already_started` with `{by, at}`. Done: needs Start (409 `not_started`), room `clean`, tells the front desk (`room_ready`). Undo: within 10 minutes, by whoever did it or coordinator+, while nobody is checked in (409 `nothing_to_undo`, `room_in_use`). Locks room → task | ✅ P5 |
 
 ## 6. Access model and row-level security
 
@@ -350,6 +371,16 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 | vip_categories | RW (unchanged) | R | R (names on the front desk; the API still serves categories to coordinator+ and programs only) | – |
 | `assign_room` | ✅ | – | – | – |
 | `check_in_party`, `undo_check_in` | ✅ | – | ✅ | – |
+
+**P5 rows:**
+
+| Table / function | super_admin / admin / coordinator | programs | accommodation | housekeeping | driver |
+|---|---|---|---|---|---|
+| cleaning_tasks | R (every column but `stay_ids`, column grant) | – | R (same) | R (same; rooms only) | – |
+| `cleaning_queue` | ✅ | – | ✅ | ✅ | – |
+| `check_out_party` | ✅ | – | ✅ | – | – |
+| `reverse_checkout` | ✅ | – | – | – | – |
+| `start_cleaning`, `complete_cleaning`, `undo_complete_cleaning`, `report_cleaning_problem` | ✅ | – | – | ✅ | – |
 
 Work done for a signed-in coordinator outside RLS (a manual landing time, "Check now", "Suggest a driver") runs as vip_system with `app.user_id` set to that coordinator (`withSystem({ onBehalfOf })`), so the activity log names them.
 
@@ -445,14 +476,22 @@ The background worker (in-process by default, or `pnpm worker`) polls flights, a
 
 `GET /api/guests` rows now carry `room_number` (the principal's room first), `rooms_placed`, `room_checked_in` and `room_suggested`; the profile carries the party's `stays` and pending `room_suggestions`. The dashboard's "rooms ready" counts free rooms only (as on the Rooms board). The worker also proposes a room for each guest added after allocation started (FR-RA-05), and a flight change moves planned stays and proposes a move when the room no longer works (FR-RA-07).
 
+### Built (P5)
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| POST | `/api/front-desk/[id]/check-out` | accommodation, coordinator+ | `id` = delegation; see `check_out_party` → `{ delegation_id, rooms }` |
+| GET | `/api/cleaning` | housekeeping, accommodation, coordinator+ | `{ day, timezone, summary: { not_started, in_progress, done_today }, queue, done }`; queue items in working order (in progress first, then soonest next guests, then earliest ready) with `priority`, live `ready_by`, `late_by_min`, `needed_by`, problem; no guest data |
+| POST | `/api/cleaning/[id]/start` · `/complete` · `/undo-complete` | housekeeping, coordinator+ | `id` = cleaning task; see the functions |
+| POST | `/api/cleaning/[id]/report` | housekeeping, coordinator+ | `{ kind: maintenance \| supplies \| other, note? ≤ 500 }` |
+| POST | `/api/cleaning/[id]/reverse-checkout` | coordinator+ | See `reverse_checkout` → `{ task_id, room_number, restored }` |
+
 ### Planned
 
 | Method | Path | Phase |
 |---|---|---|
 | POST | `/api/delegations/[id]/split-arrival` | later (not needed by P3) |
 | POST | `/api/webhooks/flights` (optional AeroDataBox push) | P8 if adopted |
-| POST | `/api/front-desk/[id]/check-out`, `/api/room-assignments/[id]/reverse-checkout` | P5 |
-| POST | `/api/cleaning-tasks/[id]/{start,complete}` | P5 |
 | GET / POST / PATCH / DELETE | `/api/program-items`, PUT `/[id]/participants` | P6 |
 | POST | `/api/copilot/chat`, `/api/copilot/transcribe` | P7 |
 | PATCH | `/api/admin/system` (data export/purge) | P8 |
@@ -469,4 +508,4 @@ Clients refresh the affected list (decisions, arrivals, transport, the driver's 
 
 ✅ `pnpm db:seed` (Docker Postgres) and `pnpm local:setup` (PGlite, event starting today) use `db/tooling/seed.ts` (tested). On an empty database they create the Figma demo venue: "Lagos Leadership Summit 2026" at Harbour Point Hotel (4 days, Africa/Lagos), 4 room types, **120 rooms** over 6 floors in West (x01–x07), East (x08–x14) and Garden (x15–x20) wings, 4 VIP categories, **15 named drivers** with vehicles and two overlapping shifts a day (05:00–14:00 and 11:00–21:00 UTC), and one named account per role (`coordinator@vipgcs.test` is Ada Nwosu, `admin@vipgcs.test` is Tolu Adebayo, …) sharing one printed password. Seed writes are audited as non-undoable system actions.
 
-✅ P2 adds the 6 Figma delegations (17 guests, 4 flights, 5 pickups; created by the same code as an approved registration, `db/tooling/seed-guests.ts`) and 3 submissions in the review queue: a likely duplicate, a registration with a flagged note and a pasted message. ✅ P3 (`db/tooling/seed-transport.ts`, through the real pipeline): two trips assigned (ET512 to the driver login's Emeka Oladipo), ET512 then 40 minutes late (Emeka keeps it and must confirm the new time) and matcher suggestions for the other pickups. ✅ P4 (`db/tooling/seed-rooms.ts`): rooms 108, 209 and 315 need cleaning, 110 and 402 are being cleaned, 516 is out of service, and the real allocator leaves a plan for all 17 guests waiting for approval. Planned (P5+): about 60 delegations across categories, arrival modes and entourage sizes, plus scenario fixtures for delays, cancellations, shared flights and room conflicts (`00` decision 5).
+✅ P2 adds the 6 Figma delegations (17 guests, 4 flights, 5 pickups; created by the same code as an approved registration, `db/tooling/seed-guests.ts`) and 3 submissions in the review queue: a likely duplicate, a registration with a flagged note and a pasted message. ✅ P3 (`db/tooling/seed-transport.ts`, through the real pipeline): two trips assigned (ET512 to the driver login's Emeka Oladipo), ET512 then 40 minutes late (Emeka keeps it and must confirm the new time) and matcher suggestions for the other pickups. ✅ P4 (`db/tooling/seed-rooms.ts`): rooms 108, 209 and 315 need cleaning, 110 and 402 are being cleaned, 516 is out of service, and the real allocator leaves a plan for all 17 guests waiting for approval. ✅ P5: those five rooms have matching cleaning tasks (three waiting, checked out 20–50 minutes before seeding; two started 15 minutes before). Planned (P6+): about 60 delegations across categories, arrival modes and entourage sizes, plus scenario fixtures for delays, cancellations, shared flights and room conflicts (`00` decision 5).

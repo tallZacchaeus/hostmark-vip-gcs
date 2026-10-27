@@ -60,6 +60,8 @@ const TABLES: Readonly<Record<string, TableInfo>> = {
   arrivals: { domain: 'Arrivals', noun: 'arrival', href: (row) => guestLink(row.delegation_id) },
   flights: { domain: 'Arrivals', noun: 'flight', name: (row) => text(row.flight_number), href: '/arrivals' },
   pickups: { domain: 'Transport', noun: 'pickup', name: (row) => text(row.pickup_location), href: '/transport' },
+  room_assignments: { domain: 'Rooms', noun: 'stay', href: (row) => guestLink(row.guest_id) },
+  cleaning_tasks: { domain: 'Sanitation', noun: 'cleaning task', href: '/sanitation' },
 }
 
 /** Tables shown for each "Type" filter value. */
@@ -119,6 +121,15 @@ const NAMED_VERBS: Readonly<Record<string, string>> = {
   'proposals.supersede': 'replaced an older',
   'proposals.expire': 'marked as expired the',
   seed: 'loaded demo data:',
+  'rooms.check_in': 'checked in the',
+  'rooms.undo_check_in': 'undid the check-in of the',
+  'rooms.check_out': 'checked out the',
+  'rooms.reverse_checkout': 'reversed the check-out of the',
+  'rooms.assign': 'assigned a room for the',
+  'cleaning.start': 'started the',
+  'cleaning.complete': 'finished the',
+  'cleaning.undo_complete': 'reopened the',
+  'cleaning.report_problem': 'reported a problem on the',
 }
 
 /** "updated", "added", "removed", "undid a change to the", … followed by the object. */

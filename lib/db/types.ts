@@ -13,6 +13,10 @@ export type ArrivalMode = "flying" | "own_transport" | "pickup";
 
 export type AssignmentStatus = "active" | "completed" | "released";
 
+export type CleaningProblem = "maintenance" | "other" | "supplies";
+
+export type CleaningStatus = "cancelled" | "done" | "in_progress" | "pending";
+
 export type DuplicateKind = "exact" | "likely" | "none";
 
 export type FlightPhase = "cancelled" | "diverted" | "in_air" | "landed" | "scheduled" | "unknown";
@@ -133,6 +137,29 @@ export interface AuthVerifications {
   identifier: string;
   updated_at: Generated<Timestamp>;
   value: string;
+}
+
+export interface CleaningTasks {
+  cancelled_at: Timestamp | null;
+  cancelled_by: string | null;
+  checked_out_at: Timestamp;
+  completed_at: Timestamp | null;
+  completed_by: string | null;
+  created_at: Generated<Timestamp>;
+  estimated_ready_at: Timestamp;
+  event_id: string;
+  id: Generated<string>;
+  problem_kind: CleaningProblem | null;
+  problem_note: string | null;
+  problem_reported_at: Timestamp | null;
+  problem_reported_by: string | null;
+  room_id: string;
+  started_at: Timestamp | null;
+  started_by: string | null;
+  status: Generated<CleaningStatus>;
+  stay_ids: Generated<string[]>;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
 }
 
 export interface Delegations {
@@ -411,6 +438,8 @@ export interface RoomAssignments {
   checked_in_by: string | null;
   checked_out_at: Timestamp | null;
   checked_out_by: string | null;
+  checkout_reversed_at: Timestamp | null;
+  checkout_reversed_by: string | null;
   created_at: Generated<Timestamp>;
   created_by: string | null;
   event_id: Generated<string>;
@@ -494,6 +523,7 @@ export interface DB {
   auth_accounts: AuthAccounts;
   auth_sessions: AuthSessions;
   auth_verifications: AuthVerifications;
+  cleaning_tasks: CleaningTasks;
   delegations: Delegations;
   driver_shifts: DriverShifts;
   drivers: Drivers;

@@ -79,6 +79,39 @@ describe('FrontDeskScreen', () => {
     expect(screen.queryByRole('button', { name: 'Check in' })).not.toBeInTheDocument()
   })
 
+  it('checks an in-house party out after confirming; the rooms go to housekeeping', async () => {
+    const fetchMock = mockApi([
+      { path: '/api/front-desk/d-1/check-out', method: 'POST', body: { delegation_id: 'd-1', rooms: ['301', '302'] } },
+      { path: '/api/front-desk', body: desk({ in_house: [party({ rooms: ['301', '302'], checked_in_at: '2026-10-28T13:05:00.000Z' })] }) },
+    ])
+    renderWithApp(<FrontDeskScreen />, deskSession)
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'In house' }))
+    await user.click(screen.getByRole('button', { name: 'Check out' }))
+    const sheet = screen.getByRole('dialog', { name: 'Check out Bishop Augustine Okafor from rooms 301, 302?' })
+    expect(within(sheet).getByText('The rooms go to housekeeping.')).toBeInTheDocument()
+    await user.click(within(sheet).getByRole('button', { name: 'Confirm' }))
+
+    expect(await screen.findByText('Checked out. The rooms go to housekeeping.')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/check-out') && init?.method === 'POST')).toBe(true)
+  })
+
+  it('tells the second person who already checked the party out', async () => {
+    mockApi([
+      { path: '/api/front-desk/d-1/check-out', method: 'POST', status: 409, body: { code: 'already_checked_out', message: 'Already checked out', details: { by: 'Tolu Front', at: '2026-10-31T10:02:00.000Z' } } },
+      { path: '/api/front-desk', body: desk({ leaving: [party({})], in_house: [party({})] }) },
+    ])
+    renderWithApp(<FrontDeskScreen />, deskSession)
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Leaving' }))
+    await user.click(screen.getByRole('button', { name: 'Check out' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+
+    expect(await screen.findByText('Already checked out by Tolu Front at 11:02.')).toBeInTheDocument()
+  })
+
   it('switches tabs and searches by guest or room', async () => {
     mockApi([{ path: '/api/front-desk', body: desk({ in_house: [party({ checked_in_at: '2026-10-28T13:05:00.000Z' }), party({ delegation_id: 'd-2', name: 'Dr Ngozi Eze', rooms: ['104'] })] }) }])
     renderWithApp(<FrontDeskScreen />, deskSession)
