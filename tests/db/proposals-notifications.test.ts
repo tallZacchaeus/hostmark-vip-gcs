@@ -103,15 +103,15 @@ describe('proposals', () => {
     expect(error.code).toBe('42501')
   })
 
-  it('reports approval as not available until the module executor exists (Co-Pilot actions arrive in P7)', async () => {
+  it('fails a Co-Pilot action whose payload it cannot carry out, and writes nothing (P7 executor)', async () => {
     await db().createEvent()
     const proposal = await createProposal('Add a note', crypto.randomUUID(), null, 'copilot_action')
     const coordinator = await db().createProfile('coordinator')
     await db().asUser(coordinator)
 
-    const error = await db().expectError(() => db().rows('select public.approve_proposal($1)', [proposal]))
-    expect(error.hint).toBe('not_implemented')
-    expect(await db().value('select status from proposals where id = $1', [proposal])).toBe('pending')
+    expect(await db().value('select public.approve_proposal($1)', [proposal])).toMatchObject({ status: 'failed', error: 'invalid_payload' })
+    await db().asOwner()
+    expect(await db().value<number>('select count(*)::int from guest_requirements')).toBe(0)
   })
 
   it('expires a proposal that is approved too late', async () => {

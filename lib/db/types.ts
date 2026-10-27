@@ -168,6 +168,24 @@ export interface CleaningTasks {
   version: Generated<number>;
 }
 
+export interface CopilotExchanges {
+  answer: string;
+  citations: Generated<Json>;
+  conversation_id: string;
+  created_at: Generated<Timestamp>;
+  engine: string;
+  event_id: Generated<string>;
+  id: Generated<string>;
+  input_mode: Generated<string>;
+  intent: string | null;
+  latency_ms: number;
+  proposal_id: string | null;
+  question: string;
+  tools: Generated<Json>;
+  transcript_original: string | null;
+  user_id: Generated<string>;
+}
+
 export interface Delegations {
   contact_email: string | null;
   contact_name: string | null;
@@ -557,6 +575,7 @@ export interface DB {
   auth_sessions: AuthSessions;
   auth_verifications: AuthVerifications;
   cleaning_tasks: CleaningTasks;
+  copilot_exchanges: CopilotExchanges;
   delegations: Delegations;
   driver_shifts: DriverShifts;
   drivers: Drivers;

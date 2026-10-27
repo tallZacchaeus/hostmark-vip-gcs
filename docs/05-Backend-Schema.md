@@ -272,9 +272,9 @@ Written only through the functions in §5. The "needed by" time (next planned ar
 
 Triggers keep `at_risk` current (FR-PG-03): after an item's insert or change of time/status, after any participant change, after an arrival's expected/stated/pickup time or status changes (the flight cascade, a manual landing time), and after a guest's status or arrival changes. When a **published** item becomes at risk (or is published while at risk) the programs team and coordinators get `program_at_risk` ("Welcome briefing at risk: Bishop Augustine Okafor expected 16:55"); the flag clears by itself.
 
-### 3.8 Co-Pilot, simulation, ops — simulation and ops ✅ built (P3), Co-Pilot planned (P7)
+### 3.8 Co-Pilot, simulation, ops — simulation and ops ✅ built (P3), Co-Pilot ✅ built (P7)
 
-**`copilot_conversations`** (P7): id, user_id, started_at, title. **`copilot_messages`** (P7): id, conversation_id, role, content, input_mode, transcript_raw, transcript_edited, tool_calls, proposal_ids, model, input/output tokens, latency_ms, created_at.
+**`copilot_exchanges`** ✅ (P7, migration `20261027120000_copilot.sql`; replaces the planned `copilot_conversations` + `copilot_messages`, one row per question): id, event_id, user_id (default the signed-in user), conversation_id (one per drawer opening), question (≤ 2000), input_mode (`text`, `voice`), transcript_original (the recognizer's words before editing, voice only, ≤ 2000), engine (`rules`; a model name when an LLM engine is added), intent (the tool chosen), tools jsonb (`[{ name, args }]`), answer (≤ 8000), citations jsonb, proposal_id (FK → proposals, set null), latency_ms, created_at. RLS: each user reads their own rows, Admin reads all; coordinator+ insert their own (column grant; `user_id` cannot be forged). Not audited (it is itself the log, FR-CP-06).
 
 **`simulation_runs`** ✅ (P3): id, event_id, scenario_key (scenarios are versioned with the code in `lib/domain/simulation/scenarios.ts`; the planned `simulation_scenarios` table is not needed), status (`running`, `stopped`, `completed`; one running run per event), speed (1–3600 virtual seconds per real second), flight_ids (≤ 10; the flights the steps act on, fixed at start), virtual_start, real_start, steps_applied, started_by, stopped_at. Coordinators insert (`running` only) and may change only `status` and `stopped_at`; the worker advances `steps_applied`.
 
@@ -326,6 +326,8 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 | `public.undo_check_in(delegation)` | whoever checked in, or coordinator+ | Within 10 minutes; never a move's stay; 409 `nothing_to_undo` | ✅ P4 |
 | `public.check_out_party(delegation)` | accommodation, coordinator+ | Checks out the party's checked-in stays; first wins (409 `already_checked_out` with `{by, at}`); guests become `checked_out`; each emptied room is queued by the `queue_cleaning` trigger. Locks guest → room → stay | ✅ P5 |
 | `public.reverse_checkout(task)` | coordinator+ | FR-CL-06: stays and guests checked in again, room `clean`, task `cancelled`; 409 `cleaning_started`, `already_reversed`, `moved`, `guest_has_room`, `shared_room` (stays of more than one party), `changed` (a check-out joined the task meanwhile) | ✅ P5 |
+| `public.copilot_propose(kind, payload, title, summary, target_type, target_id)` | coordinator+ | The Co-Pilot's write tools (FR-CP-04): only `room_assignment` (guest, room, optional `replaces`), `driver_assignment` / `driver_reassignment` (pickup, driver ids) and `copilot_action` `add_note` (guest, 1–1000 characters); else 22023 `invalid_action`. Creates a pending proposal marked `created_by_type = 'copilot'`; notes have no target, so they never supersede other suggestions | ✅ P7 |
+| `private.execute_copilot_action(proposal)` · `approve_proposal` | via approval | Approving a Co-Pilot note adds it to the guest as a coordinator note (`guest_requirements`, category `other`); fails `guest_gone` / `invalid_payload`. Room and driver proposals from the Co-Pilot run through the P3/P4 executors, which re-check every rule | ✅ P7 |
 | `private.refresh_program_risk(item, publishing)` | definer (triggers) | Recomputes `at_risk`; notifies `program_at_risk` when a published item becomes at risk or is published at risk | ✅ P6 |
 | `public.notify_program_risk(item)` | coordinator+, programs | Marks `risk_notified_at/by` and sends the programs team `program_risk_flagged`; 409 `not_at_risk` | ✅ P6 |
 | `public.cleaning_queue(since)` | housekeeping, accommodation, coordinator+ (definer) | Open tasks plus tasks done since `since`: room number, floor, wing, type, times, cleaning minutes, buffer, needed by, problem, `undoable`. **No guest data** | ✅ P5 |
@@ -511,13 +513,19 @@ The background worker (in-process by default, or `pnpm worker`) polls flights, a
 | PUT | `/api/program-items/[id]/participants` | programs, admin+ | `{ participants: [{ guest_id, role }] }` (≤ 100, each guest once) replaces the list |
 | POST | `/api/program-items/[id]/notify` | coordinator+, programs | See `notify_program_risk` |
 
+### Built (P7)
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| POST | `/api/copilot/chat` | coordinator+ | `{ message (1–2000), conversation_id?, input_mode? ('text' \| 'voice'), transcript_original? }` → `{ conversation_id, intent, answer, citations: [{ label, href }], proposal: { id, title, summary } \| null, latency_ms }`. One typed tool per question, run as the user (RLS); write tools only create proposals; every exchange is logged |
+
 ### Planned
 
 | Method | Path | Phase |
 |---|---|---|
 | POST | `/api/delegations/[id]/split-arrival` | later (not needed by P3) |
 | POST | `/api/webhooks/flights` (optional AeroDataBox push) | P8 if adopted |
-| POST | `/api/copilot/chat`, `/api/copilot/transcribe` | P7 |
+| POST | `/api/copilot/transcribe` (Deepgram Nova-3 with keyterms) | when a Deepgram key is issued; the drawer uses the browser's speech recognition meanwhile |
 | PATCH | `/api/admin/system` (data export/purge) | P8 |
 
 ## 8. Realtime

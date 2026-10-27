@@ -50,7 +50,7 @@ Routes follow the Figma Make design ("Hostmark", see [`design/figma-make/`](../d
 | `/simulation` | Simulation | **What-if preview** (flight delay ± minutes; driver unavailable from a time): what would move, who keeps a trip, decisions and conflicts — nothing written. **Scripted scenarios** (5, 1×–600×, simulated mode only) replay flight changes through the live pipeline, with progress and a simulated clock. Room scenarios (room out of service, extra guests) moved to P5 with turnaround; "Send to Co-Pilot" with P7 | ✅ P3 |
 | `/settings?tab=` | Settings | **Users** (invite with one-time temporary password, role, reset, deactivate), **Rooms** (room types, rooms, CSV import with dry run), **Drivers** (vehicles, app login, shifts), **VIP categories** (rank order), **System** (event, registration link, flight data mode). Coordinators see VIP categories only. | ✅ |
 
-The **Co-Pilot** drawer (top bar, coordinator+) and the **notifications** drawer (everyone) open over any console screen. The decisions queue lives on the dashboard (`/dashboard#approvals`) rather than on a separate page.
+The **Co-Pilot** drawer (top bar, coordinator+; ✅ P7: suggested questions, answers with linked records, "Suggested" cards with Approve / Dismiss, hold-to-talk where the browser supports speech) and the **notifications** drawer (everyone) open over any console screen. The decisions queue lives on the dashboard (`/dashboard#approvals`) rather than on a separate page.
 
 ### Staff app (phone)
 | Route | Role | Screen | Status |

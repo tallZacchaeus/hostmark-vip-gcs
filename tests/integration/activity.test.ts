@@ -105,7 +105,7 @@ describe('notifications, decisions and undo API', () => {
       expect((await app.call(listDecisions, '/api/decisions', { as: driver })).status).toBe(403)
     })
 
-    it('rejects a proposal and reports approval as not available until P4 for rooms', async () => {
+    it('rejects a proposal, and fails a Co-Pilot action it cannot carry out', async () => {
       const toReject = await createProposal('Assign driver to QR1405')
       const rejected = await app.call<{ status: string }>(reject, `/api/proposals/${toReject}/reject`, {
         as: coordinator,
@@ -119,9 +119,9 @@ describe('notifications, decisions and undo API', () => {
       expect(again.body.error?.code).toBe('not_pending')
 
       const toApprove = await createProposal('Add a note for the Okafor party', 'copilot_action')
-      const approved = await app.call(approve, `/api/proposals/${toApprove}/approve`, { as: coordinator, params: { id: toApprove }, body: {} })
-      expect(approved.status).toBe(501)
-      expect(approved.body.error?.code).toBe('not_implemented')
+      const approved = await app.call<{ status: string; error: string }>(approve, `/api/proposals/${toApprove}/approve`, { as: coordinator, params: { id: toApprove }, body: {} })
+      expect(approved.status).toBe(200)
+      expect(approved.body.data).toMatchObject({ status: 'failed', error: 'invalid_payload' })
     })
   })
 
