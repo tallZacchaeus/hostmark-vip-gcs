@@ -1,0 +1,18 @@
+# Files `vercel deploy` must not upload: local secrets and databases, test output, binaries.
+.env*
+!.env.example
+.pglite/
+.pnpm-store/
+coverage/
+test-results/
+playwright-report/
+blob-report/
+playwright/.auth/
+eval/results/
+design/**/*.zip
+design/**/*.make
+docs/*.docx
+*.pdf
+*.tsbuildinfo
+.claude/
+.DS_Store

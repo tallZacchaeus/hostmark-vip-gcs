@@ -1,5 +1,10 @@
 # dependencies
 node_modules/
+# pnpm's content store, when it cannot use the global one
+.pnpm-store/
+
+# Vercel CLI project link
+.vercel/
 
 # next.js
 .next/

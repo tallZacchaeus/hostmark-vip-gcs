@@ -1,6 +1,6 @@
 # 02 — Technical Requirements Document (TRD)
 
-**Status:** v5, 2026-10-21. Hosting is **one DigitalOcean droplet** (decision 12 in [`00`](00-Project-Breakdown.md#decisions-log)). P1 (backend + the Figma Make frontend "Hostmark"), P2 (guest intake), P3 (flights, transport, driver app, simulation), P4 (room allocation, front desk check-in), P5 (turnaround and cleaning), P6 (event programme) and P7 (Co-Pilot, offline rules engine) are built and tested (see [`06`](06-Implementation-Plan.md)).
+**Status:** v6, 2026-10-27. Production hosting is **Vercel + Supabase** (decision 13 in [`00`](00-Project-Breakdown.md#decisions-log), §5.2); the droplet set-up of decision 12 remains as an alternative (§5.1). P1 (backend + the Figma Make frontend "Hostmark"), P2 (guest intake), P3 (flights, transport, driver app, simulation), P4 (room allocation, front desk check-in), P5 (turnaround and cleaning), P6 (event programme) and P7 (Co-Pilot, offline rules engine) are built and tested (see [`06`](06-Implementation-Plan.md)).
 
 **Related:** [`01-PRD.md`](01-PRD.md) (what), [`05-Backend-Schema.md`](05-Backend-Schema.md) (data and API), [`06-Implementation-Plan.md`](06-Implementation-Plan.md) (build order).
 
@@ -16,19 +16,19 @@
 | Web framework | **Next.js 16** (App Router, 16.4.1), `output: 'standalone'` | Route handlers for the API today; the Figma Make frontend is integrated into the same app later. Standalone output gives a small Docker image. |
 | UI | **The Figma Make design, ported**: React 19 components (`components/`, `features/`) on the design's own global CSS (`styles/`, split by screen) | The prototype used hand-written CSS with no Tailwind utilities, so Tailwind and shadcn/ui were dropped. Plus Jakarta Sans and the venue photo are self-hosted. |
 | Client data | **SWR 2.5** on a small typed client for the API envelope (`lib/client`) | Caching, revalidation and de-duplication; a Server-Sent Events stream triggers revalidation. |
-| Database | **PostgreSQL 18** in Docker on the droplet | Relational data with strong constraints suits the shared data model. The same major version runs in dev, tests (PGlite = Postgres 18.3) and production. |
+| Database | **PostgreSQL**: Supabase (managed Postgres **17**) in production; Postgres 18 in Docker locally and on the droplet alternative | Relational data with strong constraints suits the shared data model. Only Supabase's database is used (not its Auth, Realtime or Data API). Dev and tests run Postgres 18 (PGlite = 18.3); the migrations use no 18-only features, and production is one major version behind. |
 | Data access | **Kysely 0.29** + node-postgres 8 | Typed SQL query builder; raw SQL where it is clearer. Table types are generated from the migrations (`pnpm db:types`). |
 | Migrations | **dbmate 2.36** (plain SQL, up/down) | The schema leans on triggers, RLS and SQL functions, so SQL files are the source of truth. |
 | Auth | **Better Auth 1.7** (email + password, admin plugin, bearer plugin) | Battle-tested sessions, password hashing, rate limiting and account management, stored in our Postgres. No self sign-up. |
 | Authorization | **Postgres row-level security** with two runtime roles | Roles are enforced in the database, not only in the API (FR-PL-02). See §2.1. |
-| Realtime | **Postgres LISTEN/NOTIFY → Server-Sent Events** | Replaces Supabase Realtime. A long-lived Node process on a droplet can hold the connections. |
-| Scheduled jobs | **Worker** (same codebase) ✅ P3: runs inside the app server by default (`WORKER_MODE=in-process`, started from `instrumentation.ts`), or as its own process (`pnpm worker` with `WORKER_MODE=off` on the app) | Replaces `pg_cron` + `pg_net`. A pass every 5 s (simulation steps) and every minute (flight checks, driver suggestions). A 30-second lease row (`worker_leases`), renewed between units of work, makes sure only one process works at a time; a crashed holder's lease runs out. |
+| Realtime | **Postgres LISTEN/NOTIFY → Server-Sent Events** | Instead of Supabase Realtime. One LISTEN connection per server instance; on Vercel it goes through Supabase's session pooler and streams reconnect every ~5 min (§5.2). |
+| Scheduled jobs | **Worker** (same codebase) ✅ P3: runs inside the app server by default (`WORKER_MODE=in-process`, started from `instrumentation.ts`), or as its own process (`pnpm worker` with `WORKER_MODE=off` on the app). **On Vercel:** `WORKER_MODE=off`, and Supabase `pg_cron` + `pg_net` call `GET /api/internal/worker-tick` | A pass every 5 s (simulation steps) and every minute (flight checks, driver suggestions). A 30-second lease row (`worker_leases`), renewed between units of work, makes sure only one process works at a time; a crashed holder's lease runs out. Vercel keeps no process running, so the schedule lives in the database and each pass is one HTTP call (§5.2). |
 | Validation | **Zod 4** | One schema per input, used for API validation and (from P2) AI structured outputs. |
 | AI (LLM) | **Claude API** via `@anthropic-ai/sdk`, model **`claude-opus-5-5`** *(P2, P7)* | Strong at messy-text extraction and tool use. See §4.3. |
 | Speech-to-text | **Deepgram Nova-3** with keyterm prompting *(P7)* | Keyterms (guest names, titles) address misheard names. |
 | Flight data | **AeroDataBox** (primary), **FlightAware AeroAPI** (fallback), **simulated provider** *(P3)* | See §4.1. |
 | Bot protection | **Cloudflare Turnstile** on the public intake form *(P2)* | Free and low-friction. |
-| Hosting | **One DigitalOcean droplet**: Docker Compose with Caddy (HTTPS), app, Postgres, a one-shot migrate job, and later the worker | Decision 12. See §5. |
+| Hosting | **Vercel** (app, Fluid compute, `lhr1`) + **Supabase** (Postgres, `eu-west-2`), free plans. Alternative: one DigitalOcean droplet with Docker Compose (Caddy, app, Postgres, migrate job) | Decision 13 (Vercel + Supabase), decision 12 (droplet). See §5. |
 | Testing | **Vitest 5** (unit), **Vitest + jsdom + Testing Library** (components and screens), **Vitest on PGlite** (SQL and route integration tests), **Playwright** + axe (E2E and accessibility) | PGlite is real Postgres compiled to WebAssembly: the whole suite runs without Docker. |
 | Tooling | pnpm 11 (its `minimumReleaseAge` supply-chain check is respected), tsx, ESLint 10 + `eslint-config-next`, `tools/docx-export` | |
 
@@ -264,7 +264,10 @@ Built in P3 (`lib/flights/*`, `lib/services/flights/*`, `lib/services/worker/*`)
 | Local (no Docker) | `pnpm local:setup` once, then `pnpm dev` (or `pnpm build && pnpm start`) | In-process PGlite (`DATABASE_URL=pglite://.pglite/dev`), migrations applied on start; never allowed in production unless `ALLOW_PGLITE=true` is set for a local production build | Simulated |
 | Local (Docker) | `pnpm dev` | Docker Postgres 18 via `pnpm db:up` (port 5433) | Simulated |
 | Tests | Vitest | PGlite in-process (no Docker) | Simulated |
-| Production / demo | Droplet: `compose.yaml` (Caddy + app + Postgres + migrate) | Postgres 18 on the same droplet | Live (switchable to simulated) |
+| **Production / demo** | **Vercel** project `hostmark-vip` → `https://hostmark-vip.vercel.app` (§5.2) | **Supabase** project `hostmark-vip` (Postgres 17, London) | Live (switchable to simulated) |
+| Alternative | Droplet: `compose.yaml` (Caddy + app + Postgres + migrate) (§5.1) | Postgres 18 on the same droplet | Live (switchable to simulated) |
+
+### 5.1 DigitalOcean droplet (alternative)
 
 - **Droplet:** Ubuntu LTS with Docker. **2 vCPU / 4 GB RAM** is recommended (building the Next.js image needs memory; alternatively build the image elsewhere and pull it). Choose the region closest to the venue (DigitalOcean has no African region; Frankfurt or London for West Africa — TBD).
 - **Deploy:** `git pull` → `docker compose --env-file .env.production up -d --build`. The `migrate` service applies `db/migrations` and exits; the app starts only if it succeeded.
@@ -276,6 +279,52 @@ Built in P3 (`lib/flights/*`, `lib/services/flights/*`, `lib/services/worker/*`)
 - **Managed database option:** point `DATABASE_URL` at DigitalOcean Managed Postgres. The access model needs no superuser-only features (§2.1).
 - **Monitoring:** `/api/health` (database check) for an uptime monitor and the Docker healthcheck; structured JSON logs via `docker compose logs`.
 
+### 5.2 Vercel + Supabase (production, decision 13)
+
+**What runs where.** The Next.js app runs on **Vercel** (team "Zacchaeus' projects", Hobby plan, Fluid compute, functions in `lhr1` London via `vercel.json`). Postgres runs on **Supabase** (project `hostmark-vip`, ref `zmtoicrkeodfmvboyhzx`, `eu-west-2` London, free plan, Postgres 17). Both are in London, so a query costs a few milliseconds. Only Supabase's database is used: sign-in stays Better Auth, live updates stay LISTEN/NOTIFY → SSE, and roles stay enforced by row-level security.
+
+**Connections.** All go through Supabase's shared pooler (Supavisor, `aws-0-eu-west-2.pooler.supabase.com`, IPv4; Vercel has no IPv6 for the direct connection). Custom roles log in as `<role>.<project ref>`.
+
+| Variable | Role | Port / mode | Why this mode |
+|---|---|---|---|
+| `DATABASE_URL` | `vip_app` | 6543 transaction | The API pool: `withUser` only sets transaction-local settings, so connections can be shared between requests |
+| `DATABASE_LISTEN_URL` | `vip_app` | 5432 session | LISTEN needs a connection of its own (the transaction pooler cannot hold one) |
+| `SERVICE_DATABASE_URL` | `vip_service` | 5432 session | The Better Auth pool runs `SET ROLE vip_system` once per connection |
+| `DATABASE_MIGRATION_URL` / `DBMATE_URL` | `vip_owner` | 5432 session | Migrations, seed and admin scripts, **from your machine only**; never stored in Vercel |
+
+Connections are encrypted (`sslmode=no-verify` for node-postgres, `require` for dbmate), but the server certificate is not checked against Supabase's CA. **To tighten:** download the CA certificate from the Supabase dashboard (Database → SSL) and switch to `verify-full`. `attachDatabasePool` (`@vercel/functions`) closes idle connections before Vercel suspends an instance, so a frozen instance never holds pooler connections.
+
+**Database set-up (once).** [`db/supabase/01-bootstrap.sql`](../db/supabase/01-bootstrap.sql) creates `vip_owner` and the two runtime logins (from SCRAM-SHA-256 verifiers, so no plaintext password reaches Supabase), and the `btree_gist` and `pg_trgm` extensions. Then `pnpm hosted:migrate` runs dbmate as `vip_owner`. Every object is owned by `vip_owner`, so Supabase's automatic grants to its Data API roles (`anon`, `authenticated`) never apply: the auto-generated REST API cannot reach app data, and RLS stays on every table. `grant vip_owner to postgres` lets Supabase Studio and pg_cron read the tables.
+
+**Background worker.** Vercel keeps no process running, so the app runs with `WORKER_MODE=off`, and [`db/supabase/02-scheduler.sql`](../db/supabase/02-scheduler.sql) schedules Supabase `pg_cron` + `pg_net` to call `GET /api/internal/worker-tick` with `Authorization: Bearer <CRON_SECRET>`:
+
+- every minute with `?poll=1` (flight checks, driver and room suggestions, due simulation steps);
+- every 5 seconds, but only while a simulation runs (no call otherwise, which keeps Vercel usage low);
+- the URL and secret sit in Supabase Vault, and `cron.job_run_details` is trimmed nightly.
+
+Every scheduled call uses one lease holder (`scheduler`), so a call is never locked out by the previous call's lease. Vercel Cron could replace pg_cron on the Pro plan (Hobby runs crons at most daily); the route accepts the same header.
+
+**Notification stream.** Vercel ends a function at `maxDuration` (300 s), so on Vercel the stream closes after 280 s and the browser reconnects 5 s later (`retry:`), re-checking the session each time.
+
+**Secrets.** `.env.deploy.local` (gitignored, `chmod 600`, and not a file Next.js loads, so a local build never points at production) holds every generated secret. `scripts/hosted-setup.sh` copies the runtime ones into Vercel's Production environment as sensitive variables. Preview deployments get no database settings on purpose: they would share production data.
+
+**First deploy.** `bash scripts/hosted-setup.sh --seed` (migrations, demo data, Vercel project and variables, production deploy), then run `02-scheduler.sql` once in Supabase. **Later deploys:** `pnpm hosted:migrate && vercel deploy --prod` (migrations first; keep them backward-compatible with the running version). **Super Admin:** `pnpm hosted:admin --email … --name …`.
+
+**Headers and HTTPS.** Vercel provides HTTPS; `next.config.ts` sends the same security headers as the Caddyfile.
+
+**Limits of this host.**
+
+- The in-memory rate limiters are per function instance. Fluid compute reuses instances, so they still slow abuse, but they are not global (§6).
+- Free Supabase projects pause after about a week without activity. Resume from the dashboard before a demo.
+- The Hobby plan is for non-commercial use, with about 4 active-CPU hours a month (hence the conditional 5-second job).
+
+**Monitoring.**
+
+- `/api/health`, Vercel runtime logs, and Supabase logs and advisors.
+- The scheduler's calls: `select * from cron.job_run_details order by start_time desc limit 20` and `net._http_response`.
+
+**Backups.** Before a demo or a data change that matters, take a `pg_dump` as `vip_owner` (`DATABASE_MIGRATION_URL`); check the Supabase plan's backup terms.
+
 ## 6. Constraints
 
 From [`00` §10](00-Project-Breakdown.md#10-boundaries-to-keep-the-project-realistic): one event, one venue, one coordinating team; seeded/synthetic plus volunteer data; real flight API plus simulated mode; every important action confirmed and logged; each part measurable.
@@ -284,7 +333,7 @@ Technical constraints:
 - No outbound WhatsApp/SMS/email to guests. In-app notifications only.
 - No live traffic data. Fixed, configurable buffers.
 - No trained ML models. AI is limited to LLM extraction/Co-Pilot and speech-to-text. Estimates are arithmetic.
-- **One app process.** The in-memory rate limiters and the notification hub assume a single app container; running several would need a shared store (e.g. Redis).
+- **One app process.** The in-memory rate limiters and the notification hub assume a single app container; running several would need a shared store (e.g. Redis). On Vercel there can be several instances: notifications still reach everyone (each instance LISTENs to Postgres), but rate limits are per instance (§5.2).
 
 ## 7. Non-functional requirements
 
@@ -321,9 +370,10 @@ Commands: `pnpm test` (unit), `pnpm test:ui`, `pnpm test:db`, `pnpm test:integra
 
 | Item | Estimate (verify current prices) |
 |---|---|
-| DigitalOcean droplet, 2 vCPU / 4 GB | about $24/mo |
-| Droplet backups (weekly) | +20% of the droplet price |
-| DigitalOcean Spaces (database dumps) | about $5/mo |
+| **Vercel Hobby** (app) + **Supabase Free** (Postgres) — current hosting | $0 (Pro plans, if limits are hit: Vercel $20/mo, Supabase $25/mo) |
+| *Alternative:* DigitalOcean droplet, 2 vCPU / 4 GB | about $24/mo |
+| *Alternative:* droplet backups (weekly) | +20% of the droplet price |
+| *Alternative:* DigitalOcean Spaces (database dumps) | about $5/mo |
 | Domain name | about $10–15/yr |
 | AeroDataBox (Basic free for development, Pro for one month) | $0–7.50 |
 | Deepgram (free starting credit) | ~$0 |
@@ -342,11 +392,13 @@ Commands: `pnpm test` (unit), `pnpm test:ui`, `pnpm test:db`, `pnpm test:integra
 | **Single droplet = single point of failure** | Nightly dumps off the droplet, weekly droplet backups, a restore drill, Compose restart policies. |
 | **Operating our own server** | Unattended security upgrades, Docker images pinned to major versions, firewall limited to 22/80/443, dependency updates gated by pnpm's release-age check. |
 | Running out of memory while building on the droplet | Build the image on a laptop or CI and pull it, or use the recommended 4 GB droplet. |
+| **Free Supabase project paused** before a demo (about a week without activity) | Open the dashboard and resume it the day before; or move to the Pro plan for the evaluation month. |
+| **Vercel Hobby limits** (active CPU, function time) during a long simulation | The 5-second job only calls while a simulation runs; watch Vercel usage; Pro if needed. |
 
 ## 11. Open technical decisions
 
 1. Venue country, timezone and arrival airport(s): needed for the flight coverage test, the droplet region and the data-protection regime.
-2. Domain name for `SITE_ADDRESS` (DNS A record to the droplet).
+2. Custom domain (optional): `hostmark-vip.vercel.app` works today; a custom domain needs adding in Vercel and `BETTER_AUTH_URL` updated (on the droplet alternative: `SITE_ADDRESS` with a DNS A record).
 3. Confirm AeroDataBox after the coverage test (§4.1).
 4. Whether to add the ILP exact-solver comparison (§3.4) to the evaluation chapter.
 5. Whether to adopt AeroDataBox Flight Alert webhooks (push) or stay with polling.

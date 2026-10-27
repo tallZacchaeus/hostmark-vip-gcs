@@ -51,4 +51,16 @@ pnpm dev                             # http://localhost:3000
 3. **Responses** are always `{ "success", "data", "error", "meta"? }` with a stable `error.code`.
 4. **Live updates:** `GET /api/notifications/stream` (Server-Sent Events).
 
-Full endpoint list: [`docs/05-Backend-Schema.md` §7](docs/05-Backend-Schema.md). Deployment to the droplet: [`docs/02-TRD.md` §5](docs/02-TRD.md).
+Full endpoint list: [`docs/05-Backend-Schema.md` §7](docs/05-Backend-Schema.md).
+
+## Hosting
+
+Production runs on **Vercel** (the app) and **Supabase** (Postgres), both in London: [`docs/02-TRD.md` §5.2](docs/02-TRD.md).
+
+| Command | What it does |
+|---|---|
+| `bash scripts/hosted-setup.sh --seed` | First deploy from `.env.deploy.local`: migrations, demo data, Vercel project and its variables, production deploy |
+| `pnpm hosted:migrate && vercel deploy --prod` | Later deploys |
+| `pnpm hosted:admin --email … --name …` | Create a Super Admin on the hosted database |
+
+The DigitalOcean droplet set-up (`compose.yaml`, `Caddyfile`) still works as an alternative: [`docs/02-TRD.md` §5.1](docs/02-TRD.md).

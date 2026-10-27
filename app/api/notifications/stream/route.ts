@@ -10,10 +10,13 @@ import { ANY_ROLE } from '@/lib/auth/roles'
 import { getNotificationHub } from '@/lib/realtime/hub'
 
 export const dynamic = 'force-dynamic'
+// Vercel ends a function at maxDuration (300 s on every plan); elsewhere this has no effect.
+export const maxDuration = 300
 
 const HEARTBEAT_MS = 25_000
 const RECONNECT_DELAY_MS = 5_000
-const MAX_STREAM_MS = 15 * 60_000
+// On Vercel, close shortly before maxDuration so clients reconnect cleanly instead of seeing an error.
+const MAX_STREAM_MS = process.env.VERCEL ? 280_000 : 15 * 60_000
 
 export const GET = defineRoute({ roles: ANY_ROLE }, async ({ actor, request }) => {
   const encoder = new TextEncoder()

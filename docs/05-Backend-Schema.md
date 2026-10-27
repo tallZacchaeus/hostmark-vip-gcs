@@ -417,6 +417,7 @@ Tests: `tests/db/*.test.ts` check each cell above as the relevant role.
 | POST | `/api/auth/sign-in/email` | public | Sign in `{ email, password }` (5 attempts/min per IP) |
 | POST | `/api/auth/sign-out` · GET `/api/auth/get-session` | signed in | Better Auth (only an allowlist of its endpoints is exposed) |
 | GET | `/api/health` | public | Liveness + database check |
+| GET | `/api/internal/worker-tick` (`?poll=1`) | scheduler: `Authorization: Bearer <CRON_SECRET>`; 404 when `CRON_SECRET` is unset | One background-worker pass where no process stays running (Vercel; called by Supabase `pg_cron`, `02` §5.2). `?poll=1` also checks flights and makes driver and room suggestions. Returns `{ ran, report }`; `ran: false` when another process holds the worker lease |
 | GET | `/api/me` | any (also with a pending password change) | User, role, home route, event context |
 | POST | `/api/account/password` | any (also pending) | `{ current_password, new_password }`; signs out other sessions; returns a new token |
 | GET / POST / PATCH | `/api/admin/event` | GET coordinator+; POST/PATCH admin+ | Event settings; POST is first-time setup |
@@ -533,6 +534,8 @@ The background worker (in-process by default, or `pnpm worker`) polls flights, a
 | Channel | Source | Delivered to |
 |---|---|---|
 | `vip_notifications` (Postgres NOTIFY) | Trigger on `notifications` insert | `GET /api/notifications/stream` → `event: notification` with `{ id, kind, priority }` for the recipient's open streams ✅ |
+
+The LISTEN connection uses `DATABASE_LISTEN_URL` when set (on Supabase: the session pooler, because the transaction pooler behind `DATABASE_URL` cannot hold a LISTEN), else `DATABASE_URL`. Streams close after 15 min, or after 280 s on Vercel (functions end at 300 s); clients reconnect after 5 s either way.
 
 Clients refresh the affected list (decisions, arrivals, transport, the driver's trips, rooms, cleaning) when a notification arrives; P3 sends `pickup_time_changed`, `pickup_assigned`, `pickup_moved`, `pickup_cancelled` to drivers and `flight_disrupted`, `transport_alert`, `provider_quota` (and proposal notices) to coordinators. If later phases need live views without a notification (e.g. the room grid), they add a NOTIFY channel and a stream route the same way.
 

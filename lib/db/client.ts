@@ -2,7 +2,11 @@
 // in a transaction via withUser (lib/db/context.ts). Better Auth gets its own small pool whose
 // sessions switch to vip_system, because its queries run outside our per-request transactions.
 // Real-time notifications use a separate LISTEN connection (lib/realtime/pg-channel-source.ts).
+// Behind Supabase's pooler (docs/02-TRD.md §5.2) the API pool may use transaction mode (6543):
+// withUser only sets transaction-local settings. The auth pool's SET ROLE and the LISTEN connection
+// need session mode (5432), so SERVICE_DATABASE_URL and DATABASE_LISTEN_URL point there.
 import 'server-only'
+import { attachDatabasePool } from '@vercel/functions'
 import { type Dialect, Kysely, PostgresDialect } from 'kysely'
 import pg from 'pg'
 import { getServerEnv } from '@/lib/env'
@@ -30,13 +34,22 @@ export interface Database {
 function createPool(connectionString: string, max: number, name: string): pg.Pool {
   const pool = new pg.Pool({ connectionString, max, application_name: name })
   pool.on('error', (error) => logger.error('Idle database connection failed', { pool: name, error }))
+  // On Vercel, closes idle connections before the function instance is suspended, so a frozen
+  // instance never holds pooler connections. Does nothing anywhere else.
+  attachDatabasePool(pool)
   return pool
 }
 
-function createDatabase(connectionString: string, serviceConnectionString: string): Database {
-  const appPool = createPool(connectionString, APP_POOL_MAX, 'vip-gcs-api')
+interface ConnectionUrls {
+  readonly app: string
+  readonly service: string
+  readonly listen: string
+}
+
+function createDatabase(urls: ConnectionUrls): Database {
+  const appPool = createPool(urls.app, APP_POOL_MAX, 'vip-gcs-api')
   // Separate login (vip_service): the API's own credential cannot become vip_system.
-  const authPool = createPool(serviceConnectionString, AUTH_POOL_MAX, 'vip-gcs-auth')
+  const authPool = createPool(urls.service, AUTH_POOL_MAX, 'vip-gcs-auth')
   authPool.on('connect', (client) => {
     client.query('set role vip_system').catch((error: unknown) => {
       // Fails closed: vip_service itself has no table privileges.
@@ -48,7 +61,7 @@ function createDatabase(connectionString: string, serviceConnectionString: strin
   return {
     app,
     authDialect: new PostgresDialect({ pool: authPool }),
-    channels: createPgChannelSource(connectionString, logger),
+    channels: createPgChannelSource(urls.listen, logger),
     async close() {
       await app.destroy()
       await authPool.end()
@@ -65,7 +78,7 @@ function getDatabase(): Database {
     const env = getServerEnv()
     holder.__vipGcsDatabase = env.DATABASE_URL.startsWith(PGLITE_SCHEME)
       ? createPgliteDatabase(env.DATABASE_URL)
-      : createDatabase(env.DATABASE_URL, env.SERVICE_DATABASE_URL)
+      : createDatabase({ app: env.DATABASE_URL, service: env.SERVICE_DATABASE_URL, listen: env.DATABASE_LISTEN_URL ?? env.DATABASE_URL })
   }
   return holder.__vipGcsDatabase
 }

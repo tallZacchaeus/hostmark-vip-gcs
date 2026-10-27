@@ -38,8 +38,16 @@ const optionalSecret = z
   .optional()
   .transform((value) => (value ? value : undefined))
 
+/** A setting that may be left blank: blank means "not configured". */
+const blankAsUndefined = (value: unknown): unknown => (typeof value === 'string' && value.trim() === '' ? undefined : value)
+
 const serverEnvSchema = z.object({
   DATABASE_URL: databaseUrl,
+  /**
+   * The real-time LISTEN connection, when DATABASE_URL goes through a transaction-mode pooler
+   * (Supabase port 6543), which cannot hold a LISTEN. Unset: DATABASE_URL.
+   */
+  DATABASE_LISTEN_URL: z.preprocess(blankAsUndefined, databaseUrl.optional()),
   /** vip_service login: Better Auth's own queries (the only credential that can act as vip_system). */
   SERVICE_DATABASE_URL: databaseUrl,
   BETTER_AUTH_SECRET: z.string().min(MIN_SECRET_LENGTH, `must be at least ${MIN_SECRET_LENGTH} characters`),
@@ -58,8 +66,16 @@ const serverEnvSchema = z.object({
   AERODATABOX_API_KEY: optionalSecret,
   /** Live flight-status calls allowed per day (TRD §9: Pro is 5,000 units a month). */
   FLIGHT_POLL_DAILY_LIMIT: z.coerce.number().int().min(1).max(100_000).default(160),
-  /** in-process: the app server runs the background worker; off: run `pnpm worker` beside it. */
+  /**
+   * in-process: the app server runs the background worker; off: run `pnpm worker` beside it, or
+   * (on Vercel, where no process stays running) have a scheduler call /api/internal/worker-tick.
+   */
   WORKER_MODE: z.enum(['in-process', 'off']).default('in-process'),
+  /** Bearer secret for /api/internal/worker-tick. Unset: that route does not exist. */
+  CRON_SECRET: z.preprocess(
+    blankAsUndefined,
+    z.string().trim().min(MIN_SECRET_LENGTH, `must be at least ${MIN_SECRET_LENGTH} characters`).max(500).optional(),
+  ),
 }).superRefine((env, context) => {
   if (env.NODE_ENV !== 'production' || env.ALLOW_PGLITE === 'true') return
   for (const key of ['DATABASE_URL', 'SERVICE_DATABASE_URL'] as const) {

@@ -160,6 +160,7 @@ The accepted proposal used the word "predictive" for flights and for room turnar
 10. **Roles** *(2026-10-12)*: Admin, Super Admin and the programs team are in the MVP.
 11. **Tech stack** *(2026-10-12)*: see `02-TRD.md`.
 12. **Hosting** *(2026-10-16)*: one DigitalOcean droplet runs the app and its own PostgreSQL (Docker Compose behind Caddy), instead of Vercel + Supabase. Auth moves to Better Auth, realtime to Postgres LISTEN/NOTIFY + Server-Sent Events, and scheduled jobs to a worker process. Roles are still enforced in the database with row-level security. See `02-TRD.md`.
+13. **Hosting, revised** *(2026-10-27)*: production moves to **Vercel** (the Next.js app, London `lhr1`) and **Supabase** (managed Postgres only, London `eu-west-2`), both on free plans. The architecture from decision 12 stays: Better Auth, LISTEN/NOTIFY + Server-Sent Events and row-level security, with the worker's passes triggered by Supabase `pg_cron` over HTTP instead of a long-running process. The droplet files remain as an alternative. See `02-TRD.md` §5.2.
 
 ## Change log (v1 → v2)
 

@@ -1,5 +1,7 @@
 // Fixed-window rate limiter kept in process memory. The droplet runs a single app process, so
 // one in-memory limiter per route is enough; a multi-instance deploy would need a shared store.
+// On Vercel each function instance keeps its own windows (Fluid compute reuses instances, so
+// limits still apply per instance): a known limit of that host, see docs/02-TRD.md §5.2.
 
 export interface RateLimitResult {
   readonly allowed: boolean

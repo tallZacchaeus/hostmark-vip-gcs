@@ -45,6 +45,21 @@ describe('server environment', () => {
     expect(() => parseServerEnv({ ...VALID, FLIGHT_POLL_DAILY_LIMIT: '0' })).toThrow(/FLIGHT_POLL_DAILY_LIMIT/)
     expect(() => parseServerEnv({ ...VALID, WORKER_MODE: 'cron' })).toThrow(/WORKER_MODE/)
   })
+
+  it('listens for notifications on DATABASE_URL unless a separate session-mode URL is given', () => {
+    expect(parseServerEnv(VALID).DATABASE_LISTEN_URL).toBeUndefined()
+    const listen = 'postgres://vip_app.ref:secret@pooler.example.com:5432/postgres'
+    expect(parseServerEnv({ ...VALID, DATABASE_LISTEN_URL: listen }).DATABASE_LISTEN_URL).toBe(listen)
+    expect(parseServerEnv({ ...VALID, DATABASE_LISTEN_URL: '' }).DATABASE_LISTEN_URL).toBeUndefined()
+    expect(() => parseServerEnv({ ...VALID, DATABASE_LISTEN_URL: 'mysql://db/app' })).toThrow(/DATABASE_LISTEN_URL/)
+  })
+
+  it('accepts a scheduler secret only when it is long enough', () => {
+    expect(parseServerEnv({ ...VALID, CRON_SECRET: '' }).CRON_SECRET).toBeUndefined()
+    expect(parseServerEnv({ ...VALID, CRON_SECRET: 'c'.repeat(32) }).CRON_SECRET).toBe('c'.repeat(32))
+    expect(() => parseServerEnv({ ...VALID, CRON_SECRET: 'too-short-cron-secret' })).toThrow(/CRON_SECRET/)
+    expect(() => parseServerEnv({ ...VALID, CRON_SECRET: 'too-short-cron-secret' })).not.toThrow(/too-short-cron-secret/)
+  })
 })
 
 describe('parseOrigins', () => {
