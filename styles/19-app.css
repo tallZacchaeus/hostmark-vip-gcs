@@ -302,3 +302,28 @@ a.arrival-row { color: inherit; text-decoration: none; }
 .profile-room-row small strong { color: #17263b; font-variant-numeric: tabular-nums; }
 .profile-room-row small a { color: #6d3fc4; font-weight: 600; }
 .profile-room-note { margin: 12px 0 0; color: #626d80; font-size: 12.5px; }
+
+/* Programme (P6): rows are buttons (keyboard), the item detail, and the item dialog's participants. */
+button.programme-row { width: 100%; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+button.programme-row:focus-visible { outline: 3px solid rgba(36,86,179,.35); outline-offset: -3px; }
+.programme-badges { display: inline-flex; gap: 6px; align-items: center; }
+.programme-item-detail { display: flex; flex-direction: column; gap: 8px; padding: 0 18px 16px 128px; color: #566174; font-size: 14px; }
+.programme-item-detail p { margin: 0; }
+.programme-item-detail ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.programme-item-detail li b { color: #17263b; font-weight: 600; }
+.programme-item-detail li.is-late b { color: #b5561b; }
+.programme-item-detail .hm-button { align-self: flex-start; }
+.programme-participants { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px; }
+.programme-participants legend { margin-bottom: 6px; color: #17263b; font-size: 14px; font-weight: 700; }
+.programme-participants ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.programme-participants li { display: grid; grid-template-columns: minmax(0,1fr) 140px 36px; gap: 8px; align-items: center; }
+.programme-participants li span { display: flex; flex-direction: column; min-width: 0; }
+.programme-participants li b { overflow: hidden; color: #17263b; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.programme-participants li small { color: #626d80; font-size: 12.5px; }
+.programme-participant-add { display: grid; grid-template-columns: minmax(0,1fr) 140px auto; gap: 8px; align-items: center; }
+.programme-delete { display: flex; justify-content: flex-start; }
+.settings-dialog-fields textarea { width: 100%; border: 1px solid #cbd3e1; border-radius: 11px; padding: 10px 12px; color: #17263b; font: inherit; font-size: 14px; resize: vertical; }
+@media (max-width: 720px) {
+  .programme-item-detail { padding-left: 18px; }
+  .programme-participants li, .programme-participant-add { grid-template-columns: minmax(0,1fr) 120px auto; }
+}

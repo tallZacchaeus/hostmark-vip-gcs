@@ -74,6 +74,12 @@ describe('development seed', () => {
         count(*) filter (where housekeeping_status = 'cleaning')::int as cleaning, count(*) filter (where out_of_service)::int as broken from rooms`,
     )
     expect(states).toEqual({ dirty: 3, cleaning: 2, broken: 1 })
+    // The programme (P6): every item seeded, and the welcome briefing flagged by the delayed ET512 party.
+    const [briefing] = await app.sql<{ at_risk: boolean; count: number }>(
+      `select at_risk, (select count(*)::int from program_items) as count from program_items where id = $1`,
+      [result.programme.briefingId],
+    )
+    expect(briefing).toEqual({ at_risk: true, count: result.programme.items })
     // Each dirty or cleaning room has its task, so Sanitation agrees with the rooms grid (P5).
     const tasks = await app.sql<{ status: string; count: number }>(`select status::text, count(*)::int from cleaning_tasks group by status order by status`)
     expect(tasks).toEqual([

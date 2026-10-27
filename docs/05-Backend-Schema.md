@@ -83,7 +83,9 @@ erDiagram
 | `stay_status` | `planned`, `checked_in`, `checked_out`, `cancelled` | ✅ P4 |
 | `cleaning_status` | `pending`, `in_progress`, `done`, `cancelled` | ✅ P5 |
 | `cleaning_problem` | `maintenance`, `supplies`, `other` | ✅ P5 |
-| `program_item_status` | `draft`, `published`, `cancelled` | P6 |
+| `program_item_status` | `draft`, `published`, `cancelled` | ✅ P6 |
+| `program_item_kind` | `session`, `ceremony`, `meal`, `performance`, `other` | ✅ P6 |
+| `program_role` | `speaker`, `honoree`, `performer`, `attendee` | ✅ P6 |
 | `participant_role` | `speaker`, `honoree`, `performer`, `attendee`, `other` | P6 |
 
 ## 3. Tables
@@ -262,11 +264,13 @@ P5 adds `checkout_reversed_at`, `checkout_reversed_by` (FK → profiles) to `roo
 
 Written only through the functions in §5. The "needed by" time (next planned arrival into the room) is not stored: `cleaning_queue()` reads it from `room_assignments` without returning who is coming.
 
-### 3.7 Program — planned (P6)
+### 3.7 Program — ✅ built (P6, migration `20261027110000_programme.sql`)
 
-**`program_items`**: id, event_id, title, kind (`session`, `ceremony`, `meal`, `performance`, `other`), starts_at, ends_at, location, description, status, created_by, version.
+**`program_items`** (audited): id, event_id, title (1–200), kind `program_item_kind`, starts_at, ends_at (> starts_at), location (1–120), description (≤ 2000), status `program_item_status` default `draft`, **at_risk** boolean (kept by the database, not writable by the API), risk_notified_at/by (the coordinator's "Notify programme team"), created_by, version, timestamps.
 
-**`program_participants`**: (program_item_id, guest_id) PK, role.
+**`program_participants`** (audited): id, program_item_id (cascade), guest_id (cascade), role `program_role`; unique (item, guest).
+
+Triggers keep `at_risk` current (FR-PG-03): after an item's insert or change of time/status, after any participant change, after an arrival's expected/stated/pickup time or status changes (the flight cascade, a manual landing time), and after a guest's status or arrival changes. When a **published** item becomes at risk (or is published while at risk) the programs team and coordinators get `program_at_risk` ("Welcome briefing at risk: Bishop Augustine Okafor expected 16:55"); the flag clears by itself.
 
 ### 3.8 Co-Pilot, simulation, ops — simulation and ops ✅ built (P3), Co-Pilot planned (P7)
 
@@ -287,7 +291,7 @@ Written only through the functions in §5. The "needed by" time (next planned ar
 | `v_room_status` | Room + current/next stay + open cleaning task + readiness | ✅ P4 as a repository query (`lib/repositories/rooms-board.ts`: status `ready`, `proposed`, `reserved`, `occupied`, `needs-cleaning`, `cleaning`, `out-of-service`, the stays and pending suggestions); the cleaning task joins in P5 |
 | Front desk | Parties arriving / in house / leaving on a day, with rooms (principal's first), readiness, "on the way" | ✅ P4 as a repository query (`lib/repositories/front-desk.ts`) |
 | `v_cleaning_queue` | Open cleaning tasks by `needed_by`, `estimated_ready_at`. **Room data only, no guest names.** | ✅ P5 as the security-definer function `public.cleaning_queue(since)` (rows) + `lib/repositories/cleaning.ts` (ordering and live estimates in pure TypeScript, `lib/domain/cleaning/queue.ts`) |
-| `v_program_conflicts` | Participants whose `expected_at_venue_at + lead_time > starts_at` | P6 |
+| `v_program_conflicts` | Participants whose `expected_at_venue_at + lead_time > starts_at` | ✅ P6 as `private.program_item_risks(item)` (invoker): participants not yet arrived whose expected time at the venue is after the start minus `events.program_lead_time_min`; none for cancelled or finished items. The day view is `lib/repositories/programme.ts` |
 | `v_pending_decisions` | Pending proposals + submissions needing review | P2 (proposals part is served by `GET /api/decisions` today) |
 
 ## 5. Database functions
@@ -322,6 +326,8 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 | `public.undo_check_in(delegation)` | whoever checked in, or coordinator+ | Within 10 minutes; never a move's stay; 409 `nothing_to_undo` | ✅ P4 |
 | `public.check_out_party(delegation)` | accommodation, coordinator+ | Checks out the party's checked-in stays; first wins (409 `already_checked_out` with `{by, at}`); guests become `checked_out`; each emptied room is queued by the `queue_cleaning` trigger. Locks guest → room → stay | ✅ P5 |
 | `public.reverse_checkout(task)` | coordinator+ | FR-CL-06: stays and guests checked in again, room `clean`, task `cancelled`; 409 `cleaning_started`, `already_reversed`, `moved`, `guest_has_room`, `shared_room` (stays of more than one party), `changed` (a check-out joined the task meanwhile) | ✅ P5 |
+| `private.refresh_program_risk(item, publishing)` | definer (triggers) | Recomputes `at_risk`; notifies `program_at_risk` when a published item becomes at risk or is published at risk | ✅ P6 |
+| `public.notify_program_risk(item)` | coordinator+, programs | Marks `risk_notified_at/by` and sends the programs team `program_risk_flagged`; 409 `not_at_risk` | ✅ P6 |
 | `public.cleaning_queue(since)` | housekeeping, accommodation, coordinator+ (definer) | Open tasks plus tasks done since `since`: room number, floor, wing, type, times, cleaning minutes, buffer, needed by, problem, `undoable`. **No guest data** | ✅ P5 |
 | `public.report_cleaning_problem(task, kind, note)` | housekeeping, coordinator+ | Stores the problem on the task and notifies coordinators (`cleaning_problem`) | ✅ P5 |
 | `public.set_trip_status(id, status)` | driver | `en_route` → `picked_up` → `completed` on the driver's own active trip (409 `not_active`, `not_picked_up`); completing marks the arrival, guests and delegation arrived | ✅ P3 |
@@ -381,6 +387,14 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 | `check_out_party` | ✅ | – | ✅ | – | – |
 | `reverse_checkout` | ✅ | – | – | – | – |
 | `start_cleaning`, `complete_cleaning`, `undo_complete_cleaning`, `report_cleaning_problem` | ✅ | – | – | ✅ | – |
+
+**P6 rows:**
+
+| Table / function | super_admin / admin | coordinator | programs | accommodation, housekeeping, driver |
+|---|---|---|---|---|
+| program_items | RW (all, incl. drafts; not `at_risk` / `risk_notified_*`) | R (not drafts) | RW (same as admin) | – |
+| program_participants | RW | R (of visible items) | RW | – |
+| `notify_program_risk` | ✅ | ✅ | ✅ | – |
 
 Work done for a signed-in coordinator outside RLS (a manual landing time, "Check now", "Suggest a driver") runs as vip_system with `app.user_id` set to that coordinator (`withSystem({ onBehalfOf })`), so the activity log names them.
 
@@ -486,13 +500,23 @@ The background worker (in-process by default, or `pnpm worker`) polls flights, a
 | POST | `/api/cleaning/[id]/report` | housekeeping, coordinator+ | `{ kind: maintenance \| supplies \| other, note? ≤ 500 }` |
 | POST | `/api/cleaning/[id]/reverse-checkout` | coordinator+ | See `reverse_checkout` → `{ task_id, room_number, restored }` |
 
+### Built (P6)
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| GET | `/api/programme` | coordinator+, programs | `?day=` (default today, else the first event day): `{ day, days, timezone, lead_time_min, can_edit, at_risk_count, venues, items }`; each item has `state` (`track`, `risk`, `done`, `cancelled`) and participants with `expected_at`, `arrived`, `late` |
+| GET | `/api/programme/guests` | programs, admin+ | Guests to choose participants from (not cancelled): id, name, delegation, category |
+| POST | `/api/program-items` | programs, admin+ | `{ title, kind, starts_at, ends_at, location, description?, status }` → 201 `{ id }` |
+| PATCH · DELETE | `/api/program-items/[id]` | programs, admin+ | Same body as POST (publishing and cancelling are status changes) |
+| PUT | `/api/program-items/[id]/participants` | programs, admin+ | `{ participants: [{ guest_id, role }] }` (≤ 100, each guest once) replaces the list |
+| POST | `/api/program-items/[id]/notify` | coordinator+, programs | See `notify_program_risk` |
+
 ### Planned
 
 | Method | Path | Phase |
 |---|---|---|
 | POST | `/api/delegations/[id]/split-arrival` | later (not needed by P3) |
 | POST | `/api/webhooks/flights` (optional AeroDataBox push) | P8 if adopted |
-| GET / POST / PATCH / DELETE | `/api/program-items`, PUT `/[id]/participants` | P6 |
 | POST | `/api/copilot/chat`, `/api/copilot/transcribe` | P7 |
 | PATCH | `/api/admin/system` (data export/purge) | P8 |
 
@@ -508,4 +532,4 @@ Clients refresh the affected list (decisions, arrivals, transport, the driver's 
 
 ✅ `pnpm db:seed` (Docker Postgres) and `pnpm local:setup` (PGlite, event starting today) use `db/tooling/seed.ts` (tested). On an empty database they create the Figma demo venue: "Lagos Leadership Summit 2026" at Harbour Point Hotel (4 days, Africa/Lagos), 4 room types, **120 rooms** over 6 floors in West (x01–x07), East (x08–x14) and Garden (x15–x20) wings, 4 VIP categories, **15 named drivers** with vehicles and two overlapping shifts a day (05:00–14:00 and 11:00–21:00 UTC), and one named account per role (`coordinator@vipgcs.test` is Ada Nwosu, `admin@vipgcs.test` is Tolu Adebayo, …) sharing one printed password. Seed writes are audited as non-undoable system actions.
 
-✅ P2 adds the 6 Figma delegations (17 guests, 4 flights, 5 pickups; created by the same code as an approved registration, `db/tooling/seed-guests.ts`) and 3 submissions in the review queue: a likely duplicate, a registration with a flagged note and a pasted message. ✅ P3 (`db/tooling/seed-transport.ts`, through the real pipeline): two trips assigned (ET512 to the driver login's Emeka Oladipo), ET512 then 40 minutes late (Emeka keeps it and must confirm the new time) and matcher suggestions for the other pickups. ✅ P4 (`db/tooling/seed-rooms.ts`): rooms 108, 209 and 315 need cleaning, 110 and 402 are being cleaned, 516 is out of service, and the real allocator leaves a plan for all 17 guests waiting for approval. ✅ P5: those five rooms have matching cleaning tasks (three waiting, checked out 20–50 minutes before seeding; two started 15 minutes before). Planned (P6+): about 60 delegations across categories, arrival modes and entourage sizes, plus scenario fixtures for delays, cancellations, shared flights and room conflicts (`00` decision 5).
+✅ P2 adds the 6 Figma delegations (17 guests, 4 flights, 5 pickups; created by the same code as an approved registration, `db/tooling/seed-guests.ts`) and 3 submissions in the review queue: a likely duplicate, a registration with a flagged note and a pasted message. ✅ P3 (`db/tooling/seed-transport.ts`, through the real pipeline): two trips assigned (ET512 to the driver login's Emeka Oladipo), ET512 then 40 minutes late (Emeka keeps it and must confirm the new time) and matcher suggestions for the other pickups. ✅ P4 (`db/tooling/seed-rooms.ts`): rooms 108, 209 and 315 need cleaning, 110 and 402 are being cleaned, 516 is out of service, and the real allocator leaves a plan for all 17 guests waiting for approval. ✅ P5: those five rooms have matching cleaning tasks (three waiting, checked out 20–50 minutes before seeding; two started 15 minutes before). ✅ P6 (`db/tooling/seed-programme.ts`): the Figma day-one timeline plus day-two sessions and a day-three draft; the welcome briefing starts 15 minutes after the delayed ET512 party is expected, with Archbishop Tendai Moyo speaking, so it is at risk from the start. Planned (P8): about 60 delegations across categories, arrival modes and entourage sizes, plus scenario fixtures for delays, cancellations, shared flights and room conflicts (`00` decision 5).

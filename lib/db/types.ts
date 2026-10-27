@@ -51,6 +51,12 @@ export type PickupKind = "airport" | "location";
 
 export type PickupStatus = "assigned" | "cancelled" | "completed" | "en_route" | "pending_assignment" | "picked_up";
 
+export type ProgramItemKind = "ceremony" | "meal" | "other" | "performance" | "session";
+
+export type ProgramItemStatus = "cancelled" | "draft" | "published";
+
+export type ProgramRole = "attendee" | "honoree" | "performer" | "speaker";
+
 export type ProposalKind = "copilot_action" | "driver_assignment" | "driver_reassignment" | "release_pickup" | "room_assignment" | "room_plan";
 
 export type ProposalStatus = "approved" | "expired" | "failed" | "pending" | "rejected" | "superseded";
@@ -400,6 +406,33 @@ export interface Profiles {
   updated_at: Generated<Timestamp>;
 }
 
+export interface ProgramItems {
+  at_risk: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  created_by: Generated<string | null>;
+  description: string | null;
+  ends_at: Timestamp;
+  event_id: Generated<string>;
+  id: Generated<string>;
+  kind: Generated<ProgramItemKind>;
+  location: string;
+  risk_notified_at: Timestamp | null;
+  risk_notified_by: string | null;
+  starts_at: Timestamp;
+  status: Generated<ProgramItemStatus>;
+  title: string;
+  updated_at: Generated<Timestamp>;
+  version: Generated<number>;
+}
+
+export interface ProgramParticipants {
+  created_at: Generated<Timestamp>;
+  guest_id: string;
+  id: Generated<string>;
+  program_item_id: string;
+  role: Generated<ProgramRole>;
+}
+
 export interface Proposals {
   created_at: Generated<Timestamp>;
   created_by: string | null;
@@ -538,6 +571,8 @@ export interface DB {
   pickup_assignments: PickupAssignments;
   pickups: Pickups;
   profiles: Profiles;
+  program_items: ProgramItems;
+  program_participants: ProgramParticipants;
   proposals: Proposals;
   provider_usage_daily: ProviderUsageDaily;
   room_assignments: RoomAssignments;

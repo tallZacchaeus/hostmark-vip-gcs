@@ -36,7 +36,7 @@ Routes follow the Figma Make design ("Hostmark", see [`design/figma-make/`](../d
 | Route | Screen | Purpose / key actions | Status |
 |---|---|---|---|
 | `/dashboard` | **Home** | Greeting and data mode, KPI tiles, **Waiting for your approval** (one-tap approve/reject; driver proposals from P3, and an approval that no longer fits says why instead of acting), recent activity with Undo, quick actions | ✅ |
-| `/programme` | Programme | Timeline by day, at-risk items, venues (programs team edits) | 🟨 P6 |
+| `/programme` | Programme | Day tabs; timeline (on track / at risk / done, drafts marked) with the at-risk detail (who is late, **Open guest**, **Notify programme team** for coordinators) and each item's participants; at-risk count and venues. Programs team and Admin: **Add item** / **Edit item** dialog (times in the event time zone, participants with roles, publish, cancel, delete). Coordinators read the published programme | ✅ P6 |
 | `/guests` | Guests | One row per delegation: arrival, transport, room (the principal's room, "n of m placed", in house, suggested), open issues; tabs, search, category filter; **Add guest** | ✅ |
 | `/guests/[id]` | Guest profile | Party (add/remove), arrival, transport, **room** (each member's room or pending suggestion with a link to its plan; **Change room** / **Assign a room** open the move dialog), contact, open issues (Dismiss / Add as guest), history, registrations; **Edit** (category, proximity, share group, dietary, notes) | ✅ |
 | `/intake` | Intake | Submissions by reason (needs review, likely duplicates, missing details, flagged, processed); search, source filter; **Paste a message**; copy registration link | ✅ |
@@ -256,6 +256,8 @@ sequenceDiagram
 2. Speaker B's flight ETA moves, so B's `expected_at_venue_at + lead time` is now later than 10:00.
 3. `v_program_conflicts` returns B. The programs team and the coordinator are notified ("Opening ceremony at risk: Speaker B expected 10:20").
 4. The programs team adjusts the order or time, or the coordinator acts on transport. The badge clears automatically when the conflict is gone.
+
+✅ P6 builds this as drawn. `v_program_conflicts` is the function `private.program_item_risks`, and triggers on arrivals, guests, items and participants re-check it, so step 2 needs no polling. The coordinator can also press **Notify programme team** once per risk.
 
 ### F10 — Undo an automatic action
 **Activity** → filter Who: "Automatic" → choose an entry (e.g. "Auto-created delegation from VIP-7K3Q" or "Arrival time changed by flight API") → **Undo** → confirm. The system checks that the record hasn't changed since (`version`). If it has, undo is refused with "Changed since by <who> at <when>; edit manually instead." The undo itself is logged.

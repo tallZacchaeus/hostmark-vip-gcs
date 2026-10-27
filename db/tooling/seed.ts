@@ -7,6 +7,7 @@ import type { Auth } from '@/lib/auth/auth'
 import { APP_ROLES, type AppRole } from '@/lib/auth/roles'
 import type { DB } from '@/lib/db/types'
 import { type GuestSeedResult, seedGuests } from './seed-guests'
+import { type ProgrammeSeedResult, seedProgramme } from './seed-programme'
 import { type RoomsSeedResult, seedRooms } from './seed-rooms'
 import { type TransportSeedResult, seedTransport } from './seed-transport'
 
@@ -71,6 +72,7 @@ export interface SeedResult {
   readonly guests: GuestSeedResult
   readonly transport: TransportSeedResult
   readonly allocation: RoomsSeedResult
+  readonly programme: ProgrammeSeedResult
 }
 
 const isoDate = (date: Date): string => date.toISOString().slice(0, 10)
@@ -207,5 +209,6 @@ export async function seedDevData(db: Kysely<DB>, auth: Auth, password: string, 
   const guests = await seedGuests(db, days[0] ?? '', days.at(-1) ?? '')
   const transport = await seedTransport(db, days[0] ?? '', venue.driverIds)
   const allocation = await seedRooms(db, now)
-  return { eventId: venue.eventId, startsOn: days[0] ?? '', rooms: venue.rooms, drivers: venue.driverIds.length, accounts, guests, transport, allocation }
+  const programme = await seedProgramme(db, days)
+  return { eventId: venue.eventId, startsOn: days[0] ?? '', rooms: venue.rooms, drivers: venue.driverIds.length, accounts, guests, transport, allocation, programme }
 }

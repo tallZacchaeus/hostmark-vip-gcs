@@ -62,6 +62,8 @@ const TABLES: Readonly<Record<string, TableInfo>> = {
   pickups: { domain: 'Transport', noun: 'pickup', name: (row) => text(row.pickup_location), href: '/transport' },
   room_assignments: { domain: 'Rooms', noun: 'stay', href: (row) => guestLink(row.guest_id) },
   cleaning_tasks: { domain: 'Sanitation', noun: 'cleaning task', href: '/sanitation' },
+  program_items: { domain: 'Programme', noun: 'programme item', name: (row) => text(row.title), href: '/programme' },
+  program_participants: { domain: 'Programme', noun: 'programme participant', href: '/programme' },
 }
 
 /** Tables shown for each "Type" filter value. */
@@ -130,6 +132,7 @@ const NAMED_VERBS: Readonly<Record<string, string>> = {
   'cleaning.complete': 'finished the',
   'cleaning.undo_complete': 'reopened the',
   'cleaning.report_problem': 'reported a problem on the',
+  'programme.notify_team': 'alerted the programs team about the',
 }
 
 /** "updated", "added", "removed", "undid a change to the", … followed by the object. */

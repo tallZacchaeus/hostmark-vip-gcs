@@ -1,6 +1,6 @@
 # 02 — Technical Requirements Document (TRD)
 
-**Status:** v5, 2026-10-21. Hosting is **one DigitalOcean droplet** (decision 12 in [`00`](00-Project-Breakdown.md#decisions-log)). P1 (backend + the Figma Make frontend "Hostmark"), P2 (guest intake), P3 (flights, transport, driver app, simulation), P4 (room allocation, front desk check-in) and P5 (turnaround and cleaning) are built and tested (see [`06`](06-Implementation-Plan.md)).
+**Status:** v5, 2026-10-21. Hosting is **one DigitalOcean droplet** (decision 12 in [`00`](00-Project-Breakdown.md#decisions-log)). P1 (backend + the Figma Make frontend "Hostmark"), P2 (guest intake), P3 (flights, transport, driver app, simulation), P4 (room allocation, front desk check-in), P5 (turnaround and cleaning) and P6 (event programme) are built and tested (see [`06`](06-Implementation-Plan.md)).
 
 **Related:** [`01-PRD.md`](01-PRD.md) (what), [`05-Backend-Schema.md`](05-Backend-Schema.md) (data and API), [`06-Implementation-Plan.md`](06-Implementation-Plan.md) (build order).
 

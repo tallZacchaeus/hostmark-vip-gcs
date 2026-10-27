@@ -30,6 +30,12 @@ export const HOUSEKEEPING_ROLES: readonly AppRole[] = ['housekeeping', ...COORDI
 /** The cleaning queue (rooms only, no guest identities): housekeeping, the front desk and coordinators. */
 export const CLEANING_READERS: readonly AppRole[] = ['housekeeping', 'accommodation', ...COORDINATOR_PLUS]
 
+/** The programme: the programs team and Admin draft and publish (FR-PG-01). */
+export const PROGRAM_EDITORS: readonly AppRole[] = ['super_admin', 'admin', 'programs']
+
+/** The programme timeline: coordinators see what is published (FR-PG-04). */
+export const PROGRAM_READERS: readonly AppRole[] = [...COORDINATOR_PLUS, 'programs']
+
 /** Guests and arrivals are read by the programmes team and the front desk too (P2 migration RLS). */
 export const GUEST_READERS: readonly AppRole[] = [...COORDINATOR_PLUS, 'programs', 'accommodation']
 

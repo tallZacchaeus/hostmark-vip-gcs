@@ -1,6 +1,6 @@
 # 06 — Implementation Plan
 
-**Status as of 2026-10-21:** P0 decisions confirmed. **P1 is done** (backend 2026-10-16; the Figma Make frontend "Hostmark" ported into the Next.js app 2026-10-19). **P2 guest intake is done** (2026-10-20): public registration, the intake pipeline, the review queue, pasted messages, guests and guest profiles, dashboard counters, demo data and the intake evaluation. **P3 flights and transport is done** (2026-10-20): flight ingestion and the transport cascade, the driver matcher and proposals, the background worker, the arrivals and transport boards, the driver app, the simulation screen (what-if previews and scripted runs) and the cascade evaluation. **P4 room allocation is done** (2026-10-21): stays and the hard-rule checks in the database, the allocator with its baseline and evaluation, plan review with partial approval, manual moves with "assign anyway", incremental suggestions and re-planning, the rooms grid and the front desk check-in. **P5 turnaround and cleaning is done** (2026-10-27): check-out (first wins) and its reversal, cleaning tasks with live ready estimates and priority order, the housekeeping phone and the coordinator's Sanitation screen, readiness feeding the allocator, and the cleaning evaluation. External services stay behind interfaces with offline stand-ins until keys are issued (Claude → offline rules, Turnstile → skipped, AeroDataBox → no live polling; see [`02`](02-TRD.md) §4). Next: P6 event programme. One git commit per phase.
+**Status as of 2026-10-21:** P0 decisions confirmed. **P1 is done** (backend 2026-10-16; the Figma Make frontend "Hostmark" ported into the Next.js app 2026-10-19). **P2 guest intake is done** (2026-10-20): public registration, the intake pipeline, the review queue, pasted messages, guests and guest profiles, dashboard counters, demo data and the intake evaluation. **P3 flights and transport is done** (2026-10-20): flight ingestion and the transport cascade, the driver matcher and proposals, the background worker, the arrivals and transport boards, the driver app, the simulation screen (what-if previews and scripted runs) and the cascade evaluation. **P4 room allocation is done** (2026-10-21): stays and the hard-rule checks in the database, the allocator with its baseline and evaluation, plan review with partial approval, manual moves with "assign anyway", incremental suggestions and re-planning, the rooms grid and the front desk check-in. **P5 turnaround and cleaning is done** (2026-10-27): check-out (first wins) and its reversal, cleaning tasks with live ready estimates and priority order, the housekeeping phone and the coordinator's Sanitation screen, readiness feeding the allocator, and the cleaning evaluation. **P6 event programme is done** (2026-10-27): programme items with VIP participants, the arrival conflict check kept by triggers (a flight delay flags the item and alerts the programs team and coordinators), the programme timeline and the programs team's editor. External services stay behind interfaces with offline stand-ins until keys are issued (Claude → offline rules, Turnstile → skipped, AeroDataBox → no live polling; see [`02`](02-TRD.md) §4). Next: P7 Co-Pilot. One git commit per phase.
 
 **Rule from [`00` §10](00-Project-Breakdown.md#10-boundaries-to-keep-the-project-realistic):** a phase is done when it **works end to end and can be measured**, not when it has the most features. Each phase below has explicit exit criteria.
 
@@ -40,7 +40,7 @@ flowchart TD
 | P3 Flights and transport | ✅ (live AeroDataBox run waits for a key) | M2 | P2 |
 | P4 Room allocation | ✅ | M3 | P2 |
 | P5 Turnaround and cleaning | ✅ | M5 | P4 |
-| P6 Event program | ⬜ | M6 | P2 (P3 for conflict checks) |
+| P6 Event program | ✅ | M6 | P2 (P3 for conflict checks) |
 | P7 Co-Pilot | ⬜ | M4 | P3, P4, P5 |
 | P8 Evaluation and hardening | ⬜ | All | All |
 
@@ -154,12 +154,15 @@ Frontend (2026-10-19, from the Figma Make export in `design/figma-make/`):
 
 **Exit:** met — a check-out reaches housekeeping (task + notification) in milliseconds and the phone refreshes on the notification stream; a double check-out shows who did it; the reversal works; MAE is reported with the staffing it depends on.
 
-### P6 — Event program (M6) ⬜
-- ⬜ `program_items`, `program_participants`, `v_program_conflicts` (FR-PG-01…03)
-- ⬜ Programs editor + item page; coordinator read-only timeline (FR-PG-04)
-- ⬜ At-risk notifications on arrival changes
+### P6 — Event program (M6) ✅
+- ✅ Migration `20261027110000_programme.sql`: `program_items` (draft / published / cancelled; `at_risk` kept by the database), `program_participants` (speaker, honoree, performer, attendee); RLS — programs and Admin edit everything, coordinators read what is not a draft, other staff nothing; `private.program_item_risks` instead of a `v_program_conflicts` view (FR-PG-01…03)
+- ✅ At-risk check on every relevant change: triggers on items, participants, arrivals (so the flight cascade flags items) and guests; alerts programs + coordinators when a published item becomes at risk or is published at risk; the flag and "team notified" clear by themselves
+- ✅ Programme screen (`/programme`, Figma "Programme"): day tabs over the event days, timeline (on track / at risk / done / cancelled, drafts marked), the at-risk detail open by default ("… is expected at the venue at 16:55. Welcome briefing starts at 17:00.") with **Open guest** and **Notify programme team** for coordinators, item detail with participants (late ones highlighted), side panel with the at-risk count and venues. The programs team gets **Add item** / **Edit item** (the design's "form, designed later": title, type, day, times, venue with suggestions, description, status, participants with roles, delete). Coordinator view read-only (FR-PG-04)
+- ✅ Activity log names programme items; demo seed: day-one timeline from the design, day-two sessions, a day-three draft, and a welcome briefing at risk from the delayed ET512 party
+- ✅ Security review (2026-10-27): no critical/high; fixed — per-item (not per-participant) late lookup, programme alerts can no longer abort a flight cascade and lock items in a fixed order, "Notify programme team" once per risk (409 `already_notified`) and the mark clears with the risk, the item row is locked while its flag is recomputed (no duplicate alerts), `status` required on edits (no silent unpublish). Left: changing the event's lead time does not re-check existing items until they next change; items outside the event days are accepted but not shown
+- ⏸ Dashboard "Programme at risk" glance card (the Figma dashboard's "At a glance" card was not ported in phase F); the notification bell carries the alert
 
-**Exit:** a simulated delay flags the right program item for the programs team and the coordinator, and the flag clears when resolved.
+**Exit:** met — `tests/integration/programme.test.ts` applies a simulated delay through `ingestFlightUpdate`; the briefing turns at risk for the programs team and the coordinator (both notified), and clears when the flight recovers.
 
 ### P7 — Co-Pilot (M4) ⬜
 - ⬜ Read tools as typed query functions running as the user (RLS) (FR-CP-02)
