@@ -181,7 +181,8 @@ Frontend (2026-10-19, from the Figma Make export in `design/figma-make/`):
 - ⬜ Consolidated `pnpm eval:all` → Markdown/JSON tables for the report
 - ⬜ Volunteer data round (consented) through the real intake link
 - ⬜ Small usability test: 3 coordinator tasks vs a spreadsheet + chat baseline
-- ⬜ Accessibility audit (axe + manual keyboard/screen reader pass) against `04` §7
+- 🟨 End-to-end smoke tests (2026-10-27): `pnpm test:e2e` (`playwright.config.ts`, `tests/e2e/`) — every role lands on its screen, the at-risk programme item and a Co-Pilot answer, the housekeeping queue, signed-out redirect; desktop + phone; read-only, sessions signed in once per role (the sign-in rate limit stops repeated sign-ins). 22/22 pass against the demo build. Tester guide: [`07-Tester-Guide.md`](07-Tester-Guide.md)
+- 🟨 Accessibility audit (axe + manual keyboard/screen reader pass) against `04` §7 — automated axe (WCAG 2 A/AA) on Sanitation, Programme and the housekeeping phone in the E2E run; it found the design's green "Mark ready" button at about 3:1 contrast, now darkened to pass. Manual keyboard / screen-reader pass still to do
 - ⬜ Security review: RLS matrix re-test, secrets, rate limits, intake abuse, Co-Pilot prompt-injection via guest free-text (P2 intake and P3 transport reviewed 2026-10-20, P4 rooms 2026-10-21, see those commits)
 - ⬜ Coverage to ≥ 80% lines/branches: component tests for settings, activity, shells, sign-in (2026-10-21: 76% lines, 66% branches overall; P4 modules 92–98% lines)
 - ⬜ Content-Security-Policy in Caddy (allow `challenges.cloudflare.com` for scripts and frames when Turnstile is on)

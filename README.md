@@ -2,7 +2,7 @@
 
 Coordinate VIP guests at a large event: guest intake, live flight tracking, transport, room allocation, a Co-Pilot assistant and room turnaround. Final-year Computer Science project.
 
-**Docs:** [`docs/`](docs/) holds the six core documents: [PRD](docs/01-PRD.md), [TRD](docs/02-TRD.md) (stack, hosting), [App flow](docs/03-App-Flow.md), [UI/UX brief](docs/04-UI-UX-Design-Brief.md), [Schema & API](docs/05-Backend-Schema.md), [Implementation plan](docs/06-Implementation-Plan.md) (what is built).
+**Docs:** [`docs/`](docs/) holds the six core documents: [PRD](docs/01-PRD.md), [TRD](docs/02-TRD.md) (stack, hosting), [App flow](docs/03-App-Flow.md), [UI/UX brief](docs/04-UI-UX-Design-Brief.md), [Schema & API](docs/05-Backend-Schema.md), [Implementation plan](docs/06-Implementation-Plan.md) (what is built). Testers start with the [tester guide](docs/07-Tester-Guide.md).
 
 **Status:** P1 (backend + the Figma Make frontend "Hostmark", source in [`design/figma-make/`](design/figma-make/README.md)) **P2 guest intake** and **P3 flights and transport** are done: public registration link, intake pipeline, review queue, pasted messages, guests and guest profiles; flight tracking with the transport cascade, driver suggestions for approval, the arrivals and transport boards, the driver app and the simulation screen. Other screens show "coming soon" until their phase (see the implementation plan).
 

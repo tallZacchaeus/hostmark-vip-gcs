@@ -303,6 +303,9 @@ a.arrival-row { color: inherit; text-decoration: none; }
 .profile-room-row small a { color: #6d3fc4; font-weight: 600; }
 .profile-room-note { margin: 12px 0 0; color: #626d80; font-size: 12.5px; }
 
+/* Housekeeping "Mark ready": the design's #1fa85b with white text is about 3:1; WCAG AA needs 4.5:1. */
+.staff-task-action.is-ready { background: #157a42; box-shadow: 0 9px 22px rgba(21,122,66,.22); }
+
 /* Programme (P6): rows are buttons (keyboard), the item detail, and the item dialog's participants. */
 button.programme-row { width: 100%; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
 button.programme-row:focus-visible { outline: 3px solid rgba(36,86,179,.35); outline-offset: -3px; }

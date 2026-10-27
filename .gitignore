@@ -32,6 +32,7 @@ design/**/*.make
 test-results/
 playwright-report/
 blob-report/
+playwright/.auth/
 
 # local PGlite databases (pnpm local:setup, e2e)
 .pglite/
