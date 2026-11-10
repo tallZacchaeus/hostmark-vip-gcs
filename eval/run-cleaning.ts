@@ -40,6 +40,8 @@ async function arrange(db: Kysely<DB>, trials: number): Promise<{ frontDesk: str
     db.insertInto('profiles').values({ full_name: `${role} ${index}`, email: `${role}${index}@eval.test`, role, must_change_password: false }).returning('id').executeTakeFirstOrThrow()
   const frontDesk = await profile('accommodation', 0)
   for (let index = 0; index < HOUSEKEEPERS; index += 1) await profile('housekeeping', index)
+  // On the event's team, as accounts created in the app would be (P9: staff work only on their events).
+  await sql`insert into event_members (event_id, profile_id) select e.id, p.id from events e cross join profiles p`.execute(db)
   const parties: string[] = []
   for (let index = 0; index < trials; index += 1) {
     const room = await db.insertInto('rooms').values({ number: String(1000 + index), floor: 1, wing: 'East', room_type_id: type.id, capacity: 2 }).returning('id').executeTakeFirstOrThrow()

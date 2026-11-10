@@ -129,17 +129,21 @@ describe('profiles', () => {
 describe('events', () => {
   const db = useTestDb()
 
-  it('lets an admin create the event and blocks coordinators', async () => {
+  it('lets a Programme Manager create an event and blocks admins and coordinators (P9 step 9.4)', async () => {
+    const manager = await db().createProfile('programme_manager')
     const admin = await db().createProfile('admin')
     const coordinator = await db().createProfile('coordinator')
+    const insert = () => db().rows(`insert into events (name, venue_name, starts_on, ends_on) values ('A', 'B', '2026-11-20', '2026-11-21')`)
 
-    await db().asUser(coordinator)
-    const blocked = await db().expectError(() =>
-      db().rows(`insert into events (name, venue_name, starts_on, ends_on) values ('A', 'B', '2026-11-20', '2026-11-21')`),
-    )
-    expect(blocked.code).toBe('42501')
+    for (const blockedRole of [coordinator, admin]) {
+      await db().asOwner()
+      await db().asUser(blockedRole)
+      const blocked = await db().expectError(insert)
+      expect(blocked.code).toBe('42501')
+    }
 
-    await db().asUser(admin)
+    await db().asOwner()
+    await db().asUser(manager)
     const created = await db().rows(`insert into events (name, venue_name, starts_on, ends_on)
       values ('Summit', 'Grand Hotel', '2026-11-20', '2026-11-23') returning name`)
     expect(created).toEqual([{ name: 'Summit' }])

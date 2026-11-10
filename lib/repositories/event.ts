@@ -2,11 +2,10 @@
 // (P9). Row-level security: Admin writes; coordinators and the programs team read; everyone signed in
 // gets the safe context via get_event_context().
 import { type Selectable, sql } from 'kysely'
-import { ApiError } from '@/lib/api/errors'
 import { CURRENT_EVENT_ID } from '@/lib/db/current-event'
 import type { Tx } from '@/lib/db/context'
 import type { Events } from '@/lib/db/types'
-import type { EventCreate, EventUpdate } from '@/lib/validation/event'
+import type { EventUpdate } from '@/lib/validation/event'
 
 export type EventRow = Selectable<Events>
 
@@ -24,18 +23,6 @@ export interface EventContext {
 
 export async function findEvent(tx: Tx): Promise<EventRow | undefined> {
   return tx.selectFrom('events').selectAll().where('id', '=', CURRENT_EVENT_ID).executeTakeFirst()
-}
-
-/**
- * First-time setup from Settings → System; the database makes the creator its owner. Refused once
- * an event exists: more events come from the Events page (P9 step 9.4).
- */
-export async function insertEvent(tx: Tx, values: EventCreate): Promise<EventRow> {
-  const existing = await tx.selectFrom('events').select('id').limit(1).executeTakeFirst()
-  if (existing) {
-    throw new ApiError(409, 'already_exists', 'The event is already set up')
-  }
-  return tx.insertInto('events').values(values).returningAll().executeTakeFirstOrThrow()
 }
 
 export async function updateEvent(tx: Tx, values: EventUpdate): Promise<EventRow | undefined> {

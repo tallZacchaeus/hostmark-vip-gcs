@@ -1,7 +1,7 @@
 // Which roles may open which screen (03-App-Flow.md section 2). Pages check this on the server
 // before rendering, and the sidebar uses it to hide what a role cannot open. The API and
 // row-level security still decide what data each role gets; this only shapes navigation.
-import { type AppRole, COORDINATOR_PLUS, hasAnyRole } from './roles'
+import { ADMIN_PLUS, type AppRole, COORDINATOR_PLUS, EVENT_MANAGERS, hasAnyRole } from './roles'
 
 export const PAGE_KEYS = [
   'dashboard',
@@ -15,6 +15,7 @@ export const PAGE_KEYS = [
   'activity',
   'simulation',
   'settings',
+  'events',
   'driver',
   'frontDesk',
   'staffSanitation',
@@ -34,6 +35,7 @@ export const PAGE_PATHS: Readonly<Record<PageKey, string>> = {
   activity: '/activity',
   simulation: '/simulation',
   settings: '/settings',
+  events: '/events',
   driver: '/driver',
   frontDesk: '/staff/front-desk',
   staffSanitation: '/staff/sanitation',
@@ -52,6 +54,8 @@ export const PAGE_ACCESS: Readonly<Record<PageKey, readonly AppRole[]>> = {
   simulation: COORDINATOR_PLUS,
   // Coordinators manage VIP categories; the other tabs are Admin-only (SETTINGS_TAB_ACCESS).
   settings: COORDINATOR_PLUS,
+  // Creating events, going live, archiving and choosing each event's team (P9 step 9.4).
+  events: EVENT_MANAGERS,
   driver: ['driver'],
   // Checkout is open to accommodation staff and the coordinator (FR-CL-01).
   frontDesk: ['accommodation', ...COORDINATOR_PLUS],
@@ -62,11 +66,11 @@ export const SETTINGS_TABS = ['users', 'rooms', 'drivers', 'categories', 'system
 export type SettingsTab = (typeof SETTINGS_TABS)[number]
 
 export const SETTINGS_TAB_ACCESS: Readonly<Record<SettingsTab, readonly AppRole[]>> = {
-  users: ['super_admin', 'admin'],
-  rooms: ['super_admin', 'admin'],
-  drivers: ['super_admin', 'admin'],
+  users: ADMIN_PLUS,
+  rooms: ADMIN_PLUS,
+  drivers: ADMIN_PLUS,
   categories: COORDINATOR_PLUS,
-  system: ['super_admin', 'admin'],
+  system: ADMIN_PLUS,
 }
 
 export function canOpenPage(role: AppRole, page: PageKey): boolean {

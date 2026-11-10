@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { POST as regenerateToken } from '@/app/api/admin/event/intake-token/route'
-import { GET as getEvent, PATCH as patchEvent, POST as createEvent } from '@/app/api/admin/event/route'
+import { GET as getEvent, PATCH as patchEvent } from '@/app/api/admin/event/route'
+import { POST as createEvent } from '@/app/api/events/route'
 import { DELETE as deleteRoomType, PATCH as patchRoomType } from '@/app/api/admin/room-types/[id]/route'
 import { GET as listRoomTypes, POST as createRoomType } from '@/app/api/admin/room-types/route'
 import { PATCH as patchRoom } from '@/app/api/admin/rooms/[id]/route'
@@ -23,6 +24,7 @@ const EVENT = {
 describe('event, room types and rooms API', () => {
   let app: TestApp
   let superAdmin: StaffMember
+  let manager: StaffMember
   let admin: StaffMember
   let coordinator: StaffMember
   let housekeeping: StaffMember
@@ -31,6 +33,7 @@ describe('event, room types and rooms API', () => {
   beforeAll(async () => {
     app = await TestApp.start()
     superAdmin = await app.createStaff('super_admin')
+    manager = await app.createStaff('programme_manager')
     admin = await app.createStaff('admin')
     coordinator = await app.createStaff('coordinator')
     housekeeping = await app.createStaff('housekeeping')
@@ -41,22 +44,19 @@ describe('event, room types and rooms API', () => {
   })
 
   describe('event settings', () => {
-    it('lets an admin set up the event once', async () => {
-      const blocked = await app.call(createEvent, '/api/admin/event', { as: coordinator, body: EVENT })
-      expect(blocked.status).toBe(403)
+    it('lets a Programme Manager create the event, and not admins or coordinators (P9 step 9.4)', async () => {
+      for (const blocked of [coordinator, admin]) {
+        expect((await app.call(createEvent, '/api/events', { as: blocked, body: EVENT })).status).toBe(403)
+      }
 
-      const created = await app.call<{ arrival_airports: string[]; starts_on: string; intake_token: string }>(
+      const created = await app.call<{ arrival_airports: string[]; starts_on: string; intake_token: string; status: string }>(
         createEvent,
-        '/api/admin/event',
-        { as: admin, body: EVENT },
+        '/api/events',
+        { as: manager, body: EVENT },
       )
       expect(created.status).toBe(201)
-      expect(created.body.data).toMatchObject({ arrival_airports: ['LOS', 'ABV'], starts_on: EVENT_DAY })
+      expect(created.body.data).toMatchObject({ arrival_airports: ['LOS', 'ABV'], starts_on: EVENT_DAY, status: 'draft' })
       expect(created.body.data.intake_token).toMatch(/^[0-9a-f]{32}$/)
-
-      const again = await app.call(createEvent, '/api/admin/event', { as: admin, body: EVENT })
-      expect(again.status).toBe(409)
-      expect(again.body.error?.code).toBe('already_exists')
     })
 
     it('validates settings and reserves the flight data mode for super admins', async () => {

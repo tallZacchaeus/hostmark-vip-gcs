@@ -8,7 +8,7 @@ import { cache } from 'react'
 import type { SessionValue } from '@/components/shell/SessionContext'
 import { getDb } from '@/lib/db/client'
 import { withUser } from '@/lib/db/context'
-import { type EventContext, findEventContext } from '@/lib/repositories/event'
+import { type EventContext, findEventContext, listMyEvents, type MyEvent } from '@/lib/repositories/event'
 import { getAuth } from './auth'
 import { type AppRole, HOME_ROUTES, hasAnyRole } from './roles'
 import { type Actor, type ActorResolution, toActorResolution } from './session'
@@ -16,6 +16,8 @@ import { type Actor, type ActorResolution, toActorResolution } from './session'
 export interface PageSession {
   readonly actor: Actor
   readonly event: EventContext | null
+  /** The events this person works on (P9), for the event switcher. */
+  readonly events: readonly MyEvent[]
   readonly homeRoute: string
 }
 
@@ -32,8 +34,8 @@ export const readPageActor = cache(async (): Promise<ActorResolution> => {
   return toActorResolution(session?.user)
 })
 
-const readEventContext = cache(async (userId: string): Promise<EventContext | null> =>
-  withUser(getDb(), userId, (tx) => findEventContext(tx)),
+const readEventContext = cache(async (userId: string): Promise<{ event: EventContext | null; events: MyEvent[] }> =>
+  withUser(getDb(), userId, async (tx) => ({ event: await findEventContext(tx), events: await listMyEvents(tx) })),
 )
 
 /** Where to send someone who may not see the page they asked for. */
@@ -60,8 +62,8 @@ export async function requirePageSession(
     redirect(target ?? '/sign-in')
   }
   const { actor } = resolution
-  const event = await readEventContext(actor.id)
-  return { actor, event, homeRoute: HOME_ROUTES[actor.role] }
+  const { event, events } = await readEventContext(actor.id)
+  return { actor, event, events, homeRoute: HOME_ROUTES[actor.role] }
 }
 
 /** The serialisable part of a page session that client components receive. */
@@ -70,6 +72,7 @@ export function toSessionValue(session: PageSession): SessionValue {
   return {
     user: { id: actor.id, fullName: actor.fullName, email: actor.email, role: actor.role },
     event: session.event,
+    events: session.events.map(({ id, name, status, is_current }) => ({ id, name, status, is_current })),
     homeRoute: session.homeRoute,
   }
 }

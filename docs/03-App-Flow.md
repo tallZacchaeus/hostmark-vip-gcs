@@ -34,7 +34,7 @@ Routes follow the Figma Make design ("Hostmark", see [`design/figma-make/`](../d
 | `/reset-password?token=…` | Choose your password | Opened from an emailed link (invitation, admin reset, forgot password); then sign in. An expired or used link offers a new one | ✅ 2026-11-10 |
 | `/forbidden` | Not part of your role | Link back to the role's home | ✅ |
 
-### Console (sidebar + top bar) — Coordinator, Admin, Super Admin; Programs sees Programme only
+### Console (sidebar + top bar) — Coordinator, Admin, Programme Manager, Super Admin; Programs sees Programme only
 | Route | Screen | Purpose / key actions | Status |
 |---|---|---|---|
 | `/dashboard` | **Home** | Greeting and data mode, KPI tiles, **Waiting for your approval** (one-tap approve/reject; driver proposals from P3, and an approval that no longer fits says why instead of acting), **Programme at risk** (✅ 2026-11-10: today's published items at risk, who is late and when they are expected; each row opens the Programme), recent activity with Undo, quick actions | ✅ |
@@ -50,7 +50,11 @@ Routes follow the Figma Make design ("Hostmark", see [`design/figma-make/`](../d
 | `/sanitation` | Sanitation | Summary (not started, in progress, clean today); Queue / Done today tabs; queue in priority order with checked-out time, live ready estimate, "Ready N min after it is needed", needed by, problems housekeeping reported; **Reverse check-out** (confirm dialog) while cleaning has not started | ✅ P5 |
 | `/activity` | Activity | Audit log by day with who/type filters, sentence + field changes, **Undo** on automatic changes | ✅ |
 | `/simulation` | Simulation | **What-if preview** (flight delay ± minutes; driver unavailable from a time; ✅ 2026-11-10 room out of service, for rooms with guests): what would move, who keeps a trip or a room, decisions and conflicts — nothing written. **Scripted scenarios** (7, 1×–600×, simulated mode only) replay changes through the live services, with progress and a simulated clock: five flight scenarios and (✅ 2026-11-10) **Room out of service** and **Extra guests**. "Send to Co-Pilot" is not built | ✅ P3, rooms 2026-11-10 |
-| `/settings?tab=` | Settings | **Users** (invite with one-time temporary password, role, reset, deactivate), **Rooms** (room types, rooms, CSV import with dry run), **Drivers** (vehicles, app login, shifts), **VIP categories** (rank order), **System** (event incl. the coordination desk phone, registration link, flight data mode; for a Super Admin, **Event data**: export and post-event purge, F13). Coordinators see VIP categories only. Taking a room out of service (by hand or by CSV) re-plans its stays: move proposals, or alerts | ✅ |
+| `/settings?tab=` | Settings | **Users** (invite with one-time temporary password, role, reset, deactivate), **Rooms** (room types, rooms, CSV import with dry run), **Drivers** (vehicles, app login, shifts), **VIP categories** (rank order), **System** (event incl. the coordination desk phone, registration link, flight data mode; for a Super Admin, **Event data**: export and post-event purge, F13). Coordinators see VIP categories only; Programme Managers see every tab (P9). With no event to work in, **System** points to the Events page. Taking a room out of service (by hand or by CSV) re-plans its stays: move proposals, or alerts | ✅ |
+
+| `/events` | Events (P9 9.4, Programme Manager and Super Admin) | The events they manage (a Super Admin: all), each with dates, status (Draft / Live / Archived), team size and, for a Super Admin, its Programme Manager. **New event** (a draft), **Work in this event**, **Team** (tick staff), **Copy setup** (drafts: settings, rooms, VIP categories, drivers, staff from an earlier event), **Go live** (one live event per manager), **Archive** (confirmed; read-only for good) | ✅ branch |
+
+The **event switcher** (top bar, P9 9.4) shows the event the screen works in, labelled Draft or Archived when it is not live; someone on several events opens it to pick another, which reopens their home screen in that event.
 
 The **Co-Pilot** drawer (top bar, coordinator+; ✅ P7: suggested questions, answers with linked records, "Suggested" cards with Approve / Dismiss, hold-to-talk where the browser supports speech) and the **notifications** drawer (everyone) open over any console screen. The decisions queue lives on the dashboard (`/dashboard#approvals`) rather than on a separate page.
 
@@ -85,6 +89,7 @@ flowchart LR
   D --- ACT["/activity"]
   D --- SIM["/simulation"]
   D --- SET["/settings"]
+  D --- EV["/events"]
   D -.-> CP(("Co-Pilot drawer"))
   D -.-> NO(("Notifications drawer"))
 
@@ -271,8 +276,23 @@ sequenceDiagram
 
 ✅ 2026-11-10: two room scenarios. **Room out of service** takes the room of the next guest due in out of service, as an Admin would; its stays get a move proposal, or the coordinators an alert when no room fits or the guest is checked in. **Extra guests** adds two unnamed companions to the next delegation due in that has rooms; they join the party and its pickup, and the worker suggests rooms for them within a minute. A run fixes its rooms and delegations when it starts, like its flights; without enough of them it does not start ("Approve some room assignments first").
 
-### F12 — First-run setup (Admin)
-Settings → **System** (create the event: dates, time zone, airports, buffers) → **Rooms** (room types with cleaning minutes, then rooms by hand or CSV import with a dry run) → **VIP categories** → **Drivers** (vehicles, app logins, shifts) → **Users** (staff accounts with one-time temporary passwords) → **System** → **Open link** → copy the registration link and share it with the secretariats. For local development, `pnpm local:setup` does all of this with demo data.
+### F12 — First-run setup (Programme Manager or Super Admin, then Admin)
+**Events** → **New event** (dates, time zone, airports, buffers; it starts as a draft) → **Work in this event** → Settings → **Rooms** (room types with cleaning minutes, then rooms by hand or CSV import with a dry run) → **VIP categories** → **Drivers** (vehicles, app logins, shifts) → **Users** (staff accounts with one-time temporary passwords) → **System** → **Open link** → copy the registration link and share it with the secretariats. For local development, `pnpm local:setup` does all of this with demo data.
+
+### F14 — Running several events (P9) ✅ on branch `feat/multi-event`
+1. A Programme Manager opens **Events** → **New event**: a draft owned by them, while their live event keeps running.
+2. **Copy setup** from last year's event (rooms, VIP categories, drivers, settings, staff), then **Team** to add or remove people. Only accounts that work on no other manager's event are offered.
+3. **Work in this event** to finish its setup in Settings; staff on both events pick it in the top-bar switcher.
+4. When the old event is over: **Archive** it (read-only, registration link closed), then **Go live** on the new one. Another Programme Manager runs their own live event at the same time; neither team sees the other's data.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Draft: New event
+  Draft --> Live: Go live (one per manager)
+  Draft --> Archived: Archive
+  Live --> Archived: Archive
+  Archived --> [*]
+```
 
 ### F13 — Event data export and purge (Super Admin) ✅ 2026-11-10
 Settings → **System** → **Event data**.

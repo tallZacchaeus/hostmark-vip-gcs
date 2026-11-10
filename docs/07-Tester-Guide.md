@@ -51,6 +51,13 @@ Tick each item and note anything confusing, slow or wrong.
 **Driver (phone)**
 - [ ] Open today's trip, confirm the time, and step through Start → Picked up → Dropped off; try **Call coordinator**.
 
+**Programme Manager — once the multi-event update is deployed** (not on the live site yet)
+- [ ] **Events** (sidebar): create a new event; it starts as a **Draft** while your live event keeps running.
+- [ ] **Copy setup** into the draft from your live event (try only Rooms first, then the rest); **Team**: add a coordinator.
+- [ ] **Work in this event**, then use the event name in the top bar to switch back and forth: each event shows only its own guests, rooms and trips.
+- [ ] Try **Go live** on the draft while another event is live (it should refuse), then **Archive** the old one and go live.
+- [ ] With a second Programme Manager: check that neither of you sees the other's events, staff or data.
+
 ## 3. Reporting a problem
 
 For each problem, note:
@@ -71,7 +78,7 @@ Send these to the project owner. Small wording or layout notes are welcome too.
 
 **Before testers arrive (once, in this order):**
 1. Create your Super Admin from your laptop: `bash scripts/droplet-admin.sh --email you@example.com --name "Your Name"`. The temporary password appears once in your terminal; sign in at https://hostmark.tech and change it.
-2. **Settings → System**: create the event (name, venue, first and last day, time zone such as `Africa/Lagos`, arrival airports such as `LOS`). Leave flights **Simulated** unless an AeroDataBox key is configured.
+2. **Settings → System** (after the multi-event update: **Events → New event**, then **Work in this event**): create the event (name, venue, first and last day, time zone such as `Africa/Lagos`, arrival airports such as `LOS`). Leave flights **Simulated** unless an AeroDataBox key is configured.
 3. **Settings → Rooms**: add room types (with cleaning times), then rooms by hand or **Import CSV**.
 4. **Settings → VIP categories** and **Settings → Drivers** (with shifts covering the event days).
 5. **Settings → Users**: invite one account per tester with the right role. With email on, each tester gets a set-password link (72 hours); "Reset password" sends a fresh one. If an email fails, the dialog shows a temporary password once instead: send it privately.

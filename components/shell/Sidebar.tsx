@@ -28,6 +28,7 @@ const PRIMARY_NAV: readonly NavItem[] = [
 const SECONDARY_NAV: readonly NavItem[] = [
   { page: 'activity', label: 'Activity', icon: 'activity' },
   { page: 'simulation', label: 'Simulation', icon: 'flask' },
+  { page: 'events', label: 'Events', icon: 'calendarClock' },
   { page: 'settings', label: 'Settings', icon: 'settings' },
 ]
 

@@ -30,13 +30,13 @@ It is a final-year Computer Science project. Every module must be buildable, tes
 7. The system is demonstrable on demand through **simulated mode**, without depending on real flights being delayed.
 
 ### Non-goals
-See [`00-Project-Breakdown.md` §8–9](00-Project-Breakdown.md#8-not-in-the-first-version-optional-or-future). In short: no live traffic prediction, no WhatsApp/SMS/email sending, no screenshot/PDF intake (stretch), no Co-Pilot actions beyond the agreed set, no multi-venue support within one event (multi-event support is now **planned**, §5.7), no hotel booking or fleet management.
+See [`00-Project-Breakdown.md` §8–9](00-Project-Breakdown.md#8-not-in-the-first-version-optional-or-future). In short: no live traffic prediction, no WhatsApp/SMS/email sending, no screenshot/PDF intake (stretch), no Co-Pilot actions beyond the agreed set, no multi-venue support within one event (multi-event support is built on a branch, §5.7), no hotel booking or fleet management.
 
 ## 3. Target users and roles
 
 | Role (system key) | Who | Device | What they do | Sees |
 |---|---|---|---|---|
-| **Programme Manager** (`programme_manager`) — **[In progress, §5.7]**: the role exists (P9 step 9.1); per-event screens follow | Runs one or more events for a client or programme (not the Programs team below) | Desktop | Creates events (drafts), sets one of their own events **Live** at a time, archives finished ones, sets up each event's venue, rooms and drivers (or copies them from an earlier event), creates staff accounts and assigns staff to their events | Their own events, all data in them |
+| **Programme Manager** (`programme_manager`) — **[Built on branch, §5.7]**: Events page, event switcher, staff per event, copy setup | Runs one or more events for a client or programme (not the Programs team below) | Desktop | Creates events (drafts), sets one of their own events **Live** at a time, archives finished ones, sets up each event's venue, rooms and drivers (or copies them from an earlier event), creates staff accounts and assigns staff to their events | Their own events, all data in them |
 | **Super Admin** (`super_admin`) | System owner, e.g. the project lead | Desktop | Everything an Admin can do, plus manage Admin accounts, system settings (flight provider mode, AI and provider configuration), data export/purge, full audit log | Everything |
 | **Admin** (`admin`) | Event operations lead | Desktop | Everything a Coordinator can do, plus manage staff accounts, venue setup (rooms, wings, room types, cleaning durations), drivers and vehicles, event settings, intake link | Everything except system settings |
 | **Coordinator** (`coordinator`) — *main user* | Event coordinator(s) | Desktop/tablet, phone for Co-Pilot | Review intake, approve proposals, edit allocations, set VIP category and team groupings, use the Co-Pilot, reverse checkouts, undo automatic actions, run simulations | Everything operational |
@@ -191,7 +191,7 @@ Requirement IDs (`FR-xx-nn`) are referenced by the implementation plan and the t
 | FR-PG-04 | The coordinator sees the published program as a timeline. The Co-Pilot can answer program questions. |
 | FR-PG-05 | **[Future]** Transport scheduling for program movements (e.g. hotel → ceremony venue). |
 
-### 5.7 Multiple events and Programme Managers — **[Planned]** (requested 2026-11-10)
+### 5.7 Multiple events and Programme Managers — **[Built on branch `feat/multi-event`, not deployed yet]** (requested 2026-11-10; [`06`](06-Implementation-Plan.md) P9)
 
 Today one installation runs exactly one event. The system must instead host **many events at once**: each **Programme Manager** runs their own events, with **at most one of them live at a time**, while several Programme Managers run their live events in parallel. Decisions taken with the project owner on 2026-11-10:
 

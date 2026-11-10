@@ -19,6 +19,7 @@ export function sessionFor(role: AppRole = 'coordinator', flightMode: 'live' | '
       ends_on: '2026-10-31',
       flight_mode: flightMode,
     },
+    events: [],
     homeRoute: '/dashboard',
   }
 }

@@ -29,8 +29,9 @@ const NUMBER_FIELDS: ReadonlyArray<{ key: NumberKey; label: string; hint: string
 ]
 
 interface EventFormProps {
+  /** The event to edit (the current one), or null to create a new draft event (P9 step 9.4). */
   readonly event: EventSettings | null
-  readonly onSaved: () => void
+  readonly onSaved: (saved: EventSettings) => void
 }
 
 export function EventForm({ event, onSaved }: EventFormProps) {
@@ -64,8 +65,10 @@ export function EventForm({ event, onSaved }: EventFormProps) {
         auto_process_enabled: autoProcess,
         ...Object.fromEntries(NUMBER_FIELDS.map((field) => [field.key, Number.parseInt(numbers[field.key], 10)])),
       }
-      await (event ? apiSend('/api/admin/event', 'PATCH', body) : apiSend('/api/admin/event', 'POST', body))
-      onSaved()
+      const saved = event
+        ? await apiSend<EventSettings>('/api/admin/event', 'PATCH', body)
+        : await apiSend<EventSettings>('/api/events', 'POST', body)
+      onSaved(saved)
     })
   }
 
@@ -73,7 +76,7 @@ export function EventForm({ event, onSaved }: EventFormProps) {
     <form className="data-card event-form" onSubmit={submit} noValidate aria-labelledby="event-form-title">
       <header>
         <div>
-          <h2 id="event-form-title">{event ? 'Event' : 'Set up the event'}</h2>
+          <h2 id="event-form-title">{event ? 'Event' : 'New event'}</h2>
           <p>Times are shown in the event time zone everywhere in the app.</p>
         </div>
       </header>

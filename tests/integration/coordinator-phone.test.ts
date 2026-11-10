@@ -1,6 +1,7 @@
 // The coordination desk phone: set by Admin in event settings, read by drivers with their trips.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { GET as getEvent, PATCH as patchEvent, POST as createEvent } from '@/app/api/admin/event/route'
+import { GET as getEvent, PATCH as patchEvent } from '@/app/api/admin/event/route'
+import { POST as createEvent } from '@/app/api/events/route'
 import { GET as driverPickups } from '@/app/api/driver/pickups/route'
 import { EVENT_LAST_DAY } from '@/tests/support/event-dates'
 import { type StaffMember, TestApp } from './support/test-app'
@@ -16,12 +17,14 @@ const EVENT = {
 
 describe('coordination desk phone', () => {
   let app: TestApp
+  let manager: StaffMember
   let admin: StaffMember
   let coordinator: StaffMember
   let driver: StaffMember
 
   beforeAll(async () => {
     app = await TestApp.start()
+    manager = await app.createStaff('programme_manager')
     admin = await app.createStaff('admin')
     coordinator = await app.createStaff('coordinator')
     driver = await app.createStaff('driver', { name: 'Ada Obi' })
@@ -34,8 +37,8 @@ describe('coordination desk phone', () => {
   const pickups = () => app.call<{ coordinator_phone: string | null }>(driverPickups, `/api/driver/pickups?day=${EVENT_DAY}`, { as: driver })
 
   it('normalises the number when the event is set up', async () => {
-    const created = await app.call<{ coordinator_phone: string | null }>(createEvent, '/api/admin/event', {
-      as: admin,
+    const created = await app.call<{ coordinator_phone: string | null }>(createEvent, '/api/events', {
+      as: manager,
       body: { ...EVENT, coordinator_phone: '0803 555 0142' },
     })
     expect(created.status).toBe(201)

@@ -18,16 +18,16 @@ describe('multiple events (P9 step 9.1)', () => {
 
   it('makes whoever creates an event its owner', async () => {
     // Arrange
-    const admin = await db().createProfile('admin')
+    const manager = await db().createProfile('programme_manager')
 
     // Act
-    await db().asUser(admin)
+    await db().asUser(manager)
     const [created] = await db().rows<{ owner_id: string }>(
       `insert into events (name, venue_name, starts_on, ends_on) values ('Summit', 'Grand Hotel', '2026-11-20', '2026-11-23') returning owner_id`,
     )
 
     // Assert
-    expect(created?.owner_id).toBe(admin)
+    expect(created?.owner_id).toBe(manager)
   })
 
   it('accepts only draft, live and archived as a status', async () => {

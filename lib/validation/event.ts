@@ -80,6 +80,27 @@ export const eventUpdateSchema = z
 export type EventCreate = z.infer<typeof eventCreateSchema>
 export type EventUpdate = z.infer<typeof eventUpdateSchema>
 
+// Managing events (P9 step 9.4) ---------------------------------------------------------------
+
+export const EVENT_STATUSES = ['draft', 'live', 'archived'] as const
+export type EventStatus = (typeof EVENT_STATUSES)[number]
+
+/** PATCH /api/events/[id]: go live or archive (the database checks the transition). */
+export const eventStatusSchema = z.strictObject({ status: z.enum(['live', 'archived'], 'Choose live or archived') })
+
+/** PUT /api/events/[id]/staff: put a person on the event's team, or take them off. */
+export const eventMemberSchema = z.strictObject({ profile_id: z.uuid('Choose a person'), member: z.boolean() })
+
+export const COPY_PARTS = ['settings', 'rooms', 'categories', 'drivers', 'staff'] as const
+export type CopyPart = (typeof COPY_PARTS)[number]
+
+/** POST /api/events/[id]/copy: copy parts of an earlier event's setup into this draft. */
+export const copySetupSchema = z.strictObject({
+  from_event_id: z.uuid('Choose the event to copy from'),
+  parts: z.array(z.enum(COPY_PARTS)).min(1, 'Choose at least one thing to copy').max(COPY_PARTS.length),
+})
+export type CopySetup = z.infer<typeof copySetupSchema>
+
 /** PUT /api/me/event: the event to work in (P9). */
 export const activeEventSchema = z.strictObject({ event_id: z.uuid('Choose an event') })
 export type ActiveEvent = z.infer<typeof activeEventSchema>

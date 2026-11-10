@@ -7,6 +7,7 @@ import { Icon } from '@/components/ui/Icon'
 import { formatDay, formatTime, initials } from '@/lib/client/format'
 import { signOut } from '@/lib/client/session-actions'
 import { COORDINATOR_PLUS, hasAnyRole } from '@/lib/auth/roles'
+import { EventSwitcher } from './EventSwitcher'
 import { useSession } from './SessionContext'
 import { SimBadge } from './SimBanner'
 import { useNow } from './useNow'
@@ -95,12 +96,7 @@ export function TopBar({ onOpenMenu, onOpenCopilot, onOpenNotifications, unreadC
       </button>
       {canUseCopilot ? <SearchField /> : <span className="search-wrap" />}
       <div className="topbar-actions">
-        {event && (
-          <span className="event-switcher" title={event.name}>
-            <Icon name="calendar" size={17} />
-            <span>{event.name}</span>
-          </span>
-        )}
+        <EventSwitcher />
         <SimBadge />
         <span className="topbar-time" aria-label="Event time">
           <Icon name="clock" size={17} />

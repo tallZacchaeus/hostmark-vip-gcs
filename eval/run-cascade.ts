@@ -178,6 +178,8 @@ async function approveAll(db: Kysely<DB>): Promise<{ approved: number; failed: n
     .values({ full_name: 'Eval Coordinator', email: 'eval.coordinator@example.com', role: 'coordinator', must_change_password: false })
     .returning('id')
     .executeTakeFirstOrThrow()
+  // On the event's team, as an account created in the app would be (P9: staff work only on their events).
+  await sql`insert into event_members (event_id, profile_id) select e.id, ${coordinator.id} from events e`.execute(db)
   const pending = await db.selectFrom('proposals').select('id').where('status', '=', 'pending').orderBy('created_at').execute()
   let approved = 0
   let failed = 0

@@ -342,7 +342,7 @@ Every scheduled call uses one lease holder (`scheduler`), so a call is never loc
 
 ## 6. Constraints
 
-From [`00` §10](00-Project-Breakdown.md#10-boundaries-to-keep-the-project-realistic): one event, one venue, one coordinating team; seeded/synthetic plus volunteer data; real flight API plus simulated mode; every important action confirmed and logged; each part measurable.
+From [`00` §10](00-Project-Breakdown.md#10-boundaries-to-keep-the-project-realistic): one venue and one coordinating team per event (several events per installation since P9, each isolated by row-level security; [`05`](05-Backend-Schema.md) §6); seeded/synthetic plus volunteer data; real flight API plus simulated mode; every important action confirmed and logged; each part measurable.
 
 Technical constraints:
 - No outbound WhatsApp or SMS. Email is limited to staff account links and a registration confirmation to guests (§4.5); operational updates stay in-app notifications.

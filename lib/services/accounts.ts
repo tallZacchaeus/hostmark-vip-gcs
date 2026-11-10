@@ -81,6 +81,15 @@ function assertCanManage(actor: Actor, target: AccountRow): void {
   }
 }
 
+/**
+ * The database's rule on top of the role rule (P9): a manager changes only accounts that work on
+ * no event outside the ones they work on. Checked before anything happens, because a password
+ * reset goes through the auth library before the database sees it.
+ */
+async function assertManageable(db: Kysely<DB>, actor: Actor, id: string): Promise<void> {
+  await withUser(db, actor.id, (tx) => sql`select public.assert_may_manage_account(${id}::uuid)`.execute(tx))
+}
+
 export async function getAccount(db: Kysely<DB>, actor: Actor, id: string): Promise<AccountView> {
   const row = await withUser(db, actor.id, (tx) => findAccount(tx, id))
   if (!row) {
@@ -169,6 +178,7 @@ export async function updateAccount(db: Kysely<DB>, actor: Actor, id: string, in
     throw new ApiError(409, 'cannot_change_own_access', 'You cannot change your own role or deactivate your own account')
   }
   assertCanManage(actor, target)
+  await assertManageable(db, actor, id)
   if (input.role && !canManageAccount(actor.role, input.role)) {
     throw Errors.forbidden('You cannot assign this role')
   }
@@ -204,6 +214,7 @@ export async function resetAccountPassword(db: Kysely<DB>, actor: Actor, id: str
   }
   const target = await requireVisible(db, actor, id)
   assertCanManage(actor, target)
+  await assertManageable(db, actor, id)
   const temporaryPassword = generateTemporaryPassword()
 
   await getAuth().api.setUserPassword({ headers, body: { userId: id, newPassword: temporaryPassword } })

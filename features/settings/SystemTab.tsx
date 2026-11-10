@@ -1,13 +1,15 @@
 'use client'
 // Event setup, the shared registration link (FR-IN-01), the flight data mode and event data export/purge (Super Admin).
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { ErrorBanner } from '@/components/ui/Feedback'
+import { EmptyState, ErrorBanner } from '@/components/ui/Feedback'
 import { FormDialog } from '@/components/ui/FormDialog'
 import { Pill, Skeleton } from '@/components/ui/Status'
 import { useToast } from '@/components/ui/Toast'
 import { useSession } from '@/components/shell/SessionContext'
+import { EVENT_MANAGERS, hasAnyRole } from '@/lib/auth/roles'
 import { ApiClientError, apiSend, errorMessage } from '@/lib/client/api'
 import { useAction } from '@/lib/client/use-action'
 import { refreshApi, useApi } from '@/lib/client/use-api'
@@ -137,21 +139,45 @@ export function SystemTab() {
 
   if (isLoading) return <Skeleton className="sk-wide" />
   if (error && !missing) return <ErrorBanner className="settings-error" message={errorMessage(error)} onRetry={() => void mutate()} />
+  if (!data) return <NoEventYet />
 
   return (
     <div className="settings-section">
       <EventForm
-        key={data?.id ?? 'new'}
-        event={data ?? null}
+        key={data.id}
+        event={data}
         onSaved={() => {
-          toast.show({ message: data ? 'Event saved.' : 'Event created.' })
+          toast.show({ message: 'Event saved.' })
           void mutate()
           router.refresh()
         }}
       />
-      {data && <IntakeLinkCard event={data} />}
-      {data && <FlightModeCard event={data} />}
-      {data && <EventDataCard event={data} />}
+      <IntakeLinkCard event={data} />
+      <FlightModeCard event={data} />
+      <EventDataCard event={data} />
     </div>
+  )
+}
+
+/** No event to work in yet (P9): managers create one on the Events page; others wait to be added. */
+function NoEventYet() {
+  const { user } = useSession()
+  const canCreate = hasAnyRole(user.role, EVENT_MANAGERS)
+  return (
+    <EmptyState
+      icon="calendar"
+      title="No event yet"
+      action={
+        canCreate ? (
+          <Link className="hm-button hm-button--primary" href="/events">
+            Go to Events
+          </Link>
+        ) : undefined
+      }
+    >
+      {canCreate
+        ? 'Create an event on the Events page. Its settings appear here once you work in it.'
+        : 'A Programme Manager creates events and adds you to the team. Its settings appear here then.'}
+    </EmptyState>
   )
 }

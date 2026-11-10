@@ -22,9 +22,19 @@ export interface SessionEvent {
   readonly flight_mode: 'live' | 'simulated'
 }
 
+/** An event this person works on, for the top-bar event switcher (P9). */
+export interface SessionEventOption {
+  readonly id: string
+  readonly name: string
+  readonly status: 'draft' | 'live' | 'archived'
+  readonly is_current: boolean
+}
+
 export interface SessionValue {
   readonly user: SessionUser
   readonly event: SessionEvent | null
+  /** Every event this person works on; one has is_current (the one shown). */
+  readonly events: readonly SessionEventOption[]
   readonly homeRoute: string
 }
 

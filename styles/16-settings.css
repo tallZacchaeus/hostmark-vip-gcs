@@ -59,3 +59,26 @@
   .route-settings .sidebar-v4 { transform: translateX(-100%); transition: transform .2s ease; box-shadow: 0 16px 38px rgba(8,16,28,.22); }.route-settings .sidebar-v4.is-open { transform: translateX(0); }.route-settings .workspace-v4 { margin-left: 0; }.route-settings .topbar-v4 { left: 0; }.route-settings .menu-button { display: grid; }.route-settings .sidebar-backdrop { position: fixed; inset: 0; z-index: 35; display: block; border: 0; background: rgba(8,16,28,.46); }
 }
 
+
+/* Events page (P9 step 9.4) ------------------------------------------------------------------ */
+.events-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.events-list { display: grid; gap: 14px; margin-top: 18px; }
+.event-card { border-left: 4px solid #d9dfe8; }
+.event-card.is-live { border-left-color: #1f9d55; }
+.event-card.is-draft { border-left-color: #e0a100; }
+.event-card.is-archived { opacity: .82; }
+.event-card-current { color: #b3300a; font-size: 12px; font-weight: 700; }
+.event-card-facts { display: flex; flex-wrap: wrap; gap: 28px; margin: 0; padding: 14px 18px 4px; }
+.event-card-facts dt { color: #566174; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.event-card-facts dd { margin: 2px 0 0; color: #0f1b2d; font-size: 15px; font-weight: 700; }
+.event-card-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 18px 16px; }
+.team-list { display: grid; gap: 4px; max-height: 52vh; overflow-y: auto; }
+.team-row, .copy-parts .checkbox-field { padding: 8px 4px; border-bottom: 1px solid #eef1f6; }
+.team-row span, .copy-parts span { display: grid; gap: 1px; }
+.team-row small, .copy-parts small { color: #566174; font-size: 12px; }
+.copy-parts { display: grid; gap: 2px; margin: 0; padding: 0; border: 0; }
+.copy-parts legend { margin-bottom: 6px; color: #172438; font-size: 13px; font-weight: 700; }
+.settings-dialog footer.team-footer { align-items: center; justify-content: space-between; }
+@media (max-width: 640px) {
+  .event-card-actions .hm-button { flex: 1 1 calc(50% - 8px); }
+}

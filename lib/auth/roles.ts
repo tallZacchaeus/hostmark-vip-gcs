@@ -20,6 +20,9 @@ export type AppRole = (typeof APP_ROLES)[number]
  */
 export const ADMIN_PLUS: readonly AppRole[] = ['super_admin', 'programme_manager', 'admin']
 
+/** Roles that create and manage events (P9 step 9.4): a manager their own, a Super Admin any. */
+export const EVENT_MANAGERS: readonly AppRole[] = ['super_admin', 'programme_manager']
+
 /** Roles with the full operational view. */
 export const COORDINATOR_PLUS: readonly AppRole[] = [...ADMIN_PLUS, 'coordinator']
 
