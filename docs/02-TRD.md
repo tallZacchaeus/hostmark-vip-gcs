@@ -312,6 +312,8 @@ Every scheduled call uses one lease holder (`scheduler`), so a call is never loc
 
 **Headers and HTTPS.** Vercel provides HTTPS; `next.config.ts` sends the same security headers as the Caddyfile.
 
+**One sign-in address.** Better Auth accepts sign-ins only from `BETTER_AUTH_URL` (`https://hostmark-vip.vercel.app`). Vercel also serves production on a team alias and on each deployment's own URL, both behind Vercel Authentication, so only team members reach them. There, a correct password is refused with 403 `INVALID_ORIGIN`. `proxy.ts` therefore redirects `/sign-in` on any other production address to the main one, and the form reports a blocked address or a server fault as such, keeping "Email or password is incorrect" for refused credentials only.
+
 **Limits of this host.**
 
 - The in-memory rate limiters are per function instance. Fluid compute reuses instances, so they still slow abuse, but they are not global (§6).

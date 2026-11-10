@@ -4,7 +4,7 @@ Thank you for testing. This page tells you how to sign in, what to try, and how 
 
 ## 1. Signing in
 
-Open the link you were given: the live site is **https://hostmark-vip.vercel.app** (locally: `http://localhost:3100`). All accounts use the same password. On the live site, the project owner gives it to you (it is `SEED_PASSWORD` in their `.env.deploy.local`, never in this repository). Locally it is **`Hostmark-Demo-2026`**.
+Open the link you were given: the live site is **https://hostmark-vip.vercel.app**, the only address sign-in works on (locally: `http://localhost:3100`). All accounts use the same password. On the live site, the project owner gives it to you (it is `SEED_PASSWORD` in their `.env.deploy.local`, never in this repository). Locally it is **`Hostmark-Demo-2026`**.
 
 | You are… | Email | Best on |
 |---|---|---|

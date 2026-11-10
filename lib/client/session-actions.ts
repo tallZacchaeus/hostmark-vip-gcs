@@ -8,6 +8,24 @@ interface MeResponse {
 }
 
 const SIGN_IN_FAILED = 'Email or password is incorrect.'
+const WRONG_ADDRESS = 'Sign-in does not work at this address. Open the site from its main link and try again.'
+const SIGN_IN_UNAVAILABLE = 'Sign-in is not working right now. Try again in a moment.'
+
+// Only a refusal of the details themselves may say so: anything else (a blocked address, a server
+// fault) would send people hunting for a password that is in fact correct.
+function signInFailure(status: number, code: string | undefined): ApiClientError {
+  const upperCode = code?.toUpperCase()
+  if (upperCode?.includes('BANNED')) {
+    return new ApiClientError(status, 'account_inactive', 'This account has been deactivated.')
+  }
+  if (upperCode === 'INVALID_ORIGIN') {
+    return new ApiClientError(status, 'wrong_address', WRONG_ADDRESS)
+  }
+  if (status === 400 || status === 401) {
+    return new ApiClientError(status, 'invalid_credentials', SIGN_IN_FAILED)
+  }
+  return new ApiClientError(status, 'sign_in_unavailable', SIGN_IN_UNAVAILABLE)
+}
 
 /** Signs in and returns where this person should go next. */
 export async function signIn(email: string, password: string): Promise<string> {
@@ -27,8 +45,7 @@ export async function signIn(email: string, password: string): Promise<string> {
   }
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { code?: string } | null
-    const banned = body?.code?.toUpperCase().includes('BANNED')
-    throw new ApiClientError(response.status, banned ? 'account_inactive' : 'invalid_credentials', banned ? 'This account has been deactivated.' : SIGN_IN_FAILED)
+    throw signInFailure(response.status, body?.code)
   }
   const me = await apiGet<MeResponse>('/api/me')
   return me.user.must_change_password ? '/account/password' : me.home_route
