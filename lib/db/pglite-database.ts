@@ -19,10 +19,22 @@ export function pgliteDataDir(url: string): string | undefined {
   return location === '' || location === 'memory' ? undefined : location
 }
 
+/** PGlite reports a damaged data directory only as "Aborted()": say what to do instead. */
+export function pgliteOpenError(dataDir: string | undefined, cause: unknown): Error {
+  const message = dataDir
+    ? `The local database in ${dataDir} could not be opened; it may be damaged (for example after the process was killed). ` +
+      `Stop the app, move ${dataDir} aside and run \`pnpm local:setup\` to rebuild it with the demo data.`
+    : 'The in-memory database could not be started.'
+  return new Error(message, { cause })
+}
+
 export function createPgliteDatabase(url: string): Database {
-  const ready: Promise<PGlite> = import('@/db/tooling/pglite').then((tooling) =>
-    tooling.openMigratedPglite(pgliteDataDir(url)),
-  )
+  const dataDir = pgliteDataDir(url)
+  const ready: Promise<PGlite> = import('@/db/tooling/pglite')
+    .then((tooling) => tooling.openMigratedPglite(dataDir))
+    .catch((error: unknown) => {
+      throw pgliteOpenError(dataDir, error)
+    })
   // One pool instance for both Kysely clients, so they share the same lock.
   const pool: Promise<PostgresPool> = Promise.all([import('@/db/tooling/pglite-pool'), ready]).then(([tooling, db]) =>
     tooling.pglitePool(db),

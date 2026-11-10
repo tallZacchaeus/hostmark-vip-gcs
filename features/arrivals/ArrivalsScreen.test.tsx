@@ -2,11 +2,12 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi } from '@/tests/support/api-mock'
-import { renderWithApp } from '@/tests/support/render'
+import { renderWithApp, sessionFor } from '@/tests/support/render'
 import { ArrivalsScreen } from './ArrivalsScreen'
 import type { ArrivalBoardRow, ArrivalsBoard } from './model'
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => '/arrivals' }))
+const navigation = vi.hoisted(() => ({ push: vi.fn() }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: navigation.push }), usePathname: () => '/arrivals' }))
 
 const row = (overrides: Partial<ArrivalBoardRow>): ArrivalBoardRow => ({
   arrival_id: 'a-1',
@@ -111,5 +112,71 @@ describe('ArrivalsScreen', () => {
     mockApi([{ path: '/api/arrivals', status: 500, body: { code: 'internal_error', message: 'Something went wrong' } }])
     renderWithApp(<ArrivalsScreen />)
     expect(await screen.findByRole('alert')).toHaveTextContent("We couldn't load arrivals.")
+  })
+
+  it('shows parties without flight details and sends the pickup cells to Transport', async () => {
+    const pickupParty = row({
+      arrival_id: 'a-4',
+      delegation_id: 'd-4',
+      delegation_name: 'Eze party',
+      principal_guest_id: null,
+      principal_name: null,
+      category: null,
+      party_size: 1,
+      mode: 'pickup',
+      pickup_address: 'Victoria Island',
+      arrival_at: null,
+      status: 'due',
+      flight: null,
+      pickup: { id: 'p-4', status: 'pending_assignment', pickup_at: '2026-10-28T15:00:00.000Z', previous_pickup_at: null, pickup_location: 'Victoria Island' },
+      drivers: [],
+      suggestion: null,
+    })
+    const flightToFollow = row({ arrival_id: 'a-5', delegation_id: 'd-5', principal_name: 'Grace Okon', flight: null, pickup: null, drivers: [], suggestion: null, status: 'due' })
+    mockApi([{ path: '/api/arrivals', body: { ...BOARD, days: ['2026-10-28'], updated_at: null, rows: [pickupParty, flightToFollow] } }])
+    renderWithApp(<ArrivalsScreen />, sessionFor('coordinator', 'live'))
+
+    const eze = await screen.findByRole('link', { name: /Eze party/ })
+    expect(eze).toHaveAttribute('href', '/guests')
+    expect(eze).toHaveTextContent('No category')
+    expect(eze).toHaveTextContent('Pickup requested')
+    expect(eze).toHaveTextContent('Victoria Island')
+    expect(eze).toHaveTextContent('Needs a driver')
+    expect(eze).not.toHaveTextContent('+')
+    expect(screen.getByRole('link', { name: /Grace Okon/ })).toHaveTextContent('Flight to follow')
+    expect(screen.getByText('Live flight data')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Day')).not.toBeInTheDocument()
+
+    await userEvent.setup().click(within(eze).getAllByText('Needs a driver')[0] as HTMLElement)
+    expect(navigation.push).toHaveBeenCalledWith('/transport')
+  })
+
+  describe('on the day itself', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('marks now, limits the time window and recovers from a search with no results', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-10-28T12:00:00Z'))
+      const evening = row({ arrival_id: 'a-6', delegation_id: 'd-6', principal_name: 'Late Guest', arrival_at: '2026-10-28T18:30:00.000Z', status: 'due', suggestion: null })
+      mockApi([{ path: '/api/arrivals', body: { ...BOARD, rows: [...BOARD.rows, evening] } }])
+      const user = userEvent.setup()
+      renderWithApp(<ArrivalsScreen />)
+
+      await screen.findByRole('link', { name: /Okafor/ })
+      expect(screen.getByText('Now · 13:00')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'All day' })).toHaveAttribute('aria-pressed', 'true')
+
+      await user.click(screen.getByRole('button', { name: 'Next 2 h' }))
+      expect(screen.getByRole('button', { name: 'Next 2 h' })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.queryByRole('link', { name: /Late Guest/ })).not.toBeInTheDocument()
+
+      await user.type(screen.getByLabelText('Search guest or flight'), 'nobody')
+      expect(screen.getByText('No arrivals match.')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Show all' }))
+      expect(screen.getByRole('link', { name: /Late Guest/ })).toBeInTheDocument()
+      expect(screen.getByLabelText('Search guest or flight')).toHaveValue('')
+    })
   })
 })

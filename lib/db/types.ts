@@ -230,6 +230,7 @@ export interface Events {
   arrival_airports: Generated<string[]>;
   auto_process_enabled: Generated<boolean>;
   cleaning_delay_buffer_min: Generated<number>;
+  coordinator_phone: string | null;
   created_at: Generated<Timestamp>;
   delay_threshold_min: Generated<number>;
   ends_on: string;
@@ -538,10 +539,12 @@ export interface RoomTypes {
 
 export interface SimulationRuns {
   created_at: Generated<Timestamp>;
+  delegation_ids: Generated<string[]>;
   event_id: Generated<string>;
   flight_ids: Generated<string[]>;
   id: Generated<string>;
   real_start: Generated<Timestamp>;
+  room_ids: Generated<string[]>;
   scenario_key: string;
   speed: number;
   started_by: string | null;

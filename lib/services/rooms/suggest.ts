@@ -1,18 +1,17 @@
 // Room proposals outside a full plan run. FR-RA-05: once rooms are being allocated, a guest added
 // later gets a room proposal of their own (the worker checks every minute). FR-RA-07: when an
 // arrival moves, its guests' planned stays follow; a stay whose room no longer works at the new
-// time gets a proposal to move (or the coordinators an alert). A pending suggestion holds its room,
+// time gets a proposal to move (or the coordinators an alert), and so does a stay whose room changes
+// (taken out of service, reworkRoom); moves.ts decides which. A pending suggestion holds its room,
 // so two suggestions never name the same room for overlapping stays. vip_system only.
 import { sql } from 'kysely'
 import type { Tx } from '@/lib/db/context'
-import { type PlanLine, allocate } from '@/lib/domain/rooms/allocator'
-import { type Occupant, roomBlocker } from '@/lib/domain/rooms/rules'
+import { allocate } from '@/lib/domain/rooms/allocator'
 import { notifyCoordinators } from '@/lib/services/notify'
 import { type Trigger, createProposal } from '@/lib/services/proposals'
-import { type RoomWorld, allocationInput, loadGuests, loadRoomWorld, loadStays, pendingRoomHolds, withHolds } from './input'
+import { allocationInput, loadRoomWorld, pendingRoomHolds, withHolds } from './input'
+import { ARRIVAL_MOVED, type MoveCause, type PlacedLine, ROOM_CHANGED, type StayOutcome, outcomeText, planStayMoves } from './moves'
 import { roomLine } from './plan'
-
-type PlacedLine = PlanLine & { readonly room: NonNullable<PlanLine['room']> }
 
 export async function suggestRoomsForNewGuests(tx: Tx, now: Date): Promise<number> {
   const started = await tx.selectFrom('room_assignments').select('id').limit(1).executeTakeFirst()
@@ -50,44 +49,35 @@ export async function reworkStays(tx: Tx, arrivalIds: readonly string[], now: Da
     returning a.id`.execute(tx)
   if (moved.rows.length === 0) return 0
   const movedIds = new Set(moved.rows.map((row) => row.id))
-  const holds = await pendingRoomHolds(tx)
-  const world = await loadRoomWorld(tx)
-  const stays = await loadStays(tx)
-  let proposals = 0
-  for (const stay of stays.filter((item) => movedIds.has(item.assignment_id))) {
-    const room = world.rooms.find((item) => item.id === stay.room_id)
-    const others = [...stays.filter((item) => item.guest_id !== stay.guest_id), ...holds]
-    if (!room || !roomBlocker(room, { guest_ids: [stay.guest_id], share_group: stay.share_group, check_in: stay.check_in, check_out: stay.check_out }, others, now.getTime())) continue
-    proposals += await proposeMove(tx, world, holds, stay, room.number, now, trigger)
-  }
-  return proposals
+  return applyOutcomes(tx, await planStayMoves(tx, (stay) => movedIds.has(stay.assignment_id), now), ARRIVAL_MOVED, trigger)
 }
 
-async function proposeMove(
-  tx: Tx,
-  world: RoomWorld,
-  holds: readonly Occupant[],
-  stay: RoomWorld['stays'][number],
-  roomNumber: string,
-  now: Date,
-  trigger: Trigger | null,
-): Promise<number> {
-  const [details] = await loadGuests(tx, [stay.guest_id])
-  if (!details) return 0
-  const elsewhere = { ...world, stays: world.stays.filter((item) => item.assignment_id !== stay.assignment_id) }
-  const [line] = allocate(allocationInput(withHolds(elsewhere, holds), [details], now)).lines
-  if (!line?.room) {
-    await notifyCoordinators(tx, { kind: 'room_alert', title: `No room for ${details.name} at the new arrival time`, priority: 'high', entity_type: 'guests', entity_id: details.id })
-    return 0
+/**
+ * Re-checks the stays in a room that changed (e.g. taken out of service, FR-RA-01): each stay the
+ * room can no longer take gets a proposal to move, or the coordinators an alert — always an alert
+ * for a checked-in guest, whom only a person moves.
+ */
+export async function reworkRoom(tx: Tx, roomId: string, now: Date, trigger: Trigger | null): Promise<number> {
+  return applyOutcomes(tx, await planStayMoves(tx, (stay) => stay.room_id === roomId, now), ROOM_CHANGED, trigger)
+}
+
+/** Proposals for the moves, high-priority alerts for the rest; returns how many proposals. */
+async function applyOutcomes(tx: Tx, outcomes: readonly StayOutcome[], cause: MoveCause, trigger: Trigger | null): Promise<number> {
+  for (const outcome of outcomes) {
+    const text = outcomeText(outcome, cause)
+    if (outcome.kind !== 'move') {
+      await notifyCoordinators(tx, { kind: 'room_alert', title: text.title, body: text.detail, priority: 'high', entity_type: 'guests', entity_id: outcome.guest.id })
+      continue
+    }
+    await createProposal(tx, {
+      kind: 'room_assignment',
+      title: text.title,
+      summary: text.detail,
+      ...roomLine(outcome.line, outcome.stay.assignment_id),
+      target_type: 'guests',
+      target_id: outcome.guest.id,
+      trigger,
+    })
   }
-  await createProposal(tx, {
-    kind: 'room_assignment',
-    title: `Move ${details.name} from room ${roomNumber} to ${line.room.number}`,
-    summary: `The arrival time changed and room ${roomNumber} no longer works for the new time. ${line.why}.`,
-    ...roomLine(line as PlacedLine, stay.assignment_id),
-    target_type: 'guests',
-    target_id: details.id,
-    trigger,
-  })
-  return 1
+  return outcomes.filter((outcome) => outcome.kind === 'move').length
 }

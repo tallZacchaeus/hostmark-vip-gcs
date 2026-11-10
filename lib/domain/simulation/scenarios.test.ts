@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TrackedFlight } from '@/lib/flights/provider'
-import { SCENARIOS, type Scenario, applyChange, dueSteps, elapsedMinutes, findScenario, flightsNeeded } from './scenarios'
+import { SCENARIOS, type Scenario, applyChange, describeChange, dueSteps, elapsedMinutes, findScenario, flightsNeeded, stepTarget, targetsNeeded } from './scenarios'
 
 const flight: TrackedFlight = {
   flight_number: 'KQ532',
@@ -35,6 +35,33 @@ describe('scenarios', () => {
     expect(flightsNeeded(scenario('single-delay'))).toBe(1)
     expect(flightsNeeded(scenario('busy-morning'))).toBe(3)
     expect(findScenario('nope')).toBeUndefined()
+  })
+
+  it('include room scenarios that act on rooms and delegations, not flights', () => {
+    const outOfService = scenario('room-out-of-service')
+    expect(flightsNeeded(outOfService)).toBe(0)
+    expect(targetsNeeded(outOfService, 'room')).toBe(1)
+    expect(outOfService.steps.map(stepTarget)).toEqual([{ kind: 'room', index: 0 }])
+
+    const extra = scenario('extra-guests')
+    expect(flightsNeeded(extra)).toBe(0)
+    expect(targetsNeeded(extra, 'delegation')).toBe(1)
+    expect(extra.steps[0]).toMatchObject({ delegation: 0, change: { kind: 'add_companions', count: 2 } })
+  })
+
+  it('point every step at a target the run can choose', () => {
+    for (const item of SCENARIOS) {
+      const needed = { flight: targetsNeeded(item, 'flight'), room: targetsNeeded(item, 'room'), delegation: targetsNeeded(item, 'delegation') }
+      expect(needed.flight + needed.room + needed.delegation).toBeGreaterThan(0)
+      for (const target of item.steps.map(stepTarget)) expect(target.index).toBeLessThan(needed[target.kind])
+    }
+  })
+
+  it('describe each change in plain words', () => {
+    expect(describeChange({ kind: 'delay', minutes: 45 })).toBe('delayed 45 min')
+    expect(describeChange({ kind: 'out_of_service' })).toBe('out of service')
+    expect(describeChange({ kind: 'add_companions', count: 2 })).toBe('gains 2 companions')
+    expect(describeChange({ kind: 'add_companions', count: 1 })).toBe('gains 1 companion')
   })
 })
 

@@ -32,6 +32,7 @@ export const programItem = (overrides: Partial<ProgramItemView>): ProgramItemVie
 export const programmeView = (overrides: Partial<ProgrammeView>): ProgrammeView => ({
   day: '2026-10-28',
   days: ['2026-10-28', '2026-10-29', '2026-10-30'],
+  outside_days: [],
   timezone: 'Africa/Lagos',
   lead_time_min: 30,
   can_edit: false,

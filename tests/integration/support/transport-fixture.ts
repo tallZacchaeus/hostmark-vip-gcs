@@ -1,9 +1,10 @@
 // Arranges flights, parties, drivers and trips for the transport tests (as the database owner).
 // Times are UTC; the test event runs in Africa/Lagos (UTC+1) with the default 30 min airport exit
 // buffer and 60 min airport drive.
+import { EVENT_DAY } from '@/tests/support/event-dates'
 import type { TestApp } from './test-app'
 
-export const EVENT_DAY = '2026-11-20'
+export { EVENT_DAY }
 const FIRST_NAMES = ['Amina', 'Bola', 'Chidi', 'Dayo', 'Efe', 'Femi', 'Gozie']
 
 export const SHIFT = { starts_at: `${EVENT_DAY}T06:00:00Z`, ends_at: `${EVENT_DAY}T23:30:00Z` }

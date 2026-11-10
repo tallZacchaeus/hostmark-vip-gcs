@@ -1,7 +1,7 @@
 'use client'
-// What-if preview (Figma "Simulation"): pick a flight delay or a driver dropping out and see what
-// the live planner would change — moved pickups, drivers kept, decisions and conflicts. Nothing is
-// written. Room scenarios arrive with room allocation (phase P4).
+// What-if preview (Figma "Simulation"): pick a flight delay, a driver dropping out or a room going
+// out of service and see what the live planner would change — moved pickups, drivers kept, room
+// moves, decisions and conflicts. Nothing is written. Extra guests run as a scripted scenario.
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Icon } from '@/components/ui/Icon'
@@ -10,7 +10,7 @@ import { apiSend, errorMessage } from '@/lib/client/api'
 import { dateKey, formatIsoDate, formatTime, plural, zonedDateTime } from '@/lib/client/format'
 import { LINE_ICONS, type SimulationOptions, type WhatIfResult } from './types'
 
-type Scenario = 'flight_delay' | 'driver_unavailable'
+type Scenario = 'flight_delay' | 'driver_unavailable' | 'room_out_of_service'
 const DELAY_CHIPS = [30, 60, 90, 120] as const
 
 function Results({ result, running, failed, onRetry, onDiscard }: { readonly result: WhatIfResult | null; readonly running: boolean; readonly failed: string | null; readonly onRetry: () => void; readonly onDiscard: () => void }) {
@@ -86,6 +86,7 @@ export function WhatIfPanel({ options }: { readonly options: SimulationOptions }
   const [delay, setDelay] = useState('90')
   const [driverId, setDriverId] = useState(options.drivers[0]?.id ?? '')
   const [from, setFrom] = useState('')
+  const [roomId, setRoomId] = useState(options.rooms[0]?.id ?? '')
   const [result, setResult] = useState<WhatIfResult | null>(null)
   const [running, setRunning] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
@@ -101,10 +102,12 @@ export function WhatIfPanel({ options }: { readonly options: SimulationOptions }
     setRunning(true)
     setFailed(null)
     try {
-      const body =
-        scenario === 'flight_delay'
-          ? { kind: scenario, flight_id: flightId, minutes: Number(delay) || 0 }
-          : { kind: scenario, driver_id: driverId, ...(from && day ? { from: zonedDateTime(day, from, options.timezone) } : {}) }
+      const bodies: Record<Scenario, () => object> = {
+        flight_delay: () => ({ kind: scenario, flight_id: flightId, minutes: Number(delay) || 0 }),
+        driver_unavailable: () => ({ kind: scenario, driver_id: driverId, ...(from && day ? { from: zonedDateTime(day, from, options.timezone) } : {}) }),
+        room_out_of_service: () => ({ kind: scenario, room_id: roomId }),
+      }
+      const body = bodies[scenario]()
       setResult(await apiSend<WhatIfResult>('/api/simulation/what-if', 'POST', body))
     } catch (caught: unknown) {
       setFailed(errorMessage(caught))
@@ -112,7 +115,7 @@ export function WhatIfPanel({ options }: { readonly options: SimulationOptions }
       setRunning(false)
     }
   }
-  const ready = scenario === 'flight_delay' ? Boolean(flightId) : Boolean(driverId)
+  const ready = Boolean({ flight_delay: flightId, driver_unavailable: driverId, room_out_of_service: roomId }[scenario])
 
   return (
     <div className="simulation-layout">
@@ -129,8 +132,7 @@ export function WhatIfPanel({ options }: { readonly options: SimulationOptions }
           >
             <option value="flight_delay">Flight delay</option>
             <option value="driver_unavailable">Driver unavailable</option>
-            <option disabled>Room out of service (with room allocation)</option>
-            <option disabled>Extra guests (with room allocation)</option>
+            <option value="room_out_of_service">Room out of service</option>
           </select>
         </label>
         {scenario === 'flight_delay' ? (
@@ -183,6 +185,24 @@ export function WhatIfPanel({ options }: { readonly options: SimulationOptions }
               ))}
             </div>
           </>
+        ) : scenario === 'room_out_of_service' ? (
+          <label className="simulation-field">
+            <span>Room</span>
+            <select
+              value={roomId}
+              onChange={(event) => {
+                setRoomId(event.target.value)
+                reset()
+              }}
+            >
+              {options.rooms.length === 0 ? <option value="">No rooms with guests yet</option> : null}
+              {options.rooms.map((item) => (
+                <option key={item.id} value={item.id}>
+                  Room {item.number} · {item.guests.join(', ')}
+                </option>
+              ))}
+            </select>
+          </label>
         ) : (
           <>
             <label className="simulation-field">

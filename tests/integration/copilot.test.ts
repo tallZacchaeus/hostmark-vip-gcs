@@ -11,15 +11,22 @@ vi.stubEnv('BETTER_AUTH_SECRET', 'integration-test-secret-'.padEnd(48, 'x'))
 vi.stubEnv('BETTER_AUTH_URL', 'http://localhost:3000')
 
 const PASSWORD = 'Seeded-Pass-2026'
+const DAY_MS = 86_400_000
+// 08:00 in Lagos (07:00 UTC) on an event day still ahead, as in `pnpm eval:copilot`. The Co-Pilot
+// reads the app's clock while the programme risk check reads Postgres's own now(); a day in the
+// future keeps both agreeing that the day's items are upcoming, whatever time the suite runs.
+const MORNING = new Date(`${new Date(Date.now() + DAY_MS).toISOString().slice(0, 10)}T07:00:00Z`)
 
 describe('Co-Pilot on the demo data', () => {
   let app: TestApp
   let coordinator: StaffMember
 
   beforeAll(async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(MORNING)
     app = await TestApp.start()
-    // The event starts today, as in `pnpm local:setup`.
-    await seedDevData(app.db, app.auth, PASSWORD, { startsInDays: 0 })
+    // The event starts "today" on the fixed clock, as in `pnpm local:setup`.
+    await seedDevData(app.db, app.auth, PASSWORD, { now: MORNING, startsInDays: 0 })
     const staff = (email: string, role: StaffMember['role']) => app.signIn(email, PASSWORD).then((token) => ({ id: '', email, password: PASSWORD, token, role }))
     coordinator = await staff('coordinator@vipgcs.test', 'coordinator')
     const [row] = await app.sql<{ id: string }>(`select id from profiles where email = 'coordinator@vipgcs.test'`)
@@ -27,6 +34,7 @@ describe('Co-Pilot on the demo data', () => {
   })
   afterAll(async () => {
     await app.stop()
+    vi.useRealTimers()
   })
 
   const ask = async (message: string, as: StaffMember = coordinator) => app.call<CopilotReply>(chat, '/api/copilot/chat', { as, body: { message } })

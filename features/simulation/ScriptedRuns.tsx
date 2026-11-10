@@ -1,6 +1,6 @@
 'use client'
-// Scripted scenarios (FR-PL-10, FR-FT-10): replay a scripted day of flight changes through the
-// same pipeline as live data, at up to 600× speed. Unlike the what-if preview this does change
+// Scripted scenarios (FR-PL-10, FR-FT-10): replay scripted flight and room changes (a delay, a room
+// out of service, extra guests) through the same services as live data, at up to 600× speed. Unlike the what-if preview this does change
 // data — in simulated mode only — and every resulting decision still waits for approval.
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
@@ -11,7 +11,7 @@ import { apiSend, errorMessage } from '@/lib/client/api'
 import { formatTime } from '@/lib/client/format'
 import { refreshApi, useApi } from '@/lib/client/use-api'
 import { virtualNow } from '@/lib/domain/clock'
-import { type RunSummary, SPEEDS, type SimulationOptions } from './types'
+import { type RunSummary, SPEEDS, type SimulationOptions, runTargets } from './types'
 
 const RUNS_PATH = '/api/simulation/runs'
 const RUNNING_REFRESH_MS = 3_000
@@ -24,7 +24,7 @@ function RunRow({ run, timeZone, now, busy, onStop }: { readonly run: RunSummary
       <div>
         <b>{run.title}</b>
         <small>
-          {run.flight_numbers.join(', ') || 'No flights'} · step {run.steps_applied} of {run.steps_total} · {run.speed}×
+          {runTargets(run) || 'Nothing to act on'} · step {run.steps_applied} of {run.steps_total} · {run.speed}×
         </small>
       </div>
       {running ? (
@@ -65,7 +65,7 @@ export function ScriptedRuns({ options }: { readonly options: SimulationOptions 
       toast.show({ message: errorMessage(caught), tone: 'error' })
     } finally {
       setBusy(false)
-      await refreshApi(RUNS_PATH, '/api/arrivals', '/api/transport', '/api/decisions')
+      await refreshApi(RUNS_PATH, '/api/arrivals', '/api/transport', '/api/decisions', '/api/rooms/board', '/api/guests')
     }
   }
 
@@ -73,7 +73,7 @@ export function ScriptedRuns({ options }: { readonly options: SimulationOptions 
     <section className="simulation-scripted card-v4" aria-labelledby="scripted-title">
       <header>
         <h2 id="scripted-title">Scripted scenarios</h2>
-        <p>Replays flight changes through the live pipeline. Decisions still wait for your approval.</p>
+        <p>Replays flight and room changes through the live pipeline. Decisions still wait for your approval.</p>
       </header>
       {!simulated ? (
         <p className="simulation-note">

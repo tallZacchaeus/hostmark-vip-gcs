@@ -96,3 +96,8 @@
   .staff-sanitation-content { padding-top: 18px; }
 }
 
+
+/* "Call coordinator" (tel: link): on the dark hero, and outlined on white in the trip sheet and quiet day. */
+.driver-call { width: 100%; min-height: 56px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 16px; color: #fff; font-size: 17px; font-weight: 700; text-decoration: none; }
+.driver-call.is-light { max-width: 360px; min-height: 52px; margin: 18px auto 0; border: 1px solid #d5dbe7; color: #0f1b2d; background: #fff; }
+.driver-call:focus-visible { outline: 3px solid #f0a35b; outline-offset: 2px; }

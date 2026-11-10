@@ -4,7 +4,7 @@ Coordinate VIP guests at a large event: guest intake, live flight tracking, tran
 
 **Docs:** [`docs/`](docs/) holds the six core documents: [PRD](docs/01-PRD.md), [TRD](docs/02-TRD.md) (stack, hosting), [App flow](docs/03-App-Flow.md), [UI/UX brief](docs/04-UI-UX-Design-Brief.md), [Schema & API](docs/05-Backend-Schema.md), [Implementation plan](docs/06-Implementation-Plan.md) (what is built). Testers start with the [tester guide](docs/07-Tester-Guide.md).
 
-**Status:** P1 (backend + the Figma Make frontend "Hostmark", source in [`design/figma-make/`](design/figma-make/README.md)) **P2 guest intake** and **P3 flights and transport** are done: public registration link, intake pipeline, review queue, pasted messages, guests and guest profiles; flight tracking with the transport cascade, driver suggestions for approval, the arrivals and transport boards, the driver app and the simulation screen. Other screens show "coming soon" until their phase (see the implementation plan).
+**Status:** P1–P7 are done (the Figma Make frontend "Hostmark", source in [`design/figma-make/`](design/figma-make/README.md); guest intake; flights and transport; room allocation; turnaround and cleaning; the event programme; the Co-Pilot with its offline engine). P8 evaluation and hardening is under way: the engineering items are done, the human ones (volunteer round, usability test, demo) are open. See the implementation plan.
 
 **External services are optional.** Without keys the app makes no external calls: free text is read by offline rules instead of Claude, the registration form skips the Turnstile bot check (rate limits still apply), and live flight status is not polled (use simulated mode, or set landing times by hand). Add `ANTHROPIC_API_KEY`, `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` and `AERODATABOX_API_KEY` to the environment when you have them ([`docs/02-TRD.md` §4.5](docs/02-TRD.md)).
 
@@ -41,6 +41,8 @@ pnpm dev                             # http://localhost:3000
 | `pnpm eval:build` · `pnpm eval:intake` | Rebuild the labelled intake set · score the intake pipeline (offline; `-- --reader claude` with a key) |
 | `pnpm eval:cascade` | Transport cascade on a synthetic day: latency p50/p95, proposal feasibility, approvals (`-- --flights N --drivers N --updates N --seed N`) |
 | `pnpm eval:allocation` | Room allocator on synthetic venues: hard-rule satisfaction (independently checked), preference % vs the first-free-room baseline, runtime (`-- --seeds N --seed N`) |
+| `pnpm eval:cleaning` · `pnpm eval:copilot` | Turnaround flow and ready-time estimate error · Co-Pilot answers, actions and safety probes on the demo seed |
+| `pnpm eval:all` | Runs all five evaluations in turn and writes their summaries to `eval/results/summary.md` (stops at the first failure) |
 | `pnpm worker` | Background worker as its own process (when the app runs with `WORKER_MODE=off`; by default the app server runs it) |
 | `pnpm admin:create --email … --name …` | Create a Super Admin (prints a one-time password) |
 

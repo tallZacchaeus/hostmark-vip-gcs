@@ -1,5 +1,6 @@
 'use client'
-// Event settings (FR-PL-03): dates, time zone, airports and the fixed buffers the cascade uses.
+// Event settings (FR-PL-03): dates, time zone, airports, the coordination desk phone and the
+// fixed buffers the cascade uses.
 import { type FormEvent, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Field } from '@/components/ui/FormDialog'
@@ -42,6 +43,7 @@ export function EventForm({ event, onSaved }: EventFormProps) {
   const [numbers, setNumbers] = useState<Record<NumberKey, string>>(
     () => Object.fromEntries(NUMBER_FIELDS.map((field) => [field.key, String(event?.[field.key] ?? field.fallback)])) as Record<NumberKey, string>,
   )
+  const [coordinatorPhone, setCoordinatorPhone] = useState(event?.coordinator_phone ?? '')
   const [autoProcess, setAutoProcess] = useState(event?.auto_process_enabled ?? true)
   const action = useAction()
 
@@ -58,6 +60,7 @@ export function EventForm({ event, onSaved }: EventFormProps) {
           .split(',')
           .map((code) => code.trim().toUpperCase())
           .filter((code) => code !== ''),
+        coordinator_phone: coordinatorPhone.trim() || null,
         auto_process_enabled: autoProcess,
         ...Object.fromEntries(NUMBER_FIELDS.map((field) => [field.key, Number.parseInt(numbers[field.key], 10)])),
       }
@@ -92,6 +95,9 @@ export function EventForm({ event, onSaved }: EventFormProps) {
         </Field>
         <Field label="Arrival airports" hint="IATA codes, comma-separated, e.g. LOS, ABV">
           <input value={airports} onChange={(changeEvent) => setAirports(changeEvent.target.value)} />
+        </Field>
+        <Field label="Coordination desk phone" hint="Drivers can call this number from their app. Leave blank to hide the button.">
+          <input type="tel" autoComplete="tel" value={coordinatorPhone} onChange={(changeEvent) => setCoordinatorPhone(changeEvent.target.value)} />
         </Field>
         {NUMBER_FIELDS.map((field) => (
           <Field key={field.key} label={field.label} hint={field.hint}>

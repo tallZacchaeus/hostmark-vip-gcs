@@ -106,7 +106,7 @@ describe('flights, transport, driver app and simulation API', () => {
     })
 
     it('clears the manual time, and rejects times without a time zone', async () => {
-      expect((await call({ manual_arrival_at: '2026-11-20T15:00:00' })).status).toBe(400)
+      expect((await call({ manual_arrival_at: `${EVENT_DAY}T15:00:00` })).status).toBe(400)
       await call({ manual_arrival_at: null })
       const [pickup] = await app.sql<{ pickup_at: Date }>('select pickup_at from pickups where id = $1', [kenya.pickup_id])
       expect(pickup?.pickup_at.toISOString()).toBe(`${EVENT_DAY}T13:30:00.000Z`)

@@ -7,6 +7,7 @@ import { POST as reject } from '@/app/api/intake/submissions/[id]/reject/route'
 import { POST as undoAuto } from '@/app/api/intake/submissions/[id]/undo/route'
 import { GET as getSubmission, PATCH as patchSubmission } from '@/app/api/intake/submissions/[id]/route'
 import { GET as listSubmissions, POST as createDraft } from '@/app/api/intake/submissions/route'
+import { DAY_BEFORE_EVENT, EVENT_DAY, EVENT_LAST_DAY, addDays } from '@/tests/support/event-dates'
 import { type StaffMember, TestApp } from './support/test-app'
 
 vi.stubEnv('DATABASE_URL', 'pglite://memory')
@@ -20,6 +21,14 @@ interface Receipt {
   summary: { guest: string; companions: number; arrival_mode: string; flight_number: string | null }
 }
 
+/** "2026-11-21" → "21st November". */
+function spokenDate(day: string): string {
+  const date = Number(day.slice(8, 10))
+  const suffix = date % 10 === 1 && date !== 11 ? 'st' : date % 10 === 2 && date !== 12 ? 'nd' : date % 10 === 3 && date !== 13 ? 'rd' : 'th'
+  const month = new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' })
+  return `${date}${suffix} ${month}`
+}
+
 let ipCounter = 0
 const freshIp = (): string => `198.51.100.${(ipCounter += 1)}`
 
@@ -31,9 +40,9 @@ const OWN_TRANSPORT = {
   contact_email: 'Office@Diocese.example',
   contact_phone: '0803 555 0142',
   arrival_mode: 'own_transport',
-  arrival_date: '2026-11-20',
+  arrival_date: EVENT_DAY,
   arrival_time: '14:30',
-  departure_date: '2026-11-23',
+  departure_date: EVENT_LAST_DAY,
   dietary: 'vegetarian',
 }
 
@@ -44,9 +53,9 @@ const FLYING = {
   arrival_mode: 'flying',
   airline: 'Emirates',
   flight_number: 'ek 783',
-  arrival_date: '2026-11-19',
+  arrival_date: DAY_BEFORE_EVENT,
   arrival_time: '13:40',
-  departure_date: '2026-11-22',
+  departure_date: addDays(EVENT_DAY, 2),
   others: 'Vegetarian meals please.',
   party: [{ name: 'Yaw Owusu', role: 'family' }, { role: 'security' }],
 }
@@ -82,8 +91,8 @@ describe('intake: public registration, review queue and pasted messages', () => 
         event_name: 'Annual Summit',
         venue_name: 'Grand Hotel',
         timezone: 'Africa/Lagos',
-        starts_on: '2026-11-20',
-        ends_on: '2026-11-23',
+        starts_on: EVENT_DAY,
+        ends_on: EVENT_LAST_DAY,
         turnstile_site_key: null,
       })
     })
@@ -126,7 +135,7 @@ describe('intake: public registration, review queue and pasted messages', () => 
       expect(delegation).toEqual({ name: 'Bishop Augustine Okafor', contact_email: 'office@diocese.example', contact_phone: '+2348035550142' })
       const [arrival] = await app.sql<{ mode: string; stated_arrival_at: Date }>('select mode, stated_arrival_at from arrivals where delegation_id = $1', [submission?.delegation_id])
       expect(arrival?.mode).toBe('own_transport')
-      expect(arrival?.stated_arrival_at.toISOString()).toBe('2026-11-20T13:30:00.000Z')
+      expect(arrival?.stated_arrival_at.toISOString()).toBe(`${EVENT_DAY}T13:30:00.000Z`)
       const actors = await app.sql<{ actor_type: string; is_automatic: boolean }>(
         `select distinct actor_type, is_automatic from audit_log where entity_type in ('delegations', 'guests', 'arrivals')`,
       )
@@ -148,7 +157,7 @@ describe('intake: public registration, review queue and pasted messages', () => 
       )
       expect(row).toMatchObject({ flight_number: 'EK783', airline_iata: 'EK', kind: 'airport', passenger_count: 3 })
       // 13:40 Lagos = 12:40Z, plus the 30-minute airport exit buffer.
-      expect(row?.pickup_at.toISOString()).toBe('2026-11-19T13:10:00.000Z')
+      expect(row?.pickup_at.toISOString()).toBe(`${DAY_BEFORE_EVENT}T13:10:00.000Z`)
       const guests = await app.sql<{ member_role: string; is_placeholder: boolean }>(
         `select g.member_role::text, g.is_placeholder from guests g join intake_submissions s on s.delegation_id = g.delegation_id
          where s.reference_code = $1 order by g.member_role::text`,
@@ -248,6 +257,41 @@ describe('intake: public registration, review queue and pasted messages', () => 
       expect(again.body.error?.code).toBe('already_reviewed')
     })
 
+    it('copies only the details the reviewer ticks onto the existing delegation', async () => {
+      const result = await submit({
+        ...OWN_TRANSPORT,
+        full_name: 'Augustine Okafur',
+        contact_email: 'protocol@diocese.example',
+        contact_phone: '0803 555 0199',
+        dietary: 'vegetarian, no pork',
+        party: [{ name: 'Chidi Nwosu', role: 'assistant' }, { role: 'security' }],
+      })
+      const list = await app.call<{ rows: { id: string }[] }>(listSubmissions, `/api/intake/submissions?tab=duplicates&search=${result.body.data.reference_code}`, { as: coordinator })
+      const id = list.body.data.rows[0]?.id ?? ''
+      const [existing] = await app.sql<{ id: string; contact_email: string; principal_guest_id: string }>(
+        `select id, contact_email, principal_guest_id from delegations where name = 'Bishop Augustine Okafor'`,
+      )
+      const members = () => app.sql<{ full_name: string | null }>(`select full_name from guests where delegation_id = $1 and member_role <> 'principal' order by full_name`, [existing?.id])
+      expect(await members()).toEqual([])
+
+      const linked = await app.call<{ applied: string[] }>(link, `/api/intake/submissions/${id}/link`, {
+        as: coordinator,
+        params: { id },
+        body: { delegation_id: existing?.id, apply: ['dietary', 'companions'] },
+      })
+      expect(linked.status).toBe(200)
+      expect(linked.body.data.applied).toEqual(['dietary', 'companions'])
+
+      const [after] = await app.sql<{ contact_email: string; dietary: string[] }>(
+        `select d.contact_email, g.dietary from delegations d join guests g on g.id = d.principal_guest_id where d.id = $1`,
+        [existing?.id],
+      )
+      // Contact was not ticked: unchanged. Diet merged; the new companions joined the party.
+      expect(after?.contact_email).toBe(existing?.contact_email)
+      expect(after?.dietary).toEqual(['Vegetarian', 'No pork'])
+      expect(await members()).toEqual([{ full_name: 'Chidi Nwosu' }, { full_name: null }])
+    })
+
     it('keeps the queue to coordinators', async () => {
       expect((await app.call(listSubmissions, '/api/intake/submissions', { as: driver })).status).toBe(403)
       expect((await app.call(listSubmissions, '/api/intake/submissions')).status).toBe(401)
@@ -255,8 +299,11 @@ describe('intake: public registration, review queue and pasted messages', () => 
   })
 
   describe('pasted messages', () => {
-    const MESSAGE =
-      'Good morning. Bishop Emeka Obi arrives on EK 785 on 21st November at 2:15pm with his wife and two security men. Vegetarian meals please. Rev Chidi may also join later.'
+    // The second event day, written the way a secretariat would ("21st November").
+    const SECOND_DAY = addDays(EVENT_DAY, 1)
+    // The message names no year; the reader assumes the event's start year (differs only when the event spans New Year).
+    const READ_SECOND_DAY = `${EVENT_DAY.slice(0, 4)}${SECOND_DAY.slice(4)}`
+    const MESSAGE = `Good morning. Bishop Emeka Obi arrives on EK 785 on ${spokenDate(SECOND_DAY)} at 2:15pm with his wife and two security men. Vegetarian meals please. Rev Chidi may also join later.`
 
     it('reads a message without saving it', async () => {
       const before = await app.sql<{ n: number }>('select count(*)::int as n from intake_submissions')
@@ -267,7 +314,7 @@ describe('intake: public registration, review queue and pasted messages', () => 
       const after = await app.sql<{ n: number }>('select count(*)::int as n from intake_submissions')
 
       expect(result.status).toBe(200)
-      expect(result.body.data.fields).toMatchObject({ title: 'Bishop', full_name: 'Emeka Obi', flight_number: 'EK785', arrival_date: '2026-11-21', arrival_time: '14:15' })
+      expect(result.body.data.fields).toMatchObject({ title: 'Bishop', full_name: 'Emeka Obi', flight_number: 'EK785', arrival_date: READ_SECOND_DAY, arrival_time: '14:15' })
       expect(result.body.data.extraction.method).toBe('rules')
       expect(after[0]?.n).toBe(before[0]?.n)
     })
@@ -289,9 +336,9 @@ describe('intake: public registration, review queue and pasted messages', () => 
         arrival_mode: 'flying',
         airline: 'Emirates',
         flight_number: 'EK785',
-        arrival_date: '2026-11-21',
+        arrival_date: SECOND_DAY,
         arrival_time: '14:15',
-        departure_date: '2026-11-23',
+        departure_date: EVENT_LAST_DAY,
         others: MESSAGE,
         party: [{ role: 'family' }, { role: 'security' }, { role: 'security' }],
       }

@@ -181,6 +181,7 @@
 .comparison-card > div > b { color: #24354b; font-size: 14px; white-space: nowrap; }
 .comparison-card > div > label { display: flex; align-items: center; gap: 6px; color: #566174; font-size: 13px; white-space: nowrap; }
 .comparison-card input { width: 16px; height: 16px; accent-color: #c8420f; }
+.comparison-note { margin: 12px 0 0; color: #566174; font-size: 13px; }
 
 /* Review footer, dialog and state */
 .review-sticky-footer { position: fixed; right: 0; bottom: 0; left: 236px; z-index: 45; min-height: 74px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 28px; border-top: 1px solid #e6eaf2; background: #fff; box-shadow: 0 -8px 24px rgba(14,26,44,.08); }

@@ -3,6 +3,7 @@ import { POST as addMember } from '@/app/api/delegations/[id]/members/route'
 import { POST as resolveIssue } from '@/app/api/guest-requirements/[id]/resolve/route'
 import { DELETE as removeGuest, GET as getProfile, PATCH as patchGuest } from '@/app/api/guests/[id]/route'
 import { POST as addGuest, GET as listGuests } from '@/app/api/guests/route'
+import { EVENT_DAY, addDays } from '@/tests/support/event-dates'
 import { type StaffMember, TestApp } from './support/test-app'
 
 vi.stubEnv('DATABASE_URL', 'pglite://memory')
@@ -32,9 +33,9 @@ const PICKUP_GUEST = {
   contact_phone: '+2348030000002',
   arrival_mode: 'pickup',
   pickup_address: 'Victoria Island, Lagos',
-  arrival_date: '2026-11-20',
+  arrival_date: EVENT_DAY,
   arrival_time: '16:30',
-  departure_date: '2026-11-22',
+  departure_date: addDays(EVENT_DAY, 2),
 }
 
 describe('guests API', () => {

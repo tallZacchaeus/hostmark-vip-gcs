@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { eventTime } from '@/tests/support/event-dates'
 import { useTestDb } from './support/use-test-db'
 
-const CHECK_IN = '2026-11-20T14:00:00Z'
-const CHECK_OUT = '2026-11-22T11:00:00Z'
+const CHECK_IN = eventTime(0, '14:00:00Z')
+const CHECK_OUT = eventTime(2, '11:00:00Z')
 
 describe('room allocation (P4 migration)', () => {
   const db = useTestDb()
@@ -59,10 +60,10 @@ describe('room allocation (P4 migration)', () => {
     const third = await db().value<string>(`insert into guests (delegation_id, member_role, full_name, share_group) values ($1, 'assistant', 'Aide', 'okafor') returning id`, [delegation])
     expect(await reason(third)).toBe('capacity')
     // After checkout the room is kept for cleaning (60 min + the 15 min buffer).
-    const later = (start: string) => db().value<string | null>('select private.room_unavailability($1, $2, $3, $4)', [room, third, start, '2026-11-23T11:00:00Z'])
+    const later = (start: string) => db().value<string | null>('select private.room_unavailability($1, $2, $3, $4)', [room, third, start, eventTime(3, '11:00:00Z')])
     await db().rows(`update guests set share_group = null where id = $1`, [third])
-    expect(await later('2026-11-22T12:00:00Z')).toBe('occupied')
-    expect(await later('2026-11-22T12:30:00Z')).toBeNull()
+    expect(await later(eventTime(2, '12:00:00Z'))).toBe('occupied')
+    expect(await later(eventTime(2, '12:30:00Z'))).toBeNull()
     expect(guest).toBeTruthy()
   })
 

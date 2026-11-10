@@ -1,17 +1,37 @@
 // Programme writes (FR-PG-01/02), as the signed-in user: row-level security lets only the programs
-// team and Admin write, and the database recomputes the at-risk flag after every change.
+// team and Admin write, and the database recomputes the at-risk flag after every change. An item must
+// start on an event day (in the event time zone), else the Programme screen would have no tab for it.
 import { sql } from 'kysely'
-import { Errors } from '@/lib/api/errors'
+import { ApiError, Errors } from '@/lib/api/errors'
 import type { Tx } from '@/lib/db/context'
 import type { ParticipantsInput, ProgramItemInput } from '@/lib/validation/programme'
 
 const toRow = (input: ProgramItemInput) => ({ ...input, description: input.description ?? null })
 
+const shortDay = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+const formatDay = (day: string): string => shortDay.format(new Date(`${day}T12:00:00Z`))
+
+/** Refuses a start outside the event days, naming them (as a field problem on `starts_at`). */
+async function assertOnEventDay(tx: Tx, startsAt: string): Promise<void> {
+  const { rows } = await sql<{ inside: boolean; starts_on: string; ends_on: string }>`
+    select (${startsAt}::timestamptz at time zone timezone)::date between starts_on and ends_on as inside, starts_on::text, ends_on::text
+    from public.events limit 1`.execute(tx)
+  const event = rows[0]
+  if (!event || event.inside) return
+  const message = `Pick one of the event days (${formatDay(event.starts_on)} to ${formatDay(event.ends_on)})`
+  throw new ApiError(400, 'validation_failed', 'Some fields are missing or invalid', [{ path: 'starts_at', message }])
+}
+
 export async function createProgramItem(tx: Tx, input: ProgramItemInput): Promise<{ id: string }> {
+  await assertOnEventDay(tx, input.starts_at)
   return tx.insertInto('program_items').values(toRow(input)).returning('id').executeTakeFirstOrThrow()
 }
 
+/** An item left outside by a change of event days can keep its start (to be edited or cancelled). */
 export async function updateProgramItem(tx: Tx, id: string, input: ProgramItemInput): Promise<{ id: string }> {
+  const current = await tx.selectFrom('program_items').select('starts_at').where('id', '=', id).executeTakeFirst()
+  if (!current) throw Errors.notFound('Programme item')
+  if (new Date(current.starts_at).getTime() !== Date.parse(input.starts_at)) await assertOnEventDay(tx, input.starts_at)
   const row = await tx.updateTable('program_items').set(toRow(input)).where('id', '=', id).returning('id').executeTakeFirst()
   if (!row) throw Errors.notFound('Programme item')
   return row

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { EVENT_DAY, addDays } from '@/tests/support/event-dates'
 import { useTestDb } from './support/use-test-db'
 
-const DAY = '2026-11-20'
+const DAY = EVENT_DAY
 
 describe('flights and transport (P3 migration)', () => {
   const db = useTestDb()
@@ -101,6 +102,8 @@ describe('flights and transport (P3 migration)', () => {
     const run = await db().value<string>(insert, ['running'])
     expect((await db().expectError(() => db().rows(insert, ['running']))).code).toBe('23505')
     expect((await db().expectError(() => db().rows('update simulation_runs set steps_applied = 5 where id = $1', [run]))).code).toBe('42501')
+    // What a run acts on is fixed when it starts.
+    expect((await db().expectError(() => db().rows(`update simulation_runs set room_ids = '{}', delegation_ids = '{}' where id = $1`, [run]))).code).toBe('42501')
     await db().rows(`update simulation_runs set status = 'stopped', stopped_at = now() where id = $1`, [run])
     expect(await db().value<string>('select status from simulation_runs where id = $1', [run])).toBe('stopped')
   })
@@ -139,7 +142,7 @@ describe('flights and transport (P3 migration)', () => {
     expect(moved).not.toHaveProperty('passengers')
     expect(moved).not.toHaveProperty('flight_number')
     expect(moved).not.toHaveProperty('pickup_location')
-    expect(await db().value('select public.my_driver_pickups($1::date)', ['2027-01-01'])).toEqual([])
+    expect(await db().value('select public.my_driver_pickups($1::date)', [addDays(DAY, 40)])).toEqual([])
   })
 
   it('keeps trip steps in order and refuses closed pickups', async () => {

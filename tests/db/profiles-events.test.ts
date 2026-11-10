@@ -163,6 +163,35 @@ describe('events', () => {
     expect(context).not.toHaveProperty('intake_token')
   })
 
+  it('lets admins set the coordination desk phone and every staff member read it from the context', async () => {
+    await db().createEvent()
+    const admin = await db().createProfile('admin')
+    const coordinator = await db().createProfile('coordinator')
+    const driver = await db().createProfile('driver')
+
+    await db().asUser(coordinator)
+    expect(await db().rows(`update events set coordinator_phone = '+2348035550142' returning id`)).toEqual([])
+
+    await db().asUser(admin)
+    const updated = await db().rows(`update events set coordinator_phone = '+2348035550142' returning coordinator_phone`)
+    expect(updated).toEqual([{ coordinator_phone: '+2348035550142' }])
+
+    await db().asUser(driver)
+    expect(await db().value<number>('select count(*)::int from events')).toBe(0)
+    const context = await db().value<Record<string, unknown>>('select public.get_event_context()')
+    expect(context).toMatchObject({ coordinator_phone: '+2348035550142' })
+    expect(context).not.toHaveProperty('intake_token')
+  })
+
+  it('keeps the coordination desk phone in international format', async () => {
+    const badPhone = await db().expectError(() => db().createEvent({ coordinator_phone: '0803 555 0142' }))
+    expect(badPhone.code).toBe('23514')
+
+    await db().createEvent()
+    await db().asUser(await db().createProfile('driver'))
+    expect(await db().value('select public.get_event_context() ->> \'coordinator_phone\'')).toBeNull()
+  })
+
   it('refuses the event context without a signed-in user', async () => {
     await db().createEvent()
     await db().asAnonymous()

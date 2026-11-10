@@ -84,6 +84,28 @@ describe('ProgrammeScreen', () => {
     expect(screen.getByRole('textbox', { name: /^Title/ })).toHaveValue('Welcome briefing')
   })
 
+  it('shows items left outside the event days under a note, and keeps their day when editing', async () => {
+    const stranded = programItem({ id: 'p-5', title: 'Farewell brunch', starts_at: '2026-10-31T09:00:00.000Z', ends_at: '2026-10-31T10:00:00.000Z' })
+    mockApi([
+      { path: '/api/programme/guests', body: [] },
+      { path: '/api/programme?day=2026-10-31', body: programmeView({ can_edit: true, day: '2026-10-31', outside_days: ['2026-10-31'], items: [stranded] }) },
+      { path: '/api/programme', body: programmeView({ can_edit: true, outside_days: ['2026-10-31'] }) },
+    ])
+    renderWithApp(<ProgrammeScreen />, sessionFor('programs'))
+    const user = userEvent.setup()
+
+    const note = await screen.findByRole('note', { name: 'Outside the event days' })
+    await user.click(within(note).getByRole('button', { name: /31 Oct/ }))
+    expect(await screen.findByText('Farewell brunch')).toBeInTheDocument()
+    expect(screen.getByText('This day is outside the event days. Move these items onto an event day, or cancel them.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Farewell brunch/ }))
+    await user.click(screen.getByRole('button', { name: 'Edit item' }))
+    const daySelect = within(screen.getByRole('dialog', { name: 'Edit programme item' })).getByRole('combobox', { name: 'Day' })
+    expect(daySelect).toHaveValue('2026-10-31')
+    expect(within(daySelect).getByRole('option', { name: /outside the event days/ })).toBeInTheDocument()
+  })
+
   it('tells coordinators when nothing is published for the day', async () => {
     mockApi([{ path: '/api/programme', body: programmeView({}) }])
     renderWithApp(<ProgrammeScreen />, sessionFor('coordinator'))

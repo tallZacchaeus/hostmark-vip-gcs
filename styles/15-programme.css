@@ -25,3 +25,5 @@
   .programme-layout { grid-template-columns: 1fr; }.programme-side { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 
+.programme-outside { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; padding: 8px 12px; border: 1px solid #f3d49c; border-radius: 12px; color: #8a4b08; background: #fff7ea; font-size: 13px; font-weight: 600; }.programme-outside button { min-height: 32px; padding: 0 10px; border: 1px solid #f3d49c; border-radius: 8px; color: #8a4b08; background: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }.programme-outside button.is-active { border-color: #d5440e; color: #17263b; }
+.programme-outside-notice { margin: 0; padding: 10px 20px; border-top: 1px solid #eef1f7; color: #8a4b08; background: #fff7ea; font-size: 13.5px; }

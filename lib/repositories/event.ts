@@ -15,6 +15,8 @@ export interface EventContext {
   readonly starts_on: string
   readonly ends_on: string
   readonly flight_mode: 'live' | 'simulated'
+  /** The coordination desk's phone (E.164), or null when not set. */
+  readonly coordinator_phone: string | null
 }
 
 export async function findEvent(tx: Tx): Promise<EventRow | undefined> {

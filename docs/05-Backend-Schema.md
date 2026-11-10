@@ -1,6 +1,6 @@
 # 05 — Backend Schema & API Surface
 
-**Status:** v2.4, 2026-10-21. **P1–P4 tables are built** (`db/migrations/20261016100000…100400`, `20261019100000_guests_intake.sql`, `20261020100000_flights_transport.sql`, `20261021100000_rooms_allocation.sql`) and covered by tests; tables for later phases are **planned** and marked as such. Update this file in the same change as any migration.
+**Status:** v2.5, 2026-11-10. **P1–P7 tables are built** (`db/migrations/20261016100000…100400`, `20261019100000_guests_intake.sql`, `20261020100000_flights_transport.sql`, `20261021100000_rooms_allocation.sql`, `20261027100000_turnaround_cleaning.sql`, `20261027110000_programme.sql`, `20261027120000_copilot.sql`) and covered by tests. 2026-11-10 follow-ups: `20261110100000_coordinator_phone.sql` (`events.coordinator_phone`, `get_event_context`), `20261110110000_programme_rechecks.sql` (lead-time trigger), `20261110120000_event_data_purge.sql` (export and purge) and `20261110130000_simulation_rooms.sql` (`simulation_runs.room_ids` / `delegation_ids`). Anything not built is marked as planned. Update this file in the same change as any migration.
 
 **Database:** PostgreSQL 18, self-hosted on the droplet (see [`02-TRD.md`](02-TRD.md) §5). Extensions: `btree_gist` (P1), `pg_trgm` (P2, duplicate detection).
 
@@ -112,6 +112,7 @@ erDiagram
 | program_lead_time_min | int default 30 | 0–240 |
 | flight_mode | text (`live`, `simulated`) default `simulated` | Only a Super Admin may change it (trigger) |
 | auto_process_enabled | boolean default true | Kill switch for intake auto-processing |
+| coordinator_phone | text, nullable | ✅ 2026-11-10. The coordination desk's phone, E.164 (`^\+[1-9][0-9]{6,14}$`). Admin sets it in Settings → System (typed loosely, normalised by the API; blank clears it). Drivers read it through `get_event_context()` / `GET /api/driver/pickups` for "Call coordinator" |
 | created_at, updated_at | timestamptz | |
 
 **`profiles`**: staff accounts. This is Better Auth's `user` model (field mapping in `lib/auth/auth.ts`).
@@ -270,13 +271,13 @@ Written only through the functions in §5. The "needed by" time (next planned ar
 
 **`program_participants`** (audited): id, program_item_id (cascade), guest_id (cascade), role `program_role`; unique (item, guest).
 
-Triggers keep `at_risk` current (FR-PG-03): after an item's insert or change of time/status, after any participant change, after an arrival's expected/stated/pickup time or status changes (the flight cascade, a manual landing time), and after a guest's status or arrival changes. When a **published** item becomes at risk (or is published while at risk) the programs team and coordinators get `program_at_risk` ("Welcome briefing at risk: Bishop Augustine Okafor expected 16:55"); the flag clears by itself.
+Triggers keep `at_risk` current (FR-PG-03): after an item's insert or change of time/status, after any participant change, after an arrival's expected/stated/pickup time or status changes (the flight cascade, a manual landing time), after a guest's status or arrival changes, and (✅ 2026-11-10, `program_lead_time_changed` on `events`) after `events.program_lead_time_min` changes, which re-checks every item of the event in id order. When a **published** item becomes at risk (or is published while at risk) the programs team and coordinators get `program_at_risk` ("Welcome briefing at risk: Bishop Augustine Okafor expected 16:55"); the flag clears by itself. Since 2026-11-10 the API refuses a new item, or a changed start, outside the event days (checked in `lib/services/programme.ts`, not by a constraint); items left outside by a later change of event dates stay and are listed under `outside_days`.
 
 ### 3.8 Co-Pilot, simulation, ops — simulation and ops ✅ built (P3), Co-Pilot ✅ built (P7)
 
 **`copilot_exchanges`** ✅ (P7, migration `20261027120000_copilot.sql`; replaces the planned `copilot_conversations` + `copilot_messages`, one row per question): id, event_id, user_id (default the signed-in user), conversation_id (one per drawer opening), question (≤ 2000), input_mode (`text`, `voice`), transcript_original (the recognizer's words before editing, voice only, ≤ 2000), engine (`rules`; a model name when an LLM engine is added), intent (the tool chosen), tools jsonb (`[{ name, args }]`), answer (≤ 8000), citations jsonb, proposal_id (FK → proposals, set null), latency_ms, created_at. RLS: each user reads their own rows, Admin reads all; coordinator+ insert their own (column grant; `user_id` cannot be forged). Not audited (it is itself the log, FR-CP-06).
 
-**`simulation_runs`** ✅ (P3): id, event_id, scenario_key (scenarios are versioned with the code in `lib/domain/simulation/scenarios.ts`; the planned `simulation_scenarios` table is not needed), status (`running`, `stopped`, `completed`; one running run per event), speed (1–3600 virtual seconds per real second), flight_ids (≤ 10; the flights the steps act on, fixed at start), virtual_start, real_start, steps_applied, started_by, stopped_at. Coordinators insert (`running` only) and may change only `status` and `stopped_at`; the worker advances `steps_applied`.
+**`simulation_runs`** ✅ (P3): id, event_id, scenario_key (scenarios are versioned with the code in `lib/domain/simulation/scenarios.ts`; the planned `simulation_scenarios` table is not needed), status (`running`, `stopped`, `completed`; one running run per event), speed (1–3600 virtual seconds per real second), flight_ids (≤ 10; the flights the steps act on, fixed at start), room_ids and delegation_ids (✅ 2026-11-10, uuid[] default `{}`, ≤ 10 each; the rooms and delegations room scenarios act on, fixed at start), virtual_start, real_start, steps_applied, started_by, stopped_at. Coordinators insert (`running` only, the new columns included) and may change only `status` and `stopped_at`; the worker advances `steps_applied`.
 
 **`provider_usage_daily`** ✅ (P3): (day, provider) PK, calls. Live flight-status calls per UTC day; coordinator+ read.
 
@@ -300,7 +301,7 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 
 | Function | Who | Does | Status |
 |---|---|---|---|
-| `public.get_event_context()` | any signed-in staff | Safe event fields (name, venue, timezone, dates, flight mode) without the intake token | ✅ |
+| `public.get_event_context()` | any signed-in staff | Safe event fields (name, venue, timezone, dates, flight mode and, since 2026-11-10, `coordinator_phone`) without the intake token | ✅ |
 | `public.regenerate_intake_token()` | admin+ | New intake token; old link stops working | ✅ |
 | `public.complete_password_change()` | the signed-in user | Clears `must_change_password` after a Better Auth password change | ✅ |
 | `public.reorder_vip_categories(ids)` | coordinator+ | Sets every category's rank in one step | ✅ |
@@ -330,6 +331,10 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 | `private.execute_copilot_action(proposal)` · `approve_proposal` | via approval | Approving a Co-Pilot note adds it to the guest as a coordinator note (`guest_requirements`, category `other`); fails `guest_gone` / `invalid_payload`. Room and driver proposals from the Co-Pilot run through the P3/P4 executors, which re-check every rule | ✅ P7 |
 | `private.refresh_program_risk(item, publishing)` | definer (triggers) | Recomputes `at_risk`; notifies `program_at_risk` when a published item becomes at risk or is published at risk | ✅ P6 |
 | `public.notify_program_risk(item)` | coordinator+, programs | Marks `risk_notified_at/by` and sends the programs team `program_risk_flagged`; 409 `not_at_risk` | ✅ P6 |
+| `private.program_lead_time_changed()` | definer (trigger on `events`) | When `program_lead_time_min` changes, runs `refresh_program_risk` for every item, in id order (same alerts and clearing as above) | ✅ 2026-11-10 |
+| `public.export_event_data()` | super_admin (definer) | The event's operational data as one JSON document: event (without `intake_token`), VIP categories, room types, rooms, drivers (without `phone`), delegations, guests, requirements, flights (without `last_payload`), arrivals, pickups, pickup and room assignments, programme items and participants, cleaning tasks. Never accounts, sessions, auth tables, submissions, Co-Pilot logs or notifications. Writes one `event.export` audit entry with the row counts; 42501 `forbidden` for anyone else, P0002 `event_not_found` | ✅ 2026-11-10 |
+| `public.purge_guest_data(confirmation)` | super_admin (definer) | Post-event removal of guest personal data. Refused until the event's last day is over in the event time zone (55000 `event_not_ended`; no exception for simulated mode) and unless `confirmation` equals the event name, ignoring case and outer spaces (22023 `confirmation_mismatch`). Guest and delegation names become pseudonyms ("Guest 1a2b3c4d", "Delegation 5e6f7a8b"); contact details, title, organisation, position, dietary, accessibility, notes, requirement text, submission payloads and readings, pickup addresses, proposal decision notes and Co-Pilot questions, answers, transcripts and citations are removed. Known names and addresses in the free text that stays (notification and proposal titles, override reasons, programme text, cleaning notes, audit reasons) are replaced, and e-mail addresses and phone numbers removed. Counts, times, rooms, flights, statuses and ids stay, so evaluation figures reproduce. Audit: the purge's own row entries are deleted in the same transaction and earlier guest-data entries are anonymised the same way; entries for accounts, the event and the undoable venue tables are untouched. One `event.purge` entry records the counts, which are also returned | ✅ 2026-11-10 |
+| `private.purge_redact_text` · `purge_redact_jsonb` · `purge_overlay` · `purge_scrub_row` · `purge_replacements` · `export_rows` · `lock_event_for_super_admin` | helpers | The purge and export rules above (names to replace, longest first; per-table scrubbing for live rows and audit values alike; column length caps); `lock_event_for_super_admin` checks the role and locks the event row | ✅ 2026-11-10 |
 | `public.cleaning_queue(since)` | housekeeping, accommodation, coordinator+ (definer) | Open tasks plus tasks done since `since`: room number, floor, wing, type, times, cleaning minutes, buffer, needed by, problem, `undoable`. **No guest data** | ✅ P5 |
 | `public.report_cleaning_problem(task, kind, note)` | housekeeping, coordinator+ | Stores the problem on the task and notifies coordinators (`cleaning_problem`) | ✅ P5 |
 | `public.set_trip_status(id, status)` | driver | `en_route` → `picked_up` → `completed` on the driver's own active trip (409 `not_active`, `not_picked_up`); completing marks the arrival, guests and delegation arrived | ✅ P3 |
@@ -400,6 +405,8 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 
 Work done for a signed-in coordinator outside RLS (a manual landing time, "Check now", "Suggest a driver") runs as vip_system with `app.user_id` set to that coordinator (`withSystem({ onBehalfOf })`), so the activity log names them.
 
+**2026-11-10 rows:** `vip_app` may insert and update `events.coordinator_phone` (column grant; RLS still limits event writes to admin+). `export_event_data` and `purge_guest_data` are granted to `vip_app` but check for an active Super Admin themselves; nobody else can run them. The new `simulation_runs` columns follow the P3 row above.
+
 Column-level grants add to this: the API cannot write `events.intake_token`, `profiles.email`, `notifications` columns other than `read_at`, or a submission's `payload`, `source`, `client_ip_hash` and `submitted_at`. Public registrations are written by vip_system with the audit actor `guest_intake`. Planned tables follow the matrix in the PRD (e.g. housekeeping never sees guest names; drivers see only their own pickups).
 
 Tests: `tests/db/*.test.ts` check each cell above as the relevant role.
@@ -420,14 +427,14 @@ Tests: `tests/db/*.test.ts` check each cell above as the relevant role.
 | GET | `/api/internal/worker-tick` (`?poll=1`) | scheduler: `Authorization: Bearer <CRON_SECRET>`; 404 when `CRON_SECRET` is unset | One background-worker pass where no process stays running (Vercel; called by Supabase `pg_cron`, `02` §5.2). `?poll=1` also checks flights and makes driver and room suggestions. Returns `{ ran, report }`; `ran: false` when another process holds the worker lease |
 | GET | `/api/me` | any (also with a pending password change) | User, role, home route, event context |
 | POST | `/api/account/password` | any (also pending) | `{ current_password, new_password }`; signs out other sessions; returns a new token |
-| GET / POST / PATCH | `/api/admin/event` | GET coordinator+; POST/PATCH admin+ | Event settings; POST is first-time setup |
+| GET / POST / PATCH | `/api/admin/event` | GET coordinator+; POST/PATCH admin+ | Event settings; POST is first-time setup. `coordinator_phone` (2026-11-10): loose input such as "0803 555 0142" is stored as E.164; blank or null clears it |
 | POST | `/api/admin/event/intake-token` | admin+ | Regenerate the intake link token |
 | GET / POST | `/api/admin/users` | admin+ | List (`?role=&active=&search=`) / create (returns the temporary password once) |
 | GET / PATCH | `/api/admin/users/[id]` | admin+ | Read / update `full_name`, `phone`, `role`, `active`, `deactivation_reason` |
 | POST | `/api/admin/users/[id]/reset-password` | admin+ | New temporary password; signs the account out |
 | GET / POST | `/api/admin/room-types` · GET / PATCH / DELETE `/[id]` | read: coordinator+, accommodation, housekeeping; write: admin+ | Room types |
-| GET / POST | `/api/admin/rooms` · GET / PATCH / DELETE `/[id]` | same | Rooms (`?floor=&wing=&room_type_id=`) |
-| POST | `/api/admin/rooms/import` | admin+ | CSV body (`text/csv`, ≤ 2 MB); `?dry_run=true` previews; all-or-nothing upsert by room number |
+| GET / POST | `/api/admin/rooms` · GET / PATCH / DELETE `/[id]` | same | Rooms (`?floor=&wing=&room_type_id=`). Since 2026-11-10 a PATCH that takes a room out of service also re-plans its stays (as vip_system on the admin's behalf): a planned stay gets a move proposal, a checked-in guest or a stay with no room that fits an alert to coordinators |
+| POST | `/api/admin/rooms/import` | admin+ | CSV body (`text/csv`, ≤ 2 MB); `?dry_run=true` previews; all-or-nothing upsert by room number. A real import re-plans the stays of rooms it takes out of service, as the PATCH above (2026-11-10) |
 | GET / POST | `/api/admin/drivers` · GET / PATCH / DELETE `/[id]` | read: coordinator+, driver (own); write: admin+ | Drivers (`?active=`) |
 | GET / POST | `/api/admin/driver-shifts` · GET / PATCH / DELETE `/[id]` | same | Shifts (`?driver_id=&from=&to=` overlap window) |
 | GET / POST | `/api/admin/vip-categories` · GET / PATCH / DELETE `/[id]` | read: coordinator+, programs; write: coordinator+ | VIP categories |
@@ -438,7 +445,7 @@ Tests: `tests/db/*.test.ts` check each cell above as the relevant role.
 | POST | `/api/notifications/read` | any | `{ ids? }`; omit to mark all read |
 | GET | `/api/notifications/stream` | any | Server-Sent Events (§8); max 5 open streams per account |
 | GET | `/api/decisions` | coordinator+ | Pending proposals, soonest-expiring first |
-| GET | `/api/dashboard/summary` | coordinator+ | Dashboard counters: rooms by readiness, open decisions (each phase adds its counters) |
+| GET | `/api/dashboard/summary` | coordinator+ | Dashboard counters: rooms by readiness, open decisions (each phase adds its counters; see below) |
 | POST | `/api/proposals/[id]/approve` · `/reject` | coordinator+ | `{ line_ids? }` / `{ note? }` |
 
 ### Built (P2)
@@ -452,7 +459,7 @@ Tests: `tests/db/*.test.ts` check each cell above as the relevant role.
 | GET / POST | `/api/intake/submissions` | coordinator+ (POST 10/min) | Queue (`?tab=review|duplicates|missing|flagged|processed|rejected&search=&source=`) with `tabs` counts and the registration `link`; POST `{ text }` saves a pasted message as a draft |
 | GET / PATCH | `/api/intake/submissions/[id]` | coordinator+ | Detail with the matched delegation for comparison; PATCH `{ fields }` saves corrections and re-checks |
 | POST | `/api/intake/submissions/[id]/approve` | coordinator+ | `{ fields?, vip_category_id? }` → records; 400 `intake_incomplete` with the field problems; 409 `already_reviewed` |
-| POST | `/api/intake/submissions/[id]/link` · `/reject` | coordinator+ | `{ delegation_id, note? }` / `{ note? }` |
+| POST | `/api/intake/submissions/[id]/link` · `/reject` | coordinator+ | `{ delegation_id, note?, apply? }` / `{ note? }`. `apply` (2026-11-10, F3): any of `contact`, `dietary`, `companions`; copies changed contact details, new dietary needs (added to the principal's) and extra companions onto the delegation; nothing is removed and arrival details are never copied. Returns `{ delegation_id, principal_guest_id, applied }` (`applied` lists what actually changed) |
 | POST | `/api/intake/submissions/[id]/undo` | coordinator+ | Undo automatic processing; 409 `not_auto_processed` |
 | GET / POST | `/api/guests` | GET coordinator+, programs, accommodation; POST coordinator+ | One row per delegation (`?tab=all|today|attention|arrived&search=&category_id=`) with `tabs` and `totals`; POST `{ fields, vip_category_id?, allow_duplicate? }` adds a guest by hand (409 `possible_duplicate`) |
 | GET / PATCH / DELETE | `/api/guests/[id]` | GET as above; PATCH/DELETE coordinator+ | Profile (a delegation id resolves to its principal); PATCH with `version` (409 `stale_version`); DELETE removes a companion (409 `cannot_remove_principal`) |
@@ -470,14 +477,14 @@ Tests: `tests/db/*.test.ts` check each cell above as the relevant role.
 | POST | `/api/flights/[id]/refresh` | coordinator+ | Ask the event's provider now (counts towards the daily limit: 429 `quota_reached`; 409 `no_provider` in live mode without a key) → `{ changed, proposal_ids }` |
 | POST | `/api/flights/[id]/override` | coordinator+ | `{ manual_arrival_at: ISO with offset \| null }` → cascade → `{ changed, proposal_ids }` |
 | POST | `/api/pickups/[id]/suggest` | coordinator+ | Matcher suggestion as a proposal → `{ proposal_id }` or `{ reason: 'no_driver_free' \| 'already_covered' }`; 409 `pickup_closed` |
-| GET | `/api/driver/pickups` | driver | Own trips for `?day=` (default today) |
+| GET | `/api/driver/pickups` | driver | Own trips for `?day=` (default today), with `coordinator_phone` (null when unset; 2026-11-10) |
 | POST | `/api/driver/assignments/[id]/status` · `/acknowledge` | driver | `{ status: 'en_route' \| 'picked_up' \| 'completed' }` / Got it |
-| GET | `/api/simulation/options` | coordinator+ | Scenarios, upcoming flights and active drivers for the what-if form, flight mode |
-| GET / POST | `/api/simulation/runs` | coordinator+ | Recent runs / start `{ scenario_key, speed }` (409 `not_simulated`, `not_enough_flights`, `already_exists` while one runs) |
+| GET | `/api/simulation/options` | coordinator+ | Scenarios (7 since 2026-11-10), upcoming flights, active drivers and `rooms` (in service, with planned or checked-in guests; 2026-11-10) for the what-if form, flight mode |
+| GET / POST | `/api/simulation/runs` | coordinator+ | Recent runs / start `{ scenario_key, speed }` (409 `not_simulated`, `not_enough_flights`, `not_enough_rooms`, `not_enough_delegations`, `already_exists` while one runs) |
 | POST | `/api/simulation/runs/[id]/stop` | coordinator+ | 409 `not_running` |
-| POST | `/api/simulation/what-if` | coordinator+ | `{ kind: 'flight_delay', flight_id, minutes }` or `{ kind: 'driver_unavailable', driver_id, from? }` → `{ headline, decisions, lines }`; writes nothing |
+| POST | `/api/simulation/what-if` | coordinator+ | `{ kind: 'flight_delay', flight_id, minutes }`, `{ kind: 'driver_unavailable', driver_id, from? }` or (2026-11-10) `{ kind: 'room_out_of_service', room_id }` → `{ headline, decisions, lines }`; writes nothing |
 
-The background worker (in-process by default, or `pnpm worker`) polls flights, advances simulation runs and suggests drivers; no `/api/jobs/*` routes are needed.
+The background worker (in-process by default, or `pnpm worker`) polls flights, advances simulation runs and suggests drivers; no `/api/jobs/*` routes are needed. Since 2026-11-10 a repeated "no driver free" `transport_alert` is not sent again while an unread copy of the same alert about the same record exists (`notifyCoordinatorsOnce`).
 
 ### Built (P4)
 
@@ -500,17 +507,17 @@ The background worker (in-process by default, or `pnpm worker`) polls flights, a
 | POST | `/api/front-desk/[id]/check-out` | accommodation, coordinator+ | `id` = delegation; see `check_out_party` → `{ delegation_id, rooms }` |
 | GET | `/api/cleaning` | housekeeping, accommodation, coordinator+ | `{ day, timezone, summary: { not_started, in_progress, done_today }, queue, done }`; queue items in working order (in progress first, then soonest next guests, then earliest ready) with `priority`, live `ready_by`, `late_by_min`, `needed_by`, problem; no guest data |
 | POST | `/api/cleaning/[id]/start` · `/complete` · `/undo-complete` | housekeeping, coordinator+ | `id` = cleaning task; see the functions |
-| POST | `/api/cleaning/[id]/report` | housekeeping, coordinator+ | `{ kind: maintenance \| supplies \| other, note? ≤ 500 }` |
+| POST | `/api/cleaning/[id]/report` | housekeeping, coordinator+, 5/min per person (2026-11-10) | `{ kind: maintenance \| supplies \| other, note? ≤ 500 }` |
 | POST | `/api/cleaning/[id]/reverse-checkout` | coordinator+ | See `reverse_checkout` → `{ task_id, room_number, restored }` |
 
 ### Built (P6)
 
 | Method | Path | Who | Purpose |
 |---|---|---|---|
-| GET | `/api/programme` | coordinator+, programs | `?day=` (default today, else the first event day): `{ day, days, timezone, lead_time_min, can_edit, at_risk_count, venues, items }`; each item has `state` (`track`, `risk`, `done`, `cancelled`) and participants with `expected_at`, `arrived`, `late` |
+| GET | `/api/programme` | coordinator+, programs | `?day=` (default today, else the first event day): `{ day, days, outside_days, timezone, lead_time_min, can_edit, at_risk_count, venues, items }` (`outside_days`, 2026-11-10: days with items outside the event days, after the dates changed); each item has `state` (`track`, `risk`, `done`, `cancelled`) and participants with `expected_at`, `arrived`, `late` |
 | GET | `/api/programme/guests` | programs, admin+ | Guests to choose participants from (not cancelled): id, name, delegation, category |
-| POST | `/api/program-items` | programs, admin+ | `{ title, kind, starts_at, ends_at, location, description?, status }` → 201 `{ id }` |
-| PATCH · DELETE | `/api/program-items/[id]` | programs, admin+ | Same body as POST (publishing and cancelling are status changes) |
+| POST | `/api/program-items` | programs, admin+ | `{ title, kind, starts_at, ends_at, location, description?, status }` → 201 `{ id }`; 400 `validation_failed` on `starts_at` when it is not on an event day (2026-11-10) |
+| PATCH · DELETE | `/api/program-items/[id]` | programs, admin+ | Same body as POST (publishing and cancelling are status changes); a changed start must be on an event day, an unchanged one may stay outside |
 | PUT | `/api/program-items/[id]/participants` | programs, admin+ | `{ participants: [{ guest_id, role }] }` (≤ 100, each guest once) replaces the list |
 | POST | `/api/program-items/[id]/notify` | coordinator+, programs | See `notify_program_risk` |
 
@@ -520,6 +527,19 @@ The background worker (in-process by default, or `pnpm worker`) polls flights, a
 |---|---|---|---|
 | POST | `/api/copilot/chat` | coordinator+ | `{ message (1–2000), conversation_id?, input_mode? ('text' \| 'voice'), transcript_original? }` → `{ conversation_id, intent, answer, citations: [{ label, href }], proposal: { id, title, summary } \| null, latency_ms }`. One typed tool per question, run as the user (RLS); write tools only create proposals; every exchange is logged |
 
+### Built (2026-11-10, P8)
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| POST | `/api/admin/data/export` | super_admin, 5/min (POST so the cross-site origin check applies) | `export_event_data()` as a JSON download (`Content-Disposition: attachment; filename="<event-slug>-export-<date>.json"`, `Cache-Control: no-store`) |
+| POST | `/api/admin/data/purge` | super_admin, 5/min | `{ confirmation }` (the event name) → `purge_guest_data`; returns the rows anonymised per table; 409 `event_not_ended`, 400 `confirmation_mismatch` |
+
+Purge redaction (free text is best effort): only string values under a fixed list of free-text keys (`private.purge_is_free_text`: titles, names, notes, reasons, locations and similar) are rewritten; ids, timestamps, enums and numbers are never touched. Whole recorded names (guests, delegations, contacts), name parts of 3+ letters, pickup addresses, e-mail addresses and phone numbers of 7+ digits are replaced, whole-word only. `guests.share_group` is replaced by a hash (shared rooms still group), the drop-off location is kept, and the purge runs with a 120 s statement timeout.
+
+`GET /api/dashboard/summary` also returns `programme_at_risk` (2026-11-10): today's published programme items at risk, each `{ id, title, starts_at, location, late: [{ guest_id, name, expected_at }] }`, read through the same code as `GET /api/programme`; empty before the event is set up and on days outside it.
+
+Every page response (not `/api`) carries a `Content-Security-Policy` with a per-request nonce, set in `proxy.ts` (`02` §7).
+
 ### Planned
 
 | Method | Path | Phase |
@@ -527,7 +547,6 @@ The background worker (in-process by default, or `pnpm worker`) polls flights, a
 | POST | `/api/delegations/[id]/split-arrival` | later (not needed by P3) |
 | POST | `/api/webhooks/flights` (optional AeroDataBox push) | P8 if adopted |
 | POST | `/api/copilot/transcribe` (Deepgram Nova-3 with keyterms) | when a Deepgram key is issued; the drawer uses the browser's speech recognition meanwhile |
-| PATCH | `/api/admin/system` (data export/purge) | P8 |
 
 ## 8. Realtime
 

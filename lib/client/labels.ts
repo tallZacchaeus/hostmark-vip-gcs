@@ -1,4 +1,5 @@
 // Human labels and deep links shared by the console and staff screens.
+import { PAGE_KEYS, PAGE_PATHS, canOpenPage } from '@/lib/auth/page-access'
 import type { AppRole } from '@/lib/auth/roles'
 
 export const ROLE_LABELS: Readonly<Record<AppRole, string>> = {
@@ -28,11 +29,28 @@ const STAFF_LINKS: Partial<Record<AppRole, Readonly<Record<string, string>>>> = 
   accommodation: { room_assignments: '/staff/front-desk', guests: '/staff/front-desk', rooms: '/staff/front-desk' },
 }
 
-/** Where a notification about `entityType` should take this role (03-App-Flow.md "Deep links"). */
+/** True when `href` leads to a screen this role may open (the longest matching page path wins). */
+function canFollow(role: AppRole, href: string): boolean {
+  const path = href.split(/[?#]/)[0] ?? href
+  const page = PAGE_KEYS.filter((key) => path === PAGE_PATHS[key] || path.startsWith(`${PAGE_PATHS[key]}/`)).sort(
+    (a, b) => PAGE_PATHS[b].length - PAGE_PATHS[a].length,
+  )[0]
+  return page !== undefined && canOpenPage(role, page)
+}
+
+/**
+ * Where a notification about `entityType` should take this role (03-App-Flow.md "Deep links"), or
+ * null when the role has no screen for it (the notification is then read in place).
+ */
 export function entityHref(role: AppRole, entityType: string | null, entityId: string | null): string | null {
   if (!entityType) return null
   const staff = STAFF_LINKS[role]?.[entityType]
   if (staff) return staff
+  const href = consoleHref(entityType, entityId)
+  return href && canFollow(role, href) ? href : null
+}
+
+function consoleHref(entityType: string, entityId: string | null): string | null {
   switch (entityType) {
     case 'proposals':
       return '/dashboard#approvals'

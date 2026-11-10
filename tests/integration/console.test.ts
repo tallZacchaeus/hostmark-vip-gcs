@@ -10,6 +10,7 @@ interface Summary {
   arrivals_today: { total: number; flying: number; by_road: number }
   pickups_today: { total: number; needs_driver: number }
   intake_to_review: number
+  programme_at_risk: unknown[]
 }
 
 describe('console API: dashboard summary and activity filters', () => {
@@ -57,6 +58,7 @@ describe('console API: dashboard summary and activity filters', () => {
       arrivals_today: { total: 0, flying: 0, by_road: 0 },
       pickups_today: { total: 0, needs_driver: 0 },
       intake_to_review: 0,
+      programme_at_risk: [],
     })
   })
 

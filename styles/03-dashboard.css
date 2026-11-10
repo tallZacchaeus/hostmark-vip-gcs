@@ -143,6 +143,19 @@
 .glance-icon--orange { color: #c84a17; background: #fff0e9; }.glance-icon--amber { color: #a84f08; background: #fff1da; }.glance-icon--blue { color: #2456b3; background: #e8f0ff; }.glance-icon--teal { color: #0c6e7c; background: #e3f2fb; }
 .glance-card > button > span:nth-child(2) { color: #35445a; font-size: 10px; font-weight: 600; }
 .glance-card > button > b { color: #e45a20; font-size: 12px; text-align: center; }
+.glance-icon--green { color: #146c36; background: #e4f6ec; }
+/* Programme at risk rows: one link per item, status as text ("At risk") as well as colour. */
+.glance-risk { min-height: 64px; display: grid; grid-template-columns: 34px minmax(0, 1fr) 16px; gap: 8px; align-items: center; margin: 0 19px; padding: 10px 0; border-bottom: 1px solid #edf0f5; color: inherit; text-decoration: none; }
+.glance-risk:last-child { border: 0; }
+.glance-risk:hover > .icon { transform: translateX(2px); }
+.glance-risk:focus-visible { outline: 2px solid #e45a20; outline-offset: 2px; border-radius: 8px; }
+.glance-risk-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.glance-risk-heading { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.glance-risk-heading > b { overflow: hidden; color: #1b2a40; font-size: 11px; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.glance-risk-copy small { overflow: hidden; color: #667287; font-size: 9px; line-height: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.glance-risk-copy time { color: #35445a; font-weight: 700; font-variant-numeric: tabular-nums; }
+.glance-clear { display: flex; align-items: center; gap: 10px; padding: 16px 19px; }
+.glance-clear b { color: #16243a; font-size: 11px; }.glance-clear p { margin: 2px 0 0; color: #626d80; font-size: 9px; }
 .activity-row-v4 { min-height: 75px; display: grid; grid-template-columns: 34px 1fr 35px; gap: 9px; align-items: center; margin: 0 18px; border-bottom: 1px solid #edf0f5; }
 .activity-row-v4:last-child { border: 0; }
 .activity-icon-v4 { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; color: #2456b3; background: #e8f0ff; }

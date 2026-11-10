@@ -9,13 +9,25 @@ import { getSystemDb, withSystem } from '@/lib/db/system'
 import type { FlightSnapshot } from '@/lib/flights/provider'
 import type { ProgrammeGuest, ProgrammeView } from '@/lib/repositories/programme'
 import { ingestFlightUpdate } from '@/lib/services/flights/ingest'
-import { EVENT_DAY, type FlightParty, addFlightParty } from './support/transport-fixture'
+import { type FlightParty, addFlightParty } from './support/transport-fixture'
 import { type StaffMember, TestApp } from './support/test-app'
 
 vi.stubEnv('DATABASE_URL', 'pglite://memory')
 vi.stubEnv('SERVICE_DATABASE_URL', 'pglite://memory')
 vi.stubEnv('BETTER_AUTH_SECRET', 'integration-test-secret-'.padEnd(48, 'x'))
 vi.stubEnv('BETTER_AUTH_URL', 'http://localhost:3000')
+
+// Event days are relative to the real date: Postgres's own now() (used by the risk check) stays
+// earlier than the event, so its items count as upcoming whenever the suite runs.
+const DAY_MS = 86_400_000
+const dayAhead = (days: number): string => new Date(Date.now() + days * DAY_MS).toISOString().slice(0, 10)
+const DAY_BEFORE = dayAhead(1)
+const EVENT_DAY = dayAhead(2)
+const SECOND_DAY = dayAhead(3)
+const THIRD_DAY = dayAhead(4)
+const LAST_DAY = dayAhead(5)
+const DAY_AFTER = dayAhead(6)
+const shortDay = (day: string): string => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${day}T12:00:00Z`))
 
 const LANDS = `${EVENT_DAY}T12:00:00Z`
 const briefing = {
@@ -46,9 +58,11 @@ describe('programme: editing, the published timeline and at-risk items', () => {
   beforeAll(async () => {
     app = await TestApp.start()
     await app.createEvent()
+    await app.sql(`update events set starts_on = $1, ends_on = $2`, [EVENT_DAY, LAST_DAY])
     programs = await app.createStaff('programs')
     coordinator = await app.createStaff('coordinator')
     party = await addFlightParty(app, { delegation: 'Okafor', flight_number: 'EK783', scheduled_arrival_at: LANDS, passengers: 1 })
+    await app.sql(`update flights set arrival_date_local = $1 where id = $2`, [EVENT_DAY, party.flight_id])
   })
   afterAll(async () => {
     await app.stop()
@@ -109,6 +123,42 @@ describe('programme: editing, the published timeline and at-risk items', () => {
     expect(cleared.at_risk_count).toBe(0)
     expect(cleared.items[0]).toMatchObject({ state: 'track', at_risk: false })
     expect((await app.call(notifyTeam, '/api/program-items/x/notify', { as: coordinator, params: { id: itemId }, body: {} })).body.error).toMatchObject({ code: 'not_at_risk' })
+  })
+
+  it('refuses items that start outside the event days (in the event time zone)', async () => {
+    // The event runs EVENT_DAY to LAST_DAY in Africa/Lagos (UTC+1).
+    const late = await app.call(createItem, '/api/program-items', { as: programs, body: { ...briefing, starts_at: `${LAST_DAY}T23:30:00Z`, ends_at: `${DAY_AFTER}T00:30:00Z` } })
+    expect(late.status).toBe(400)
+    expect(late.body.error).toMatchObject({ code: 'validation_failed', details: [{ path: 'starts_at', message: `Pick one of the event days (${shortDay(EVENT_DAY)} to ${shortDay(LAST_DAY)})` }] })
+
+    const early = await app.call<{ id: string }>(createItem, '/api/program-items', { as: programs, body: { ...briefing, starts_at: `${DAY_BEFORE}T23:30:00Z`, ends_at: `${EVENT_DAY}T00:30:00Z` } })
+    expect(early.status).toBe(201)
+    const moved = await app.call(patchItem, '/api/program-items/x', { method: 'PATCH', as: programs, params: { id: early.body.data.id }, body: { ...briefing, starts_at: `${DAY_BEFORE}T12:00:00Z`, ends_at: `${DAY_BEFORE}T13:00:00Z` } })
+    expect(moved.status).toBe(400)
+    await app.call(deleteItem, '/api/program-items/x', { method: 'DELETE', as: programs, params: { id: early.body.data.id } })
+  })
+
+  it('still shows items left outside when the event days change, and lets editors fix or cancel them', async () => {
+    const lastDay = { ...briefing, starts_at: `${LAST_DAY}T10:00:00Z`, ends_at: `${LAST_DAY}T11:00:00Z`, status: 'published' }
+    const created = await app.call<{ id: string }>(createItem, '/api/program-items', { as: programs, body: lastDay })
+    expect(created.status).toBe(201)
+    await app.sql(`update events set ends_on = $1`, [THIRD_DAY])
+    try {
+      const today = await view(coordinator)
+      expect(today).toMatchObject({ days: [EVENT_DAY, SECOND_DAY, THIRD_DAY], outside_days: [LAST_DAY] })
+      const outside = (await app.call<ProgrammeView>(programme, `/api/programme?day=${LAST_DAY}`, { as: coordinator })).body.data
+      expect(outside.items).toEqual([expect.objectContaining({ id: created.body.data.id })])
+
+      // Same start: allowed (e.g. to cancel it). A new start must be on an event day.
+      const params = { id: created.body.data.id }
+      expect((await app.call(patchItem, '/api/program-items/x', { method: 'PATCH', as: programs, params, body: { ...lastDay, status: 'cancelled' } })).status).toBe(200)
+      expect((await app.call(patchItem, '/api/program-items/x', { method: 'PATCH', as: programs, params, body: { ...lastDay, starts_at: `${LAST_DAY}T12:00:00Z`, ends_at: `${LAST_DAY}T13:00:00Z` } })).status).toBe(400)
+      expect((await app.call(patchItem, '/api/program-items/x', { method: 'PATCH', as: programs, params, body: { ...lastDay, starts_at: `${THIRD_DAY}T10:00:00Z`, ends_at: `${THIRD_DAY}T11:00:00Z` } })).status).toBe(200)
+      expect((await view(coordinator)).outside_days).toEqual([])
+    } finally {
+      await app.sql(`update events set ends_on = $1`, [LAST_DAY])
+      await app.call(deleteItem, '/api/program-items/x', { method: 'DELETE', as: programs, params: { id: created.body.data.id } })
+    }
   })
 
   it('lets editors delete an item', async () => {

@@ -10,6 +10,7 @@ import type { AppRole } from '@/lib/auth/roles'
 import { setDatabaseForTesting } from '@/lib/db/client'
 import type { DB } from '@/lib/db/types'
 import { resetNotificationHubForTesting } from '@/lib/realtime/hub'
+import { EVENT_DAY, EVENT_LAST_DAY } from '@/tests/support/event-dates'
 
 export const BASE_URL = 'http://localhost:3000'
 const TEST_PASSWORD = 'Correct-Horse-42'
@@ -83,8 +84,9 @@ export class TestApp {
   async createEvent(): Promise<string> {
     const [row] = await this.sql<{ id: string }>(
       `insert into events (name, venue_name, timezone, starts_on, ends_on, arrival_airports)
-       values ('Annual Summit', 'Grand Hotel', 'Africa/Lagos', '2026-11-20', '2026-11-23', '{LOS}')
+       values ('Annual Summit', 'Grand Hotel', 'Africa/Lagos', $1, $2, '{LOS}')
        returning id`,
+      [EVENT_DAY, EVENT_LAST_DAY],
     )
     return row?.id ?? ''
   }

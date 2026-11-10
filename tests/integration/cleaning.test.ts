@@ -121,6 +121,17 @@ describe('turnaround: check-out, the cleaning queue and housekeeping', () => {
     expect(await app.sql(`select title from notifications where kind = 'cleaning_problem' and recipient_id = $1`, [coordinator.id])).toEqual([{ title: 'Room 302: missing supplies' }])
   })
 
+  it('limits problem reports so one phone cannot flood the coordinators', async () => {
+    const task = await taskFor('302')
+    if (!task) throw new Error('Expected a task for room 302')
+    // The test above made two attempts this minute (one refused as invalid); every attempt counts.
+    const statuses: number[] = []
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      statuses.push((await app.call(report, '/api/cleaning/x/report', post(housekeeper, task.task_id, { kind: 'other', note: `Report ${attempt}` }))).status)
+    }
+    expect(statuses).toEqual([200, 200, 200, 429, 429])
+  })
+
   it('lets a coordinator reverse a check-out that has not been cleaned yet', async () => {
     const task = await taskFor('201')
     if (!task) throw new Error('Expected a task for room 201')

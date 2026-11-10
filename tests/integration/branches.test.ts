@@ -10,6 +10,7 @@ import { POST as resetPassword } from '@/app/api/admin/users/[id]/reset-password
 import { PATCH as patchUser } from '@/app/api/admin/users/[id]/route'
 import { GET as listUsers } from '@/app/api/admin/users/route'
 import { GET as me } from '@/app/api/me/route'
+import { eventTime } from '@/tests/support/event-dates'
 import { type StaffMember, TestApp } from './support/test-app'
 
 describe('edge cases', () => {
@@ -82,7 +83,7 @@ describe('edge cases', () => {
       })
       await app.call(createShift, '/api/admin/driver-shifts', {
         as: admin,
-        body: { driver_id: active.body.data.id, starts_at: '2026-11-20T06:00:00Z', ends_at: '2026-11-20T10:00:00Z' },
+        body: { driver_id: active.body.data.id, starts_at: eventTime(0, '06:00:00Z'), ends_at: eventTime(0, '10:00:00Z') },
       })
 
       const inactive = await app.call<Array<{ full_name: string }>>(listDrivers, '/api/admin/drivers?active=false', { as: coordinator })

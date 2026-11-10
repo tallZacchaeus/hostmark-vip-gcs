@@ -137,7 +137,7 @@ export async function getFlightStatus(tx: Tx, args: { flight_number: string }, c
   return { answer, citations: [{ label: flight.flight_number, href: '/arrivals' }, ...parties.map((party) => guestCitation(party.name, party.delegation_id))] }
 }
 
-export async function whoIsAffected(tx: Tx, args: { flight_number: string }): Promise<ToolAnswer> {
+export async function whoIsAffected(tx: Tx, args: { flight_number: string }, context: ToolContext): Promise<ToolAnswer> {
   const flight = await loadFlight(tx, args.flight_number)
   if (!flight) return { answer: `I have no flight ${args.flight_number}.`, citations: [] }
   const { rows } = await sql<{ pickups: number; items: string[] | null }>`
@@ -145,7 +145,8 @@ export async function whoIsAffected(tx: Tx, args: { flight_number: string }): Pr
             where upper(f.flight_number) = upper(${args.flight_number}) and p.status not in ('cancelled', 'completed')) as pickups,
       (select array_agg(distinct i.title) from public.program_items i join public.program_participants pp on pp.program_item_id = i.id
          join public.guests g on g.id = pp.guest_id join public.arrivals a on a.id = g.arrival_id join public.flights f on f.id = a.flight_id
-       where upper(f.flight_number) = upper(${args.flight_number}) and i.status = 'published' and i.ends_at > now()) as items`.execute(tx)
+       where upper(f.flight_number) = upper(${args.flight_number}) and i.status = 'published'
+         and i.ends_at > ${context.now.toISOString()}::timestamptz) as items`.execute(tx)
   const extra = rows[0]
   const parties = flight.parties ?? []
   const answer = [

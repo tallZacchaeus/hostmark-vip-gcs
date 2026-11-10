@@ -2,6 +2,8 @@
 // own counters here; all run as the signed-in user, so row-level security applies.
 import { sql } from 'kysely'
 import type { Tx } from '@/lib/db/context'
+import { zonedDateKey } from '@/lib/domain/time'
+import { loadProgramme } from '@/lib/repositories/programme'
 
 export interface RoomCounts {
   readonly total: number
@@ -27,6 +29,22 @@ export interface PickupCounts {
   readonly needs_driver: number
 }
 
+/** A guest whose expected arrival puts a programme item at risk. */
+export interface LateParticipant {
+  readonly guest_id: string
+  readonly name: string
+  readonly expected_at: string | null
+}
+
+/** A published programme item today that a late arrival puts at risk (the dashboard glance card). */
+export interface ProgrammeRisk {
+  readonly id: string
+  readonly title: string
+  readonly starts_at: string
+  readonly location: string
+  readonly late: LateParticipant[]
+}
+
 export interface DashboardSummary {
   readonly rooms: RoomCounts
   readonly decisions_pending: number
@@ -34,6 +52,7 @@ export interface DashboardSummary {
   readonly arrivals_today: ArrivalCounts
   readonly pickups_today: PickupCounts
   readonly intake_to_review: number
+  readonly programme_at_risk: ProgrammeRisk[]
 }
 
 /** "Today" is the event's calendar day: the zone comes from the event row itself. */
@@ -114,6 +133,29 @@ export async function countIntakeToReview(tx: Tx): Promise<number> {
   return row.n
 }
 
+/**
+ * Today's published items at risk, read through the Programme screen's own logic so both agree.
+ * Empty until the event is set up, and on days outside the event.
+ */
+export async function listProgrammeAtRiskToday(tx: Tx, now: Date): Promise<ProgrammeRisk[]> {
+  const { rows } = await sql<{ timezone: string }>`select timezone from public.events limit 1`.execute(tx)
+  const timezone = rows[0]?.timezone
+  if (!timezone) return []
+  const today = zonedDateKey(now, timezone)
+  const view = await loadProgramme(tx, today, now, false)
+  return view.items
+    .filter((item) => item.state === 'risk' && item.status === 'published')
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      starts_at: item.starts_at,
+      location: item.location,
+      late: item.participants
+        .filter((participant) => participant.late)
+        .map((participant) => ({ guest_id: participant.guest_id, name: participant.name, expected_at: participant.expected_at })),
+    }))
+}
+
 export async function readDashboardSummary(tx: Tx, now: Date): Promise<DashboardSummary> {
   // One connection per transaction: these run one after another, so await them in turn.
   const rooms = await countRooms(tx)
@@ -122,5 +164,14 @@ export async function readDashboardSummary(tx: Tx, now: Date): Promise<Dashboard
   const arrivals = await countArrivalsToday(tx, now)
   const pickups = await countPickupsToday(tx, now)
   const intake = await countIntakeToReview(tx)
-  return { rooms, decisions_pending: decisions, guests, arrivals_today: arrivals, pickups_today: pickups, intake_to_review: intake }
+  const programmeAtRisk = await listProgrammeAtRiskToday(tx, now)
+  return {
+    rooms,
+    decisions_pending: decisions,
+    guests,
+    arrivals_today: arrivals,
+    pickups_today: pickups,
+    intake_to_review: intake,
+    programme_at_risk: programmeAtRisk,
+  }
 }

@@ -2,7 +2,8 @@
 // Programme (03-App-Flow.md /programme, Figma "Programme", FR-PG-01…04): the day's timeline with
 // each item's state (on track, at risk, done), who is late and why, the venues in use and the
 // at-risk count. Coordinators see the published programme and can alert the programs team; the
-// programs team (and Admin) add, edit, publish and cancel items.
+// programs team (and Admin) add, edit, publish and cancel items. Items left outside the event days
+// (when the dates change) stay reachable under an "Outside the event days" note.
 import Link from 'next/link'
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
@@ -162,6 +163,8 @@ export function ProgrammeScreen() {
   const { data, error } = useApi<ProgrammeView>(path, { refreshInterval: REFRESH_MS })
   const canEdit = data?.can_edit ?? false
   const items = data?.items ?? []
+  const outsideDays = data?.outside_days ?? []
+  const isOutsideDay = data ? !data.days.includes(data.day) : false
   const isOpen = (item: ProgramItemView) => expanded.has(item.id) || (item.state === 'risk' && !expanded.has(`closed:${item.id}`))
   const toggle = (item: ProgramItemView) =>
     setExpanded((current) => {
@@ -197,6 +200,17 @@ export function ProgrammeScreen() {
           </button>
         ))}
       </div>
+      {outsideDays.length > 0 ? (
+        <div className="programme-outside" role="note" aria-label="Outside the event days">
+          <Icon name="alert" size={16} />
+          <span>Outside the event days:</span>
+          {outsideDays.map((value) => (
+            <button type="button" key={value} aria-current={data?.day === value ? 'date' : undefined} className={data?.day === value ? 'is-active' : ''} onClick={() => setDay(value)}>
+              {formatShortDay(`${value}T12:00:00Z`, 'UTC')}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {error ? <ErrorBanner className="programme-error" message={data ? "We couldn't refresh the programme. Showing the last update." : errorMessage(error)} onRetry={() => void refreshApi(PROGRAMME_PATH)} /> : null}
       <div className="programme-layout">
         <section className="programme-timeline" aria-label="Timeline">
@@ -206,6 +220,7 @@ export function ProgrammeScreen() {
               {items.length} {items.length === 1 ? 'item' : 'items'}
             </span>
           </header>
+          {isOutsideDay ? <p className="programme-outside-notice">This day is outside the event days. Move these items onto an event day, or cancel them.</p> : null}
           {!data ? (
             <div className="programme-loading">
               {Array.from({ length: SKELETON_ROWS }, (_, index) => (
@@ -249,7 +264,7 @@ export function ProgrammeScreen() {
       {editing && data ? (
         <ItemDialog
           item={editing === 'new' ? null : editing}
-          day={data.day}
+          day={isOutsideDay ? (data.days[0] ?? data.day) : data.day}
           days={data.days}
           venues={data.venues.map((venue) => venue.name)}
           timeZone={timeZone}

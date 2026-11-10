@@ -1,7 +1,8 @@
 'use client'
 // Add or edit a programme item (FR-PG-01/02): title, kind, day and times in the event time zone,
 // venue, description, status (draft → published, or cancelled) and the VIP participants with their
-// roles. Saving writes the item, then its participants; the server recomputes the at-risk flag.
+// roles. Saving writes the item, then its participants; the server recomputes the at-risk flag. An item
+// left outside the event days keeps its day as an option until it is moved onto an event day.
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Field, FormDialog } from '@/components/ui/FormDialog'
@@ -123,6 +124,8 @@ export function ItemDialog({ item, day, days, venues, timeZone, onClose, onSaved
   const guests = useApi<ProgrammeGuest[]>('/api/programme/guests')
   const action = useAction()
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }))
+  const ownDay = item ? dateKey(item.starts_at, timeZone) : null
+  const strandedDay = ownDay && !days.includes(ownDay) ? ownDay : null
   const valid = draft.title.trim() !== '' && draft.location.trim() !== '' && draft.end > draft.start
 
   const save = () =>
@@ -182,6 +185,7 @@ export function ItemDialog({ item, day, days, venues, timeZone, onClose, onSaved
               {formatShortDay(`${value}T12:00:00Z`, 'UTC')}
             </option>
           ))}
+          {strandedDay ? <option value={strandedDay}>{formatShortDay(`${strandedDay}T12:00:00Z`, 'UTC')} (outside the event days)</option> : null}
         </select>
       </Field>
       <Field label="Starts">

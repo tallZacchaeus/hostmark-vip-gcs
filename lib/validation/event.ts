@@ -1,5 +1,6 @@
 // Event settings (FR-PL-03). Limits mirror the CHECK constraints on public.events.
 import { z } from 'zod'
+import { normalizePhone } from '@/lib/domain/intake/normalize'
 import { AT_LEAST_ONE_FIELD, hasAtLeastOneField, intInRange, requiredText } from './common'
 
 export function isValidTimeZone(value: string): boolean {
@@ -14,8 +15,27 @@ export function isValidTimeZone(value: string): boolean {
 const isoDate = z.iso.date('Use the format YYYY-MM-DD')
 const airportCode = z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'Use 3-letter IATA airport codes, e.g. LOS')
 const MAX_AIRPORTS = 10
+const MAX_PHONE_INPUT = 40
+const PHONE_MESSAGE = 'Enter a phone number, e.g. 0803 555 0142 or +2348035550142'
+
+/** The coordination desk phone: typed loosely ("0803 555 0142"), stored as E.164; blank clears it. */
+const coordinatorPhone = z
+  .string()
+  .trim()
+  .max(MAX_PHONE_INPUT, PHONE_MESSAGE)
+  .nullable()
+  .transform((value, context) => {
+    if (value === null || value === '') return null
+    const phone = normalizePhone(value)
+    if (phone === null) {
+      context.addIssue({ code: 'custom', message: PHONE_MESSAGE })
+      return z.NEVER
+    }
+    return phone
+  })
 
 const optionalSettings = {
+  coordinator_phone: coordinatorPhone.optional(),
   arrival_airports: z.array(airportCode).max(MAX_AIRPORTS).optional(),
   intake_open: z.boolean().optional(),
   intake_window_days: intInRange(0, 30).optional(),

@@ -1,6 +1,8 @@
 // The programme for one day (FR-PG-04, Figma "Programme"): items in time order with their
 // participants, who is late and why the item is at risk, the venues in use and the event's days.
 // Runs as the signed-in user: coordinators see published and cancelled items, editors see drafts too.
+// Items left outside the event days (when the dates change) are listed under `outside_days`, so none
+// is ever hidden.
 import { sql } from 'kysely'
 import type { Tx } from '@/lib/db/context'
 import { type ItemState, type ProgramStatus, eventDays, itemState, venueCounts } from '@/lib/domain/programme/timeline'
@@ -37,6 +39,8 @@ export interface ProgramItemView {
 export interface ProgrammeView {
   readonly day: string
   readonly days: string[]
+  /** Days with items that fall outside the event days (only after the event dates changed). */
+  readonly outside_days: string[]
   readonly timezone: string
   readonly lead_time_min: number
   readonly can_edit: boolean
@@ -90,11 +94,21 @@ async function itemsBetween(tx: Tx, from: string, to: string): Promise<ItemRow[]
   return rows
 }
 
+async function daysOutside(tx: Tx, timezone: string, startsOn: string, endsOn: string): Promise<string[]> {
+  const { rows } = await sql<{ day: string }>`
+    select distinct (starts_at at time zone ${timezone})::date::text as day
+    from public.program_items
+    where (starts_at at time zone ${timezone})::date not between ${startsOn}::date and ${endsOn}::date
+    order by 1`.execute(tx)
+  return rows.map((row) => row.day)
+}
+
 export async function loadProgramme(tx: Tx, requestedDay: string | undefined, now: Date, canEdit: boolean): Promise<ProgrammeView> {
   const event = await eventSettings(tx)
   const days = eventDays(event.starts_on, event.ends_on)
   const day = pickDay(requestedDay, zonedDateKey(now, event.timezone), days)
   const rows = await itemsBetween(tx, zonedDayStart(day, event.timezone), zonedDayStart(addDays(day, 1), event.timezone))
+  const outsideDays = await daysOutside(tx, event.timezone, event.starts_on, event.ends_on)
   const items = rows.map(({ starts_at, ends_at, risk_notified_at, participants, ...rest }): ProgramItemView => {
     const item = { ...rest, starts_at: iso(starts_at) ?? '', ends_at: iso(ends_at) ?? '', risk_notified_at: iso(risk_notified_at) }
     return {
@@ -106,6 +120,7 @@ export async function loadProgramme(tx: Tx, requestedDay: string | undefined, no
   return {
     day,
     days: days.length > 0 ? days : [day],
+    outside_days: outsideDays,
     timezone: event.timezone,
     lead_time_min: event.lead_time_min,
     can_edit: canEdit,

@@ -36,6 +36,20 @@ export type ToolName = Intent['tool']
 const HELP: Intent = { tool: 'help', args: {} }
 const DEFAULT_HOURS = 1
 const NOTE_SEPARATOR = /\s*(?::|\s[-–—]\s)\s*/
+/** "Could you please", "kindly", "I'd like you to": openers that carry no intent, dropped from the front. */
+const POLITE_OPENER = /^(?:(?:hi|hello|hey|ok(?:ay)?|please|pls|kindly|just|(?:can|could|would|will) (?:you|we)(?: be able to)?|(?:i|we)(?:'d| would)? (?:like|want|need)(?: you)? to|go ahead and|let's)\b[\s,.!]*)+/
+const ARRIVING = /\b(arriv\w*|lands?|landing|coming|expected|incoming)\b|\bflights?\b.*\bdelay/
+/** "no car", "without a driver", "needs a ride", "hasn't been assigned transport". */
+const NO_TRANSPORT =
+  /(?:\b(?:no|without|missing|needs?|lacks?|lacking)|(?:\bnot|n't)(?: yet)? (?:have|has|got|been (?:given|assigned|allocated)))(?: (?:a|an|any|their|his|her))? (?:drivers?|cars?|vehicles?|rides?|transport(?:ation)?|chauffeurs?)\b/
+const CLEANING = /\b(clean\w*|dirty|housekeeping|sanitation)\b/
+/** "not ready", "isn't made up yet", "still dirty", "being cleaned", "waiting for housekeeping". */
+const ROOM_NOT_READY = /(?:\bnot|n't)(?: yet)? (?:ready|clean(?:ed)?|prepared|made up)\b|\b(?:unready|dirty)\b|\b(?:needs?|awaiting|waiting for|to be|being) (?:clean\w*|prepared|made up|housekeeping)\b/
+/** "whose room", "their room": the question is about the arriving guests, not the rooms. */
+const OWN_ROOM = /\b(whose|their|his|her) rooms?\b/
+const FREE = /\b(free|available|ready|empty|vacant)\b/
+const NOT_FREE = /(?:\bnot|n't)(?: yet)? (?:free|available|empty|vacant)\b/
+const CLEANING_QUEUE: Intent = { tool: 'get_cleaning_queue', args: {} }
 
 const normalize = (text: string): string => text.toLowerCase().replace(/[’‘`]/g, "'")
 const words = (text: string): string[] => (normalize(text).match(/[a-z0-9]+(?:'[a-z]+)?/g) ?? []).map((word) => word.replace(/'s$/, ''))
@@ -154,10 +168,18 @@ function arrivalsWindow(text: string): { window: ArrivalWindow; hours: number | 
 }
 
 function arrivalsFilter(text: string): ArrivalFilter {
-  if (/\b(no|without|missing|needs?)( a)? driver\b/.test(text)) return 'missing_driver'
-  if (/\bnot ready\b/.test(text)) return 'room_not_ready'
+  if (NO_TRANSPORT.test(text)) return 'missing_driver'
+  if (ROOM_NOT_READY.test(text)) return 'room_not_ready'
   if (/\bdelay/.test(text)) return 'delayed'
   return 'all'
+}
+
+const arrivals = (text: string): Intent => ({ tool: 'find_arrivals', args: { ...arrivalsWindow(text), filter: arrivalsFilter(text) } })
+
+/** Rooms that are not ready are the cleaning queue; otherwise the free rooms or the summary. */
+function rooms(text: string): Intent {
+  if (ROOM_NOT_READY.test(text)) return CLEANING_QUEUE
+  return { tool: 'list_rooms', args: { filter: FREE.test(text) && !NOT_FREE.test(text) ? 'free' : 'all' } }
 }
 
 function parseQuestion(question: string, text: string, vocabulary: Vocabulary): Intent {
@@ -165,23 +187,24 @@ function parseQuestion(question: string, text: string, vocabulary: Vocabulary): 
   if (flight && /\b(affect|impact)/.test(text)) return { tool: 'who_is_affected', args: { flight_number: flight } }
   if (flight) return { tool: 'get_flight_status', args: { flight_number: flight } }
   if (/\b(pending|decisions?|approvals?)\b|waiting for (me|my)\b/.test(text)) return { tool: 'get_pending_decisions', args: {} }
-  if (/\b(clean\w*|housekeeping|sanitation)\b/.test(text)) return { tool: 'get_cleaning_queue', args: {} }
+  const arriving = ARRIVING.test(text)
+  if (CLEANING.test(text) && !(arriving && OWN_ROOM.test(text))) return CLEANING_QUEUE
   if (/\b(programme|program|agenda|schedule|sessions?|briefing|ceremony)\b/.test(text)) {
     return { tool: 'get_program', args: { day: /\btomorrow\b/.test(text) ? 'tomorrow' : 'today', filter: /\b(risk|late)\b/.test(text) ? 'at_risk' : 'all' } }
   }
   const guest = matchGuest(question, vocabulary)
   if (guest.kind === 'one') return { tool: 'get_guest', args: { guest_id: guest.id } }
   if (guest.kind === 'many') return clarify('ambiguous_guest', guest.options)
-  if (/\b(arriv\w*|lands?|landing|coming|expected|incoming)\b|\bflights?\b.*\bdelay/.test(text)) {
-    return { tool: 'find_arrivals', args: { ...arrivalsWindow(text), filter: arrivalsFilter(text) } }
-  }
+  if (arriving) return arrivals(text)
   if (/\bpick ?ups?\b/.test(text)) return { tool: 'list_pickups', args: { filter: /\b(need|without|no|unassigned|missing)\b/.test(text) ? 'unassigned' : 'all' } }
-  if (/\brooms?\b/.test(text)) return { tool: 'list_rooms', args: { filter: /\b(free|available|ready|empty|vacant)\b/.test(text) ? 'free' : 'all' } }
+  // A guest with no car is an arrival without a driver, even when the question never says "arriving".
+  if (NO_TRANSPORT.test(text)) return arrivals(text)
+  if (/\brooms?\b/.test(text)) return rooms(text)
   return HELP
 }
 
 export function parseIntent(question: string, vocabulary: Vocabulary): Intent {
-  const text = normalize(question).trim()
+  const text = normalize(question).trim().replace(POLITE_OPENER, '')
   if (!text) return HELP
   return parseAction(question, text, vocabulary) ?? parseQuestion(question, text, vocabulary)
 }

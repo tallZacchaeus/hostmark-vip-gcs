@@ -44,8 +44,10 @@ function serverErrors(details: unknown): Errors {
   )
 }
 
+// apiSend reports every failure as an ApiClientError: a dropped connection is "offline", and a
+// reply that is not the API's (e.g. a proxy's error page) is "unexpected_response".
 function failureMessage(error: unknown): string {
-  if (!(error instanceof ApiClientError)) return "We couldn't send your registration. Your answers are saved. Try again."
+  if (!(error instanceof ApiClientError) || error.code === 'unexpected_response') return "We couldn't send your registration. Your answers are saved. Try again."
   if (error.code === 'rate_limited') return 'Too many registrations were sent from this connection. Wait a few minutes and try again.'
   if (error.code === 'offline') return "We couldn't reach the server. Check your connection; your answers are saved."
   return error.message

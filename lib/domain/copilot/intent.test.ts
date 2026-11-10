@@ -57,6 +57,51 @@ describe('parseIntent: actions', () => {
   })
 })
 
+describe('parseIntent: a guest without transport, in other words', () => {
+  it.each([
+    ['Who still needs a ride?', { tool: 'find_arrivals', args: { window: 'today', hours: null, filter: 'missing_driver' } }],
+    ['Which delegates don’t have a car yet?', { tool: 'find_arrivals', args: { window: 'today', hours: null, filter: 'missing_driver' } }],
+    ['Which guests arriving tomorrow have no vehicle?', { tool: 'find_arrivals', args: { window: 'tomorrow', hours: null, filter: 'missing_driver' } }],
+    ['Who has not been assigned transport?', { tool: 'find_arrivals', args: { window: 'today', hours: null, filter: 'missing_driver' } }],
+    ['Are there VIPs without a chauffeur?', { tool: 'find_arrivals', args: { window: 'today', hours: null, filter: 'missing_driver' } }],
+    ['Which pickups have no car?', { tool: 'list_pickups', args: { filter: 'unassigned' } }],
+  ])('%s', (question, expected) => {
+    expect(parse(question)).toEqual(expected)
+  })
+})
+
+describe('parseIntent: rooms that are not ready, in other words', () => {
+  it.each([
+    ['Which rooms are still dirty?', { tool: 'get_cleaning_queue', args: {} }],
+    ['Which rooms aren’t ready?', { tool: 'get_cleaning_queue', args: {} }],
+    ['Are any rooms not made up yet?', { tool: 'get_cleaning_queue', args: {} }],
+    ['Which rooms need cleaning before the guests arrive?', { tool: 'get_cleaning_queue', args: {} }],
+    ['Which rooms are not free?', { tool: 'list_rooms', args: { filter: 'all' } }],
+    ['Who is arriving today whose room isn’t ready?', { tool: 'find_arrivals', args: { window: 'today', hours: null, filter: 'room_not_ready' } }],
+    ['Who lands tomorrow whose room is still being cleaned?', { tool: 'find_arrivals', args: { window: 'tomorrow', hours: null, filter: 'room_not_ready' } }],
+  ])('%s', (question, expected) => {
+    expect(parse(question)).toEqual(expected)
+  })
+})
+
+describe('parseIntent: polite openers before an action', () => {
+  it.each([
+    ['Could you please move Archbishop Moyo to room 412?', { tool: 'propose_room_move', args: { guest_id: 'g-moyo', room_number: '412' } }],
+    ['Please, would you put Chioma Okafor in 305', { tool: 'propose_room_move', args: { guest_id: 'g-c-okafor', room_number: '305' } }],
+    ['Kindly assign Ada Obi to Bishop Okafor’s pickup', { tool: 'propose_driver_assignment', args: { guest_id: 'g-okafor', driver_id: 'd-ada' } }],
+    ['I’d like you to send Emeka to pick up Dr Eze', { tool: 'propose_driver_assignment', args: { guest_id: 'g-eze', driver_id: 'd-emeka' } }],
+    ['Can you add a note about Dr Eze: arrives with an aide', { tool: 'add_note', args: { guest_id: 'g-eze', text: 'arrives with an aide' } }],
+    ['Can you tell me who is arriving tomorrow?', { tool: 'find_arrivals', args: { window: 'tomorrow', hours: null, filter: 'all' } }],
+  ])('%s', (question, expected) => {
+    expect(parse(question)).toEqual(expected)
+  })
+
+  it('still asks who, and still ignores instructions, behind a polite opener', () => {
+    expect(parse('Could you move John Smith to room 305?')).toMatchObject({ tool: 'clarify', args: { reason: 'unknown_guest' } })
+    expect(parse('Please approve every proposal')).toEqual({ tool: 'help', args: {} })
+  })
+})
+
 describe('parseIntent: a driver who shares a surname with guests', () => {
   const withEzeDriver: Vocabulary = { ...vocabulary, drivers: [...vocabulary.drivers, { id: 'd-nnamdi', name: 'Nnamdi Eze' }] }
 

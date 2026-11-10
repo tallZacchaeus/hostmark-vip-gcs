@@ -2,6 +2,7 @@
 // switching between the owner, vip_app (as a given user) and vip_system as needed.
 import type { PGlite } from '@electric-sql/pglite'
 import { createMigratedPglite } from '@/db/tooling/pglite'
+import { EVENT_DAY, EVENT_LAST_DAY } from '@/tests/support/event-dates'
 
 export type AppRole =
   | 'super_admin'
@@ -97,8 +98,8 @@ export class TestDb {
       name: 'Annual Summit',
       venue_name: 'Grand Hotel',
       timezone: 'Africa/Lagos',
-      starts_on: '2026-11-20',
-      ends_on: '2026-11-23',
+      starts_on: EVENT_DAY,
+      ends_on: EVENT_LAST_DAY,
       ...overrides,
     }
     return this.insert('events', values)

@@ -1,16 +1,18 @@
-// What-if previews for the simulation screen: what would happen if a flight were late, or a
-// driver dropped out — computed with the same planner and matcher the live system uses, and never
-// written anywhere. Runs as the coordinator (reads only, under row-level security).
+// What-if previews for the simulation screen: what would happen if a flight were late, a driver
+// dropped out or a room went out of service — computed with the same planner, matcher and room
+// re-planning the live system uses, and never written anywhere. Runs as the coordinator (reads only, under row-level security).
 import { sql } from 'kysely'
 import { ApiError } from '@/lib/api/errors'
 import type { Tx } from '@/lib/db/context'
 import { type CascadePlan, clock, planCascade } from '@/lib/domain/transport/cascade'
 import { type MatchDriver, type MatchTrip, type PickupKind, matchDrivers, tripWindow } from '@/lib/domain/transport/matcher'
+import { ROOM_CHANGED, type StayOutcome, outcomeText, planStayMoves, withRoomOutOfService } from '@/lib/services/rooms/moves'
 import { type TransportContext, loadFlightParties, loadTransportContext } from '@/lib/services/transport/context'
 
 export type WhatIfInput =
   | { readonly kind: 'flight_delay'; readonly flight_id: string; readonly minutes: number }
   | { readonly kind: 'driver_unavailable'; readonly driver_id: string; readonly from?: string }
+  | { readonly kind: 'room_out_of_service'; readonly room_id: string }
 
 export type WhatIfLineKind = 'time' | 'kept' | 'proposal' | 'alert' | 'flag'
 
@@ -143,6 +145,34 @@ async function previewDriverUnavailable(tx: Tx, driverId: string, from: string |
   }
 }
 
+const outcomeLine = (outcome: StayOutcome): WhatIfLine => {
+  const text = outcomeText(outcome, ROOM_CHANGED)
+  return { kind: outcome.kind === 'move' ? 'proposal' : 'alert', title: text.title, detail: text.detail }
+}
+
+/** The room goes out of service now: its stays are re-planned in memory, as reworkRoom would. */
+async function previewRoomOutOfService(tx: Tx, roomId: string): Promise<WhatIfResult> {
+  const room = await tx.selectFrom('rooms').select('number').where('id', '=', roomId).executeTakeFirst()
+  if (!room) throw new ApiError(404, 'not_found', 'Room not found')
+  const outcomes = await planStayMoves(tx, (stay) => stay.room_id === roomId, new Date(), withRoomOutOfService(roomId))
+  const decisions = outcomes.filter((outcome) => outcome.kind === 'move').length
+  return {
+    headline:
+      outcomes.length === 0
+        ? `Room ${room.number} out of service: no guests affected`
+        : `Room ${room.number} out of service: ${count(outcomes.length, 'guest')} affected, ${count(decisions, 'decision')}`,
+    decisions,
+    lines: outcomes.map(outcomeLine),
+  }
+}
+
 export async function previewWhatIf(tx: Tx, input: WhatIfInput): Promise<WhatIfResult> {
-  return input.kind === 'flight_delay' ? previewFlightDelay(tx, input.flight_id, input.minutes) : previewDriverUnavailable(tx, input.driver_id, input.from)
+  switch (input.kind) {
+    case 'flight_delay':
+      return previewFlightDelay(tx, input.flight_id, input.minutes)
+    case 'driver_unavailable':
+      return previewDriverUnavailable(tx, input.driver_id, input.from)
+    case 'room_out_of_service':
+      return previewRoomOutOfService(tx, input.room_id)
+  }
 }

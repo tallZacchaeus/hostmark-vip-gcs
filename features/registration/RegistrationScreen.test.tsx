@@ -1,7 +1,16 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useEffect } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RegistrationScreen } from './RegistrationScreen'
+
+// Cloudflare's script never loads in tests; the stub reports it ready at once.
+vi.mock('next/script', () => ({
+  default: function ScriptStub({ onReady }: { readonly onReady?: () => void }) {
+    useEffect(() => onReady?.(), [onReady])
+    return null
+  },
+}))
 
 const push = vi.fn()
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }))
@@ -105,5 +114,106 @@ describe('RegistrationScreen', () => {
 
     expect(await screen.findByText('Enter a valid email')).toBeInTheDocument()
     expect(screen.getByText('Step 1 of 4')).toBeInTheDocument()
+  })
+
+  async function reachReview(user: ReturnType<typeof userEvent.setup>) {
+    await completeStepOne(user)
+    await completeOwnTransport(user)
+    await next(user)
+  }
+
+  function respond(status: number, error: unknown) {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ success: false, data: null, error }), { status })))
+  }
+
+  it.each([
+    [429, { code: 'rate_limited', message: 'Slow down' }, 'Too many registrations were sent from this connection. Wait a few minutes and try again.'],
+    [409, { code: 'registration_closed', message: 'Registration has just closed.' }, 'Registration has just closed.'],
+    [400, { code: 'validation_failed', message: 'The form could not be read', details: [{ path: 'consent', message: 'Required' }] }, 'The form could not be read'],
+  ])('keeps the answers and explains a failed send (%i)', async (status, error, message) => {
+    respond(status, error)
+    const user = renderForm()
+    await reachReview(user)
+    await user.click(screen.getByRole('checkbox'))
+    await next(user)
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
+    expect(screen.getByText('Step 4 of 4')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Submit registration' })).toBeEnabled()
+  })
+
+  it('says when the server cannot be reached', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))))
+    const user = renderForm()
+    await reachReview(user)
+    await user.click(screen.getByRole('checkbox'))
+    await next(user)
+    expect(await screen.findByText("We couldn't reach the server. Check your connection; your answers are saved.")).toBeInTheDocument()
+  })
+
+  it('reassures the guest when the server answers with something other than the API (e.g. a proxy error page)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>502 Bad Gateway</html>', { status: 502 })))
+    const user = renderForm()
+    await reachReview(user)
+    await user.click(screen.getByRole('checkbox'))
+    await next(user)
+    expect(await screen.findByText("We couldn't send your registration. Your answers are saved. Try again.")).toBeInTheDocument()
+  })
+
+  it('takes the guest to the party step for a rejected companion', async () => {
+    respond(400, { code: 'validation_failed', message: 'Check the party', details: [{ path: 'form.party.0.name' }] })
+    const user = renderForm()
+    await reachReview(user)
+    await user.click(screen.getByRole('checkbox'))
+    await next(user)
+    expect(await screen.findByText('Step 3 of 4')).toBeInTheDocument()
+  })
+
+  it('goes back a step and can untick consent', async () => {
+    const user = renderForm()
+    await reachReview(user)
+    const consent = screen.getByRole('checkbox')
+    await user.click(consent)
+    expect(consent).toHaveAttribute('aria-checked', 'true')
+    await user.click(consent)
+    expect(consent).toHaveAttribute('aria-checked', 'false')
+
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    expect(screen.getByText('Step 3 of 4')).toBeInTheDocument()
+  })
+
+  describe('with the bot check switched on', () => {
+    afterEach(() => {
+      delete window.turnstile
+    })
+
+    it('asks for the check first, then sends its token with the form', async () => {
+      const widget: { solve: ((token: string) => void) | null } = { solve: null }
+      window.turnstile = {
+        render: (_element: HTMLElement, options: Record<string, unknown>) => {
+          widget.solve = options.callback as (token: string) => void
+          return 'widget-1'
+        },
+        remove: vi.fn(),
+      }
+      const receipt = { reference_code: 'VIP-7K3Q', follow_up: false, summary: { guest: 'Augustine Okafor', companions: 0, arrival_mode: 'own_transport', arrival_date: '2026-10-28', flight_number: null } }
+      const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: true, data: receipt, error: null }), { status: 201 }))
+      vi.stubGlobal('fetch', fetchMock)
+      render(<RegistrationScreen token="abc123" event={EVENT} siteKey="site-key-1" />)
+      const user = userEvent.setup()
+      await reachReview(user)
+      await user.click(screen.getByRole('checkbox'))
+      await next(user)
+
+      expect(screen.getByText('Complete the check above to show you are a person')).toBeInTheDocument()
+      expect(fetchMock).not.toHaveBeenCalled()
+
+      await vi.waitFor(() => expect(widget.solve).not.toBeNull())
+      act(() => widget.solve?.('turnstile-token'))
+      await next(user)
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled())
+      const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+      expect(JSON.parse(String(init.body))).toMatchObject({ consent: true, turnstile_token: 'turnstile-token' })
+    })
   })
 })

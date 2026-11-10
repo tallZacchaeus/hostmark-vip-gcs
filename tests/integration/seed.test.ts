@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { GET as listRooms } from '@/app/api/admin/rooms/route'
 import { seedDevData } from '@/db/tooling/seed'
+import { EVENT_DAY, addDays } from '@/tests/support/event-dates'
 import { TestApp } from './support/test-app'
 
 describe('development seed', () => {
@@ -15,8 +16,10 @@ describe('development seed', () => {
   })
 
   it('creates a usable venue, drivers and one account per role', async () => {
-    const result = await seedDevData(app.db, app.auth, password, { now: new Date('2026-10-16T09:00:00Z') })
-    expect(result).toMatchObject({ startsOn: '2026-11-15', rooms: 120, drivers: 15, guests: { delegations: 6, queued: 3 } })
+    // Seeded as of the start of today: the demo event starts 30 days later.
+    const today = addDays(EVENT_DAY, -10)
+    const result = await seedDevData(app.db, app.auth, password, { now: new Date(`${today}T00:00:00Z`) })
+    expect(result).toMatchObject({ startsOn: addDays(today, 30), rooms: 120, drivers: 15, guests: { delegations: 6, queued: 3 } })
     expect(result.accounts).toHaveLength(7)
 
     const [shifts] = await app.sql<{ n: number }>('select count(*)::int as n from driver_shifts')

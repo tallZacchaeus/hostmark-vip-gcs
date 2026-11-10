@@ -9,8 +9,11 @@ import type { IntakeReader, MessageReading } from '@/lib/ai/intake-reader'
 import { ApiError, Errors } from '@/lib/api/errors'
 import type { Actor } from '@/lib/auth/session'
 import { type Tx, withUser } from '@/lib/db/context'
-import type { DB, IntakeSubmissions } from '@/lib/db/types'
+import type { DB, Delegations, IntakeSubmissions } from '@/lib/db/types'
 import type { Extraction } from '@/lib/domain/intake/extraction'
+import { LINK_UPDATES, type LinkUpdate, planLinkUpdates } from '@/lib/domain/intake/link-updates'
+import { addMember } from '@/lib/services/guests'
+import { memberCreateSchema } from '@/lib/validation/guests'
 import { normalizeIntake } from '@/lib/domain/intake/normalize'
 import { type IntakeFields, MAX_OTHERS_LENGTH, intakeFieldsSchema } from '@/lib/domain/intake/schema'
 import { hasBlockingIssues } from '@/lib/domain/intake/validate'
@@ -156,17 +159,39 @@ export async function approveSubmission(db: Kysely<DB>, actor: Actor, id: string
   })
 }
 
-export async function linkSubmission(db: Kysely<DB>, actor: Actor, id: string, delegationId: string, note: string | null) {
+/** Applies the updates the reviewer ticked (F3) through the same writes a coordinator would make. */
+async function applyLinkUpdates(tx: Tx, actor: Actor, delegation: Selectable<Delegations>, fields: IntakeFields, chosen: readonly LinkUpdate[]): Promise<LinkUpdate[]> {
+  if (chosen.length === 0 || !delegation.principal_guest_id) return []
+  const event = await requireEvent(tx)
+  const principal = await tx.selectFrom('guests').select(['id', 'dietary']).where('id', '=', delegation.principal_guest_id).forUpdate().executeTakeFirstOrThrow()
+  const members = await tx.selectFrom('guests').select('full_name').where('delegation_id', '=', delegation.id).where('member_role', '<>', 'principal').where('status', '<>', 'cancelled').execute()
+  const plan = planLinkUpdates(
+    { ...delegation, principal_dietary: principal.dietary, member_names: members.map((member) => member.full_name) },
+    normalizeIntake(fields, event.timezone),
+    chosen,
+  )
+  if (plan.contact) await tx.updateTable('delegations').set(plan.contact).where('id', '=', delegation.id).execute()
+  if (plan.dietary) await tx.updateTable('guests').set({ dietary: plan.dietary }).where('id', '=', principal.id).execute()
+  for (const member of plan.newMembers) {
+    const input = memberCreateSchema.parse({ full_name: member.name ?? undefined, member_role: member.role, dietary: member.dietary, accessibility: member.accessibility || undefined })
+    await addMember(tx, delegation.id, input, actor.id)
+  }
+  const changed: Record<LinkUpdate, boolean> = { contact: plan.contact !== null, dietary: plan.dietary !== null, companions: plan.newMembers.length > 0 }
+  return chosen.filter((update) => changed[update])
+}
+
+export async function linkSubmission(db: Kysely<DB>, actor: Actor, id: string, delegationId: string, note: string | null, apply: readonly LinkUpdate[] = []) {
   return withUser(db, actor.id, async (tx) => {
-    await lockForReview(tx, id)
-    const delegation = await tx.selectFrom('delegations').select(['id', 'principal_guest_id']).where('id', '=', delegationId).executeTakeFirst()
+    const row = await lockForReview(tx, id)
+    const delegation = await tx.selectFrom('delegations').selectAll().where('id', '=', delegationId).forUpdate().executeTakeFirst()
     if (!delegation) throw Errors.notFound('Delegation')
+    const applied = await applyLinkUpdates(tx, actor, delegation, storedFields(row), LINK_UPDATES.filter((update) => apply.includes(update)))
     await tx
       .updateTable('intake_submissions')
       .set({ status: 'linked_duplicate', delegation_id: delegationId, matched_delegation_id: delegationId, review_note: note, reviewed_by: actor.id, reviewed_at: new Date() })
       .where('id', '=', id)
       .execute()
-    return { delegation_id: delegation.id, principal_guest_id: delegation.principal_guest_id }
+    return { delegation_id: delegation.id, principal_guest_id: delegation.principal_guest_id, applied }
   })
 }
 

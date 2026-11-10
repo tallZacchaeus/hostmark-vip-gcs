@@ -29,4 +29,5 @@ const MAX_SHIFT_MIN = 720
 export const whatIfSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('flight_delay'), flight_id: uuidSchema, minutes: intInRange(-MAX_SHIFT_MIN, MAX_SHIFT_MIN) }),
   z.object({ kind: z.literal('driver_unavailable'), driver_id: uuidSchema, from: isoInstant.optional() }),
+  z.object({ kind: z.literal('room_out_of_service'), room_id: uuidSchema }),
 ])

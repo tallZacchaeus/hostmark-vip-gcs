@@ -9,6 +9,7 @@ import { useNow } from '@/components/shell/useNow'
 import { firstName, greeting, plural } from '@/lib/client/format'
 import { useApi } from '@/lib/client/use-api'
 import { ApprovalsCard } from './ApprovalsCard'
+import { ProgrammeRiskCard } from './ProgrammeRiskCard'
 import { RecentActivityCard } from './RecentActivityCard'
 
 export interface DashboardSummary {
@@ -18,6 +19,14 @@ export interface DashboardSummary {
   readonly arrivals_today: { total: number; flying: number; by_road: number }
   readonly pickups_today: { total: number; needs_driver: number }
   readonly intake_to_review: number
+  /** Today's published programme items at risk, with who is late (FR-PG-03). */
+  readonly programme_at_risk: ReadonlyArray<{
+    readonly id: string
+    readonly title: string
+    readonly starts_at: string
+    readonly location: string
+    readonly late: ReadonlyArray<{ readonly guest_id: string; readonly name: string; readonly expected_at: string | null }>
+  }>
 }
 
 interface TileProps {
@@ -164,6 +173,7 @@ export function DashboardScreen() {
           <ApprovalsCard />
         </div>
         <aside className="main-right">
+          <ProgrammeRiskCard />
           <RecentActivityCard />
         </aside>
       </div>

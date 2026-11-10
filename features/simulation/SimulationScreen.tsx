@@ -1,6 +1,6 @@
 'use client'
 // Simulation (03-App-Flow.md /simulation): the what-if preview from the design (nothing written),
-// and the PRD's scripted scenarios that replay flight changes through the live pipeline.
+// and the PRD's scripted scenarios that replay flight and room changes through the live pipeline.
 import { ErrorBanner } from '@/components/ui/Feedback'
 import { Icon } from '@/components/ui/Icon'
 import { Skeleton } from '@/components/ui/Status'

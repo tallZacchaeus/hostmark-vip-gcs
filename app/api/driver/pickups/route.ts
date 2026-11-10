@@ -1,5 +1,6 @@
 // The driver's own trips for a day (FR-FT-09). ?day=YYYY-MM-DD in the event time zone, default
-// today. Only drivers linked to an active driver record get trips (403 otherwise).
+// today. Only drivers linked to an active driver record get trips (403 otherwise). Carries the
+// coordination desk phone for the app's "Call coordinator" (null when the event has none).
 import { jsonOk } from '@/lib/api/response'
 import { defineRoute } from '@/lib/api/route'
 import { systemClock } from '@/lib/domain/clock'
@@ -12,7 +13,8 @@ export const GET = defineRoute({ roles: ['driver'], query: dayQuerySchema }, asy
   const result = await asActor(async (tx) => {
     const event = await findEventContext(tx)
     const day = query.day ?? zonedDateKey(systemClock.now(), event?.timezone ?? 'UTC')
-    return { day, timezone: event?.timezone ?? 'UTC', trips: await myPickups(tx, day) }
+    const trips = await myPickups(tx, day)
+    return { day, timezone: event?.timezone ?? 'UTC', coordinator_phone: event?.coordinator_phone ?? null, trips }
   })
   return jsonOk(result)
 })

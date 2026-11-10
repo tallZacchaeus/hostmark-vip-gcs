@@ -1,7 +1,7 @@
-// Scripted flight scenarios for simulated mode (FR-PL-10, FR-FT-10). They are versioned with the
-// code, not stored in the database. A run fixes which flights it acts on when it starts (the next
-// flights to land); each step then changes one of them at a virtual time, through the same
-// ingestion as live data. Pure.
+// Scripted scenarios for simulated mode (FR-PL-10, FR-FT-10). They are versioned with the code, not
+// stored in the database. A run fixes what it acts on when it starts (the next flights to land, the
+// rooms of the next planned stays, the next delegations with rooms); each step then changes one of
+// them at a virtual time, through the same services as live data and staff. Pure.
 import { effectiveArrival } from '@/lib/domain/flights/schedule'
 import type { FlightSnapshot, TrackedFlight } from '@/lib/flights/provider'
 import { iso } from '@/lib/flights/provider'
@@ -13,12 +13,44 @@ export type FlightChange =
   | { readonly kind: 'divert' }
   | { readonly kind: 'land' }
 
-export interface ScenarioStep {
+/** A room is taken out of service (as an Admin would in Settings → Rooms). */
+export type RoomChange = { readonly kind: 'out_of_service' }
+
+/** Unnamed companions join a delegation (as a coordinator would add party members). */
+export type DelegationChange = { readonly kind: 'add_companions'; readonly count: number }
+
+export type StepChange = FlightChange | RoomChange | DelegationChange
+
+interface StepTiming {
   /** Virtual minutes after the run starts. */
   readonly at_min: number
+}
+
+export interface FlightStep extends StepTiming {
   /** Which of the run's flights: 0 is the next to land. */
   readonly flight: number
   readonly change: FlightChange
+}
+
+export interface RoomStep extends StepTiming {
+  /** Which of the run's rooms: 0 holds the next planned stay. */
+  readonly room: number
+  readonly change: RoomChange
+}
+
+export interface DelegationStep extends StepTiming {
+  /** Which of the run's delegations: 0 is the next to arrive among those with rooms. */
+  readonly delegation: number
+  readonly change: DelegationChange
+}
+
+export type ScenarioStep = FlightStep | RoomStep | DelegationStep
+
+export type TargetKind = 'flight' | 'room' | 'delegation'
+
+export interface StepTarget {
+  readonly kind: TargetKind
+  readonly index: number
 }
 
 export interface Scenario {
@@ -71,14 +103,42 @@ export const SCENARIOS: readonly Scenario[] = [
       { at_min: 15, flight: 2, change: { kind: 'divert' } },
     ],
   },
+  {
+    key: 'room-out-of-service',
+    title: 'Room out of service',
+    description:
+      'The room of the next guest due in is taken out of service (a leak): a move to another room is proposed, or the coordinators are alerted when no room fits or the guest has already checked in.',
+    steps: [{ at_min: 0, room: 0, change: { kind: 'out_of_service' } }],
+  },
+  {
+    key: 'extra-guests',
+    title: 'Extra guests',
+    description:
+      'The next delegation due in with rooms brings two unnamed companions: they join the party and its pickup, and rooms are suggested for them within a minute.',
+    steps: [{ at_min: 0, delegation: 0, change: { kind: 'add_companions', count: 2 } }],
+  },
 ]
 
 export const SCENARIO_KEYS = SCENARIOS.map((scenario) => scenario.key) as [string, ...string[]]
 
 export const findScenario = (key: string): Scenario | undefined => SCENARIOS.find((scenario) => scenario.key === key)
 
+/** What a step acts on: which kind of target, and which of the run's targets of that kind. */
+export function stepTarget(step: ScenarioStep): StepTarget {
+  if ('flight' in step) return { kind: 'flight', index: step.flight }
+  if ('room' in step) return { kind: 'room', index: step.room }
+  return { kind: 'delegation', index: step.delegation }
+}
+
+/** How many targets of this kind the scenario needs (0 when none of its steps use them). */
+export const targetsNeeded = (scenario: Scenario, kind: TargetKind): number =>
+  scenario.steps
+    .map(stepTarget)
+    .filter((target) => target.kind === kind)
+    .reduce((needed, target) => Math.max(needed, target.index + 1), 0)
+
 /** How many flights the scenario needs. */
-export const flightsNeeded = (scenario: Scenario): number => Math.max(...scenario.steps.map((step) => step.flight)) + 1
+export const flightsNeeded = (scenario: Scenario): number => targetsNeeded(scenario, 'flight')
 
 const MINUTE = 60_000
 
@@ -124,8 +184,12 @@ export function dueSteps(scenario: Scenario, run: RunClock & { readonly steps_ap
   return scenario.steps.slice(run.steps_applied).filter((step) => step.at_min <= elapsed)
 }
 
-export function describeChange(change: FlightChange): string {
+export function describeChange(change: StepChange): string {
   switch (change.kind) {
+    case 'out_of_service':
+      return 'out of service'
+    case 'add_companions':
+      return `gains ${change.count} ${change.count === 1 ? 'companion' : 'companions'}`
     case 'delay':
       return `delayed ${change.minutes} min`
     case 'early':

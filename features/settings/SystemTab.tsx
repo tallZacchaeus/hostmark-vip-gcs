@@ -1,5 +1,5 @@
 'use client'
-// Event setup, the shared registration link (FR-IN-01) and the flight data mode (Super Admin).
+// Event setup, the shared registration link (FR-IN-01), the flight data mode and event data export/purge (Super Admin).
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
@@ -11,6 +11,7 @@ import { useSession } from '@/components/shell/SessionContext'
 import { ApiClientError, apiSend, errorMessage } from '@/lib/client/api'
 import { useAction } from '@/lib/client/use-action'
 import { refreshApi, useApi } from '@/lib/client/use-api'
+import { EventDataCard } from './EventDataCard'
 import { EventForm } from './EventForm'
 import type { EventSettings } from './types'
 
@@ -150,6 +151,7 @@ export function SystemTab() {
       />
       {data && <IntakeLinkCard event={data} />}
       {data && <FlightModeCard event={data} />}
+      {data && <EventDataCard event={data} />}
     </div>
   )
 }

@@ -1,20 +1,22 @@
 // Scripted simulation runs (FR-PL-10, FR-FT-10). A coordinator starts a scenario in simulated
-// mode; the run fixes its flights (the next ones to land with guests on them). The worker then
-// applies each step when its virtual time comes, through ingestFlightUpdate — the same path as
-// live data — so the cascade, proposals and notifications are the real ones.
+// mode; the run fixes what it acts on (targets.ts: flights, rooms, delegations). The worker then
+// applies each step exactly once when its virtual time comes, through the same services as live
+// data and staff (steps.ts), so the cascade, proposals and notifications are the real ones.
 import type { Kysely } from 'kysely'
-import { sql } from 'kysely'
 import { ApiError } from '@/lib/api/errors'
 import type { Tx } from '@/lib/db/context'
 import { withSystem } from '@/lib/db/system'
 import type { DB } from '@/lib/db/types'
-import type { FlightPhase } from '@/lib/domain/flights/schedule'
-import { type Scenario, type ScenarioStep, applyChange, dueSteps, findScenario, flightsNeeded } from '@/lib/domain/simulation/scenarios'
+import { type Scenario, type ScenarioStep, dueSteps, findScenario } from '@/lib/domain/simulation/scenarios'
 import { logger } from '@/lib/logger'
-import { ingestFlightUpdate } from '@/lib/services/flights/ingest'
 import { loadTransportEvent } from '@/lib/services/transport/context'
+import { applyScenarioStep } from './steps'
+import { chooseTargets } from './targets'
 
-/** Virtual time starts two hours before the first flight lands ("delayed at T−2h", FR-FT-10). */
+/**
+ * Virtual time starts two hours before the first target's moment: the first flight lands ("delayed
+ * at T−2h", FR-FT-10), or the first guests are due in their room.
+ */
 const LEAD_MS = 2 * 60 * 60_000
 
 export interface StartRunInput {
@@ -28,25 +30,14 @@ export interface SimulationRun {
   readonly status: string
   readonly speed: number
   readonly flight_ids: string[]
+  readonly room_ids: string[]
+  readonly delegation_ids: string[]
   readonly virtual_start: Date
   readonly real_start: Date
   readonly steps_applied: number
 }
 
-const RUN_COLUMNS = ['id', 'scenario_key', 'status', 'speed', 'flight_ids', 'virtual_start', 'real_start', 'steps_applied'] as const
-
-/** The next flights to land that someone is still arriving on. */
-async function upcomingFlights(tx: Tx, limit: number): Promise<{ id: string; lands_at: Date }[]> {
-  const { rows } = await sql<{ id: string; lands_at: Date }>`
-    select f.id, coalesce(f.manual_arrival_at, f.actual_arrival_at, f.estimated_arrival_at, f.scheduled_arrival_at) as lands_at
-    from public.flights f
-    where f.phase not in ('landed', 'cancelled', 'diverted')
-      and coalesce(f.manual_arrival_at, f.actual_arrival_at, f.estimated_arrival_at, f.scheduled_arrival_at) is not null
-      and exists (select 1 from public.arrivals a where a.flight_id = f.id and a.status = 'expected')
-    order by lands_at, f.flight_number
-    limit ${limit}`.execute(tx)
-  return rows
-}
+const RUN_COLUMNS = ['id', 'scenario_key', 'status', 'speed', 'flight_ids', 'room_ids', 'delegation_ids', 'virtual_start', 'real_start', 'steps_applied'] as const
 
 /** Runs as the coordinator (RLS: coordinator+). One run at a time (simulation_runs_one_running). */
 export async function startSimulationRun(tx: Tx, input: StartRunInput, userId: string): Promise<SimulationRun> {
@@ -56,19 +47,14 @@ export async function startSimulationRun(tx: Tx, input: StartRunInput, userId: s
   }
   const scenario = findScenario(input.scenario_key)
   if (!scenario) throw new ApiError(404, 'not_found', 'Scenario not found')
-  const needed = flightsNeeded(scenario)
-  const flights = await upcomingFlights(tx, needed)
-  if (flights.length < needed) {
-    throw new ApiError(409, 'not_enough_flights', `This scenario needs ${needed} upcoming ${needed === 1 ? 'flight' : 'flights'} with guests on board`)
-  }
-  const firstLanding = new Date(flights[0]?.lands_at ?? Date.now()).getTime()
+  const { first_at: firstAt, ...targets } = await chooseTargets(tx, scenario)
   return tx
     .insertInto('simulation_runs')
     .values({
       scenario_key: scenario.key,
       speed: input.speed,
-      flight_ids: flights.map((flight) => flight.id),
-      virtual_start: new Date(firstLanding - LEAD_MS),
+      ...targets,
+      virtual_start: new Date((firstAt ?? new Date()).getTime() - LEAD_MS),
       started_by: userId,
     })
     .returning(RUN_COLUMNS)
@@ -105,20 +91,7 @@ async function claimStep(tx: Tx, runId: string, index: number): Promise<boolean>
 
 async function applyStep(tx: Tx, run: SimulationRun, step: ScenarioStep, index: number, now: Date): Promise<boolean> {
   if (!(await claimStep(tx, run.id, index))) return false
-  const flightId = run.flight_ids[step.flight]
-  const flight = flightId
-    ? await tx
-        .selectFrom('flights')
-        .select(['flight_number', 'arrival_date_local', 'phase', 'scheduled_arrival_at', 'estimated_arrival_at', 'actual_arrival_at', 'manual_arrival_at', 'origin_iata', 'destination_iata'])
-        .where('id', '=', flightId)
-        .executeTakeFirst()
-    : undefined
-  if (!flightId || !flight) {
-    logger.warn('Simulation step skipped: its flight is gone', { run_id: run.id, step: step.flight })
-    return true
-  }
-  const snapshot = applyChange({ ...flight, phase: flight.phase as FlightPhase }, step.change)
-  await ingestFlightUpdate(tx, { flight_id: flightId, snapshot, source: 'simulated', observed_at: now, simulation_run_id: run.id, provider: 'simulated' })
+  await applyScenarioStep(tx, run, step, now)
   return true
 }
 
@@ -158,7 +131,7 @@ const stopRuns = (db: Kysely<DB>, now: Date, ids: readonly string[]) =>
 
 /**
  * Applies every step that is due in running simulations (worker, every few seconds). Runs stop
- * when the event is no longer in simulated mode: scenarios never touch live flights.
+ * when the event is no longer in simulated mode: scenarios never touch live data.
  */
 export async function advanceSimulationRuns(db: Kysely<DB>, now: Date, stillHolder?: StillHolder): Promise<number> {
   const { runs, mode } = await withSystem(db, { actor: 'system' }, async (tx) => ({

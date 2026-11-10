@@ -49,7 +49,7 @@ async function runTool(tx: Tx, intent: Intent, context: ToolContext): Promise<To
     case 'get_flight_status':
       return getFlightStatus(tx, intent.args, context)
     case 'who_is_affected':
-      return whoIsAffected(tx, intent.args)
+      return whoIsAffected(tx, intent.args, context)
     case 'list_pickups':
       return listPickups(tx, intent.args, context)
     case 'list_rooms':

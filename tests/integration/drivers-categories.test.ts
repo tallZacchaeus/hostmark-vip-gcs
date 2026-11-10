@@ -3,6 +3,7 @@ import { POST as createShift, GET as listShifts } from '@/app/api/admin/driver-s
 import { GET as listDrivers, POST as createDriver } from '@/app/api/admin/drivers/route'
 import { POST as reorder } from '@/app/api/admin/vip-categories/reorder/route'
 import { GET as listCategories, POST as createCategory } from '@/app/api/admin/vip-categories/route'
+import { eventTime } from '@/tests/support/event-dates'
 import { type StaffMember, TestApp } from './support/test-app'
 
 describe('drivers, shifts and VIP categories API', () => {
@@ -52,20 +53,20 @@ describe('drivers, shifts and VIP categories API', () => {
   it('rejects overlapping and over-long shifts', async () => {
     const first = await app.call(createShift, '/api/admin/driver-shifts', {
       as: admin,
-      body: { driver_id: ownDriverId, starts_at: '2026-11-20T06:00:00Z', ends_at: '2026-11-20T14:00:00Z' },
+      body: { driver_id: ownDriverId, starts_at: eventTime(0, '06:00:00Z'), ends_at: eventTime(0, '14:00:00Z') },
     })
     expect(first.status).toBe(201)
 
     const overlap = await app.call(createShift, '/api/admin/driver-shifts', {
       as: admin,
-      body: { driver_id: ownDriverId, starts_at: '2026-11-20T13:00:00Z', ends_at: '2026-11-20T20:00:00Z' },
+      body: { driver_id: ownDriverId, starts_at: eventTime(0, '13:00:00Z'), ends_at: eventTime(0, '20:00:00Z') },
     })
     expect(overlap.status).toBe(409)
     expect(overlap.body.error?.code).toBe('overlap')
 
     const tooLong = await app.call(createShift, '/api/admin/driver-shifts', {
       as: admin,
-      body: { driver_id: ownDriverId, starts_at: '2026-11-21T06:00:00Z', ends_at: '2026-11-22T07:00:00Z' },
+      body: { driver_id: ownDriverId, starts_at: eventTime(1, '06:00:00Z'), ends_at: eventTime(2, '07:00:00Z') },
     })
     expect(tooLong.status).toBe(400)
   })
@@ -73,13 +74,13 @@ describe('drivers, shifts and VIP categories API', () => {
   it('filters shifts by an overlap window', async () => {
     const inWindow = await app.call<unknown[]>(
       listShifts,
-      '/api/admin/driver-shifts?from=2026-11-20T12:00:00Z&to=2026-11-20T13:00:00Z',
+      `/api/admin/driver-shifts?from=${eventTime(0, '12:00:00Z')}&to=${eventTime(0, '13:00:00Z')}`,
       { as: coordinator },
     )
     expect(inWindow.body.data).toHaveLength(1)
     const outside = await app.call<unknown[]>(
       listShifts,
-      '/api/admin/driver-shifts?from=2026-11-21T00:00:00Z&to=2026-11-22T00:00:00Z',
+      `/api/admin/driver-shifts?from=${eventTime(1, '00:00:00Z')}&to=${eventTime(2, '00:00:00Z')}`,
       { as: coordinator },
     )
     expect(outside.body.data).toHaveLength(0)

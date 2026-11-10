@@ -1,5 +1,6 @@
 // Room list import (FR-PL-04): all-or-nothing upsert by room number. A dry run reports what would
-// change without writing, so the admin can preview a hotel's list before committing it.
+// change without writing, so the admin can preview a hotel's list before committing it. A real
+// import also says which existing rooms it took out of service, so their stays can be re-planned.
 import { sql } from 'kysely'
 import { ApiError } from '@/lib/api/errors'
 import type { Tx } from '@/lib/db/context'
@@ -10,6 +11,12 @@ export interface ImportSummary {
   readonly created: number
   readonly updated: number
   readonly dry_run: boolean
+}
+
+export interface ImportResult {
+  readonly summary: ImportSummary
+  /** Rooms that were in service and are not any more, by room number. */
+  readonly taken_out_of_service: string[]
 }
 
 function invalidImport(errors: readonly CsvRowError[]): ApiError {
@@ -41,7 +48,16 @@ async function resolveRoomTypes(tx: Tx, rows: readonly RoomCsvRow[]): Promise<Ma
   return byName
 }
 
-export async function importRooms(tx: Tx, rows: readonly RoomCsvRow[], dryRun: boolean): Promise<ImportSummary> {
+/** Existing rooms in service that this file marks out of service, by room number. */
+async function goingOutOfService(tx: Tx, rows: readonly RoomCsvRow[]): Promise<string[]> {
+  const numbers = rows.filter((row) => row.outOfService).map((row) => row.number)
+  if (numbers.length === 0) return []
+  // Locked until the import commits, so a concurrent save of the same room cannot also see the change.
+  const rooms = await tx.selectFrom('rooms').select('id').where('number', 'in', numbers).where('out_of_service', '=', false).orderBy('number').forUpdate().execute()
+  return rooms.map((room) => room.id)
+}
+
+export async function importRooms(tx: Tx, rows: readonly RoomCsvRow[], dryRun: boolean): Promise<ImportResult> {
   if (rows.length === 0) {
     throw invalidImport([{ line: 0, message: 'The file has no rooms' }])
   }
@@ -54,8 +70,10 @@ export async function importRooms(tx: Tx, rows: readonly RoomCsvRow[], dryRun: b
       .where('number', 'in', rows.map((row) => row.number))
       .executeTakeFirstOrThrow()
     const updated = Number(existing.n)
-    return { rows: rows.length, created: rows.length - updated, updated, dry_run: true }
+    return { summary: { rows: rows.length, created: rows.length - updated, updated, dry_run: true }, taken_out_of_service: [] }
   }
+
+  const takenOutOfService = await goingOutOfService(tx, rows)
 
   const results = await tx
     .insertInto('rooms')
@@ -93,5 +111,5 @@ export async function importRooms(tx: Tx, rows: readonly RoomCsvRow[], dryRun: b
     .execute()
 
   const created = results.filter((result) => result.inserted).length
-  return { rows: rows.length, created, updated: results.length - created, dry_run: false }
+  return { summary: { rows: rows.length, created, updated: results.length - created, dry_run: false }, taken_out_of_service: takenOutOfService }
 }

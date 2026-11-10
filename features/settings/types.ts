@@ -78,4 +78,6 @@ export interface EventSettings {
   readonly program_lead_time_min: number
   readonly flight_mode: 'live' | 'simulated'
   readonly auto_process_enabled: boolean
+  /** The coordination desk's phone (E.164), shown to drivers as "Call coordinator". */
+  readonly coordinator_phone: string | null
 }

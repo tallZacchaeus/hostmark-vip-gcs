@@ -128,9 +128,58 @@ describe('ReviewScreen', () => {
     expect(within(incoming).getByText('Hon. Ibrahim Belo')).toBeInTheDocument()
     expect(within(incoming).getAllByText('Different').length).toBeGreaterThan(0)
 
+    // Only rows that linking can update offer a tickbox: the diet differs; the arrival time does not get one.
+    expect(within(incoming).getByRole('checkbox', { name: 'Apply the new diet' })).toBeInTheDocument()
+    expect(within(incoming).queryByRole('checkbox', { name: /arrival/i })).not.toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: 'Link to existing' }))
     await waitFor(() => expect(screen.getByText('Linked to the existing delegation')).toBeInTheDocument())
     const linkCall = fetchMock.mock.calls.findIndex(([url]) => String(url).endsWith('/link'))
-    expect(sentBody(fetchMock, linkCall)).toEqual({ delegation_id: 'd-7' })
+    expect(sentBody(fetchMock, linkCall)).toEqual({ delegation_id: 'd-7', apply: [] })
+  })
+
+  it('sends the updates the reviewer ticks when linking', async () => {
+    const matched = {
+      delegation_id: 'd-7',
+      delegation_name: 'Hon. Ibrahim Bello',
+      principal_guest_id: 'g-7',
+      title: 'Hon.',
+      full_name: 'Ibrahim Bello',
+      companions: 0,
+      arrival_mode: 'own_transport',
+      arrival_at: '2026-10-28T14:00:00Z',
+      flight_number: null,
+      contact_name: null,
+      contact_email: null,
+      contact_phone: '+2348035550142',
+      dietary: [],
+      reference_code: null,
+    }
+    const duplicate = {
+      ...PASTED,
+      source: 'form',
+      payload: { full_name: 'Ibrahim Belo' },
+      normalized: { title: 'Hon.', full_name: 'Ibrahim Belo', arrival_mode: 'own_transport', arrival_date: '2026-10-28', arrival_time: '14:00', dietary: 'Halal', contact_phone: '08035550199', party: [{ name: 'Musa Bello', role: 'family' }] },
+      issues: [],
+      extraction: null,
+      duplicate_kind: 'likely',
+      matched,
+    }
+    const fetchMock = mockApi([
+      { path: '/api/intake/submissions/s-1/link', method: 'POST', body: { delegation_id: 'd-7', principal_guest_id: 'g-7', applied: ['dietary', 'companions'] } },
+      { path: '/api/intake/submissions/s-1', body: duplicate },
+      { path: '/api/admin/vip-categories', body: CATEGORIES },
+    ])
+    const user = userEvent.setup()
+    renderWithApp(<ReviewScreen id="s-1" />)
+
+    const incoming = await screen.findByRole('region', { name: 'New submission' })
+    await user.click(within(incoming).getByRole('checkbox', { name: 'Apply the new diet' }))
+    await user.click(within(incoming).getByRole('checkbox', { name: 'Add the new guests' }))
+    await user.click(screen.getByRole('button', { name: 'Link to existing' }))
+
+    await waitFor(() => expect(screen.getByText('Linked; the existing delegation was updated')).toBeInTheDocument())
+    const linkCall = fetchMock.mock.calls.findIndex(([url]) => String(url).endsWith('/link'))
+    expect(sentBody(fetchMock, linkCall)).toEqual({ delegation_id: 'd-7', apply: ['dietary', 'companions'] })
   })
 })

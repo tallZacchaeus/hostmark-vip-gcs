@@ -2,7 +2,7 @@
 // Assign or move a guest by hand (FR-RA-06, Figma "Move room" warning). The coordinator picks a
 // room; the dry run shows any broken rule and lost preference first, and then "Assign anyway"
 // needs a reason, which goes to the activity log. A clean move is one tap.
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Icon } from '@/components/ui/Icon'
 import { Modal } from '@/components/ui/Modal'
@@ -118,13 +118,26 @@ export function MoveDialog({ guest, rooms, initialRoomId, onClose }: MoveDialogP
   const [check, setCheck] = useState<MoveCheck | null>(null)
   const [reason, setReason] = useState('')
 
-  const runCheck = async (id: string) => setCheck(await apiSend<MoveCheck>('/api/room-assignments/check', 'POST', { guest_id: guest.id, room_id: id }))
+  // The room currently picked, so a slow check for an earlier pick never replaces a newer one.
+  const latestRoom = useRef(roomId)
+
+  const runCheck = async (id: string) => {
+    const result = await apiSend<MoveCheck>('/api/room-assignments/check', 'POST', { guest_id: guest.id, room_id: id })
+    if (latestRoom.current === id) setCheck(result)
+  }
   const choose = (id: string) => {
+    latestRoom.current = id
     setRoomId(id)
     setCheck(null)
     setReason('')
     if (id) void action.run(() => runCheck(id))
   }
+  // A room chosen before the dialog opened gets the same dry run as a manual pick.
+  useEffect(() => {
+    if (initialRoomId) void action.run(() => runCheck(initialRoomId))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the room given on open; later picks go through choose()
+  }, [initialRoomId])
+
   const assign = () =>
     action.run(async () => {
       // Every warning shown is acknowledged; if something changed since, the check is refreshed.

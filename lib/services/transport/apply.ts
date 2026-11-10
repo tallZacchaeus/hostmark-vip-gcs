@@ -3,7 +3,7 @@
 // again) and coordinators when a flight is disrupted or nobody can take a trip.
 import type { Tx } from '@/lib/db/context'
 import { type CascadePlan, clock } from '@/lib/domain/transport/cascade'
-import { notifyCoordinators, notifyUsers } from '@/lib/services/notify'
+import { notifyCoordinators, notifyCoordinatorsOnce, notifyUsers } from '@/lib/services/notify'
 import { reworkStays } from '@/lib/services/rooms/suggest'
 import type { TransportContext } from './context'
 import { type Trigger, createDriverProposal } from './proposals'
@@ -101,7 +101,8 @@ export async function applyCascadePlan(tx: Tx, plan: CascadePlan, context: Trans
     await notifyCoordinators(tx, { kind: 'flight_disrupted', title: arrival.attention ?? 'Flight disrupted', priority: 'high', entity_type: 'arrivals', entity_id: arrival.id })
   }
   for (const alert of plan.alerts) {
-    await notifyCoordinators(tx, {
+    // The same "no driver free" situation is raised by every later update: tell people once.
+    await notifyCoordinatorsOnce(tx, {
       kind: 'transport_alert',
       title: alert.title,
       priority: 'high',

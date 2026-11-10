@@ -1,9 +1,10 @@
 // Arranges a small venue and delegations for the room tests (as the database owner): floors 1–3,
 // West rooms x01–x03 and East x04–x06, suites (tier 1) on floor 3, standard rooms below, room 101
 // accessible. Stays run on EVENT_DAY from the arrival time to the event's last day.
+import { EVENT_DAY } from '@/tests/support/event-dates'
 import type { TestApp } from './test-app'
 
-export const EVENT_DAY = '2026-11-20'
+export { EVENT_DAY }
 
 export interface Venue {
   readonly rooms: ReadonlyMap<string, string>

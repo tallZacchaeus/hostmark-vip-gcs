@@ -16,6 +16,7 @@ import { ApiClientError, apiSend } from '@/lib/client/api'
 import { formatDayTime } from '@/lib/client/format'
 import { refreshApi, useApi } from '@/lib/client/use-api'
 import { useAction } from '@/lib/client/use-action'
+import type { LinkUpdate } from '@/lib/domain/intake/link-updates'
 import { type DelegationSummary, DuplicateComparison } from './DuplicateComparison'
 import {
   ARRIVAL_MODE_LABELS,
@@ -54,6 +55,8 @@ interface SubmissionDetail {
 interface Decided {
   readonly delegation_id: string
   readonly principal_guest_id: string | null
+  /** Link only: which ticked updates changed the existing delegation. */
+  readonly applied?: readonly LinkUpdate[]
 }
 
 function OriginalSubmission({ submission }: { readonly submission: SubmissionDetail }) {
@@ -148,6 +151,9 @@ function ReviewWorkspace({ submission, onChanged }: { readonly submission: Submi
   const [rejecting, setRejecting] = useState(false)
   const [undoing, setUndoing] = useState(false)
   const [note, setNote] = useState('')
+  const [apply, setApply] = useState<readonly LinkUpdate[]>([])
+  const toggleApply = (update: LinkUpdate) =>
+    setApply((current) => (current.includes(update) ? current.filter((item) => item !== update) : [...current, update]))
   const categories = useApi<VipCategory[]>('/api/admin/vip-categories?limit=200')
   const action = useAction()
   const open = submission.status === 'needs_review'
@@ -189,7 +195,8 @@ function ReviewWorkspace({ submission, onChanged }: { readonly submission: Submi
   const link = () =>
     action.run(async () => {
       if (!matched) return
-      finish('Linked to the existing delegation', await apiSend<Decided>(`${base}/link`, 'POST', { delegation_id: matched.delegation_id }))
+      const decided = await apiSend<Decided>(`${base}/link`, 'POST', { delegation_id: matched.delegation_id, apply })
+      finish(decided.applied?.length ? 'Linked; the existing delegation was updated' : 'Linked to the existing delegation', decided)
     })
   const reject = () =>
     action.run(async () => {
@@ -240,7 +247,7 @@ function ReviewWorkspace({ submission, onChanged }: { readonly submission: Submi
       )}
       {matched && compare ? (
         <>
-          <DuplicateComparison existing={matched} incoming={fields} timeZone={timeZone} />
+          <DuplicateComparison existing={matched} incoming={fields} timeZone={timeZone} choices={open ? { chosen: apply, onToggle: toggleApply } : undefined} />
           <p className="review-switch">
             <button type="button" onClick={() => setCompare(false)}>
               Show the full submission

@@ -1,12 +1,21 @@
 'use client'
-// Trip details (Figma "Pickup details" bottom sheet): where to, from where, who, and the flight.
+// Trip details (Figma "Pickup details" bottom sheet): where to, from where, who, the flight, and
+// a call to the coordination desk when the event has its number.
 import { useId } from 'react'
 import { Icon } from '@/components/ui/Icon'
 import { Modal } from '@/components/ui/Modal'
 import { formatTime } from '@/lib/client/format'
+import { CallCoordinator } from './CallCoordinator'
 import { type DriverTrip, changeNotice, flightStatus, personName } from './model'
 
-export function PickupSheet({ trip, timeZone, onClose }: { readonly trip: DriverTrip; readonly timeZone: string; readonly onClose: () => void }) {
+interface PickupSheetProps {
+  readonly trip: DriverTrip
+  readonly timeZone: string
+  readonly coordinatorPhone: string | null
+  readonly onClose: () => void
+}
+
+export function PickupSheet({ trip, timeZone, coordinatorPhone, onClose }: PickupSheetProps) {
   const titleId = useId()
   const flight = flightStatus(trip)
   const change = trip.previous_pickup_at && trip.previous_pickup_at !== trip.pickup_at ? changeNotice({ ...trip, acknowledged_at: null }, timeZone) : null
@@ -53,6 +62,7 @@ export function PickupSheet({ trip, timeZone, onClose }: { readonly trip: Driver
           {change}
         </div>
       ) : null}
+      <CallCoordinator phone={coordinatorPhone} light />
     </Modal>
   )
 }

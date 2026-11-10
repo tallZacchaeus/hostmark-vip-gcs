@@ -13,10 +13,13 @@ import { addDays, dateKey, firstName, formatLongDay, formatTime } from '@/lib/cl
 import { signOut } from '@/lib/client/session-actions'
 import { refreshApi, useApi } from '@/lib/client/use-api'
 import { type DriverTrip, changeNotice, flightStatus, nextStep, partyLabel, personName, progressLabel, splitDay } from './model'
+import { CallCoordinator } from './CallCoordinator'
 import { PickupSheet } from './PickupSheet'
 
 interface DriverDayResponse {
   readonly day: string
+  /** The coordination desk's phone (E.164), null when the event has none. */
+  readonly coordinator_phone: string | null
   readonly trips: DriverTrip[]
 }
 
@@ -50,13 +53,14 @@ function useTripActions() {
 interface HeroProps {
   readonly trip: DriverTrip
   readonly timeZone: string
+  readonly coordinatorPhone: string | null
   readonly busy: boolean
   readonly onAdvance: () => void
   readonly onAcknowledge: () => void
   readonly onOpen: () => void
 }
 
-function Hero({ trip, timeZone, busy, onAdvance, onAcknowledge, onOpen }: HeroProps) {
+function Hero({ trip, timeZone, coordinatorPhone, busy, onAdvance, onAcknowledge, onOpen }: HeroProps) {
   const flight = flightStatus(trip)
   const change = changeNotice(trip, timeZone)
   const progress = progressLabel(trip)
@@ -106,6 +110,7 @@ function Hero({ trip, timeZone, busy, onAdvance, onAcknowledge, onOpen }: HeroPr
           {step.status !== 'en_route' && <Icon name="check" />}
           {busy ? 'Saving…' : step.label}
         </button>
+        <CallCoordinator phone={coordinatorPhone} />
       </div>
     </article>
   )
@@ -124,13 +129,20 @@ function SmallCard({ trip, timeZone, done, onOpen }: { readonly trip: DriverTrip
   )
 }
 
-function DayView({ trips, timeZone, onOpen }: { readonly trips: DriverTrip[]; readonly timeZone: string; readonly onOpen: (trip: DriverTrip) => void }) {
+interface DayViewProps {
+  readonly trips: DriverTrip[]
+  readonly timeZone: string
+  readonly coordinatorPhone: string | null
+  readonly onOpen: (trip: DriverTrip) => void
+}
+
+function DayView({ trips, timeZone, coordinatorPhone, onOpen }: DayViewProps) {
   const actions = useTripActions()
   const day = splitDay(trips)
   return (
     <>
       {day.hero ? (
-        <Hero trip={day.hero} timeZone={timeZone} busy={actions.busy} onAdvance={() => void actions.advance(day.hero as DriverTrip)} onAcknowledge={() => void actions.acknowledge(day.hero as DriverTrip)} onOpen={() => onOpen(day.hero as DriverTrip)} />
+        <Hero trip={day.hero} timeZone={timeZone} coordinatorPhone={coordinatorPhone} busy={actions.busy} onAdvance={() => void actions.advance(day.hero as DriverTrip)} onAcknowledge={() => void actions.acknowledge(day.hero as DriverTrip)} onOpen={() => onOpen(day.hero as DriverTrip)} />
       ) : null}
       {day.later.length > 0 ? <h2 className="driver-section-label">LATER</h2> : null}
       {day.later.map((trip) => (
@@ -169,6 +181,7 @@ export function DriverScreen() {
   const { data, error } = useApi<DriverDayResponse>(day ? `/api/driver/pickups?day=${day}` : null)
   const trips = data?.trips ?? []
   const empty = data && trips.length === 0
+  const coordinatorPhone = data?.coordinator_phone ?? null
 
   return (
     <main className="driver-page">
@@ -204,9 +217,10 @@ export function DriverScreen() {
               </span>
               <h2>{tomorrow ? 'No pickups tomorrow yet.' : 'No pickups today.'}</h2>
               <p>{tomorrow ? 'Check back later today.' : 'Enjoy the break.'}</p>
+              <CallCoordinator phone={coordinatorPhone} light />
             </div>
           ) : (
-            <DayView trips={trips} timeZone={timeZone} onOpen={setSheet} />
+            <DayView trips={trips} timeZone={timeZone} coordinatorPhone={coordinatorPhone} onOpen={setSheet} />
           )}
         </div>
         <nav className="driver-tabbar" aria-label="Driver app">
@@ -219,7 +233,7 @@ export function DriverScreen() {
             <span>Sign out</span>
           </button>
         </nav>
-        {sheet ? <PickupSheet trip={sheet} timeZone={timeZone} onClose={() => setSheet(null)} /> : null}
+        {sheet ? <PickupSheet trip={sheet} timeZone={timeZone} coordinatorPhone={coordinatorPhone} onClose={() => setSheet(null)} /> : null}
       </div>
       {notifications ? <NotificationsDrawer onClose={() => setNotifications(false)} /> : null}
     </main>

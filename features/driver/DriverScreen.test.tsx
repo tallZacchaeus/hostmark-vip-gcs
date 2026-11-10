@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi, sentBody } from '@/tests/support/api-mock'
@@ -78,6 +78,34 @@ describe('DriverScreen', () => {
     expect(sheet).toHaveTextContent('Harbour Point Hotel')
     expect(sheet).toHaveTextContent('Mrs. Chioma Okafor')
     expect(sheet).toHaveTextContent('EK783 · Delayed +45 min')
+  })
+
+  it('offers to call the coordination desk with the trip and in its details', async () => {
+    mockApi([{ path: '/api/driver/pickups', body: { day: '2026-10-28', coordinator_phone: '+2348035550142', trips: [trip({ acknowledged_at: '2026-10-28T10:20:00.000Z' })] } }])
+    renderWithApp(<DriverScreen />, driverSession)
+
+    const call = await screen.findByRole('link', { name: 'Call coordinator' })
+    expect(call).toHaveAttribute('href', 'tel:+2348035550142')
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /Details for the 14:55 pickup/ }))
+    const sheet = screen.getByRole('dialog', { name: '14:55' })
+    expect(within(sheet).getByRole('link', { name: 'Call coordinator' })).toHaveAttribute('href', 'tel:+2348035550142')
+  })
+
+  it('offers the call on a quiet day too', async () => {
+    mockApi([{ path: '/api/driver/pickups', body: { day: '2026-10-28', coordinator_phone: '+2348035550142', trips: [] } }])
+    renderWithApp(<DriverScreen />, driverSession)
+
+    expect(await screen.findByText('No pickups today.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Call coordinator' })).toHaveAttribute('href', 'tel:+2348035550142')
+  })
+
+  it('shows no call button when the event has no coordinator number', async () => {
+    mockApi([{ path: '/api/driver/pickups', body: { day: '2026-10-28', coordinator_phone: null, trips: [trip({ acknowledged_at: '2026-10-28T10:20:00.000Z' })] } }])
+    renderWithApp(<DriverScreen />, driverSession)
+
+    await userEvent.setup().click(await screen.findByRole('button', { name: /Details for the 14:55 pickup/ }))
+    expect(screen.queryByRole('link', { name: 'Call coordinator' })).not.toBeInTheDocument()
   })
 
   it('shows a quiet day and switches to tomorrow', async () => {

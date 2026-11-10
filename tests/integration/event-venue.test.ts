@@ -8,14 +8,15 @@ import { POST as importRooms } from '@/app/api/admin/rooms/import/route'
 import { GET as listRooms, POST as createRoom } from '@/app/api/admin/rooms/route'
 import { GET as listAudit } from '@/app/api/audit/route'
 import { GET as me } from '@/app/api/me/route'
+import { EVENT_DAY, EVENT_LAST_DAY } from '@/tests/support/event-dates'
 import { type StaffMember, TestApp } from './support/test-app'
 
 const EVENT = {
   name: 'Annual Summit',
   venue_name: 'Grand Hotel',
   timezone: 'Africa/Lagos',
-  starts_on: '2026-11-20',
-  ends_on: '2026-11-23',
+  starts_on: EVENT_DAY,
+  ends_on: EVENT_LAST_DAY,
   arrival_airports: ['los', 'ABV'],
 }
 
@@ -50,7 +51,7 @@ describe('event, room types and rooms API', () => {
         { as: admin, body: EVENT },
       )
       expect(created.status).toBe(201)
-      expect(created.body.data).toMatchObject({ arrival_airports: ['LOS', 'ABV'], starts_on: '2026-11-20' })
+      expect(created.body.data).toMatchObject({ arrival_airports: ['LOS', 'ABV'], starts_on: EVENT_DAY })
       expect(created.body.data.intake_token).toMatch(/^[0-9a-f]{32}$/)
 
       const again = await app.call(createEvent, '/api/admin/event', { as: admin, body: EVENT })
