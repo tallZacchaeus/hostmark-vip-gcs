@@ -7,7 +7,7 @@ import type { ColumnType } from "kysely";
 
 export type ActorType = "copilot" | "guest_intake" | "system" | "user";
 
-export type AppRole = "accommodation" | "admin" | "coordinator" | "driver" | "housekeeping" | "programs" | "super_admin";
+export type AppRole = "accommodation" | "admin" | "coordinator" | "driver" | "housekeeping" | "programme_manager" | "programs" | "super_admin";
 
 export type ArrivalMode = "flying" | "own_transport" | "pickup";
 
@@ -224,6 +224,14 @@ export interface DriverShifts {
   updated_at: Generated<Timestamp>;
 }
 
+export interface EventMembers {
+  added_by: string | null;
+  created_at: Generated<Timestamp>;
+  event_id: string;
+  id: Generated<string>;
+  profile_id: string;
+}
+
 export interface Events {
   airport_exit_buffer_min: Generated<number>;
   airport_travel_min: Generated<number>;
@@ -241,8 +249,10 @@ export interface Events {
   intake_window_days: Generated<number>;
   local_travel_min: Generated<number>;
   name: string;
+  owner_id: string | null;
   program_lead_time_min: Generated<number>;
   starts_on: string;
+  status: Generated<string>;
   timezone: Generated<string>;
   updated_at: Generated<Timestamp>;
   venue_name: string;
@@ -410,6 +420,7 @@ export interface Pickups {
 }
 
 export interface Profiles {
+  active_event_id: string | null;
   ban_expires: Timestamp | null;
   ban_reason: string | null;
   banned: Generated<boolean>;
@@ -582,6 +593,7 @@ export interface DB {
   delegations: Delegations;
   driver_shifts: DriverShifts;
   drivers: Drivers;
+  event_members: EventMembers;
   events: Events;
   flight_updates: FlightUpdates;
   flights: Flights;

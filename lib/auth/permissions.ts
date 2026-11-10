@@ -1,4 +1,4 @@
-// Better Auth admin-plugin permissions. Only Super Admin and Admin manage accounts, and nobody
+// Better Auth admin-plugin permissions. Only Super Admin, Programme Manager and Admin manage accounts, and nobody
 // gets impersonation, deletion or email changes. Finer rules (Admin cannot touch Admin or
 // Super Admin accounts) are enforced by our own routes and by row-level security.
 import { createAccessControl } from 'better-auth/plugins/access'
@@ -16,6 +16,7 @@ const noAccountAccess = accessControl.newRole({ user: [], session: [] })
 
 export const authRoles: Readonly<Record<AppRole, typeof accountManager | typeof noAccountAccess>> = {
   super_admin: accountManager,
+  programme_manager: accountManager,
   admin: accountManager,
   coordinator: noAccountAccess,
   programs: noAccountAccess,

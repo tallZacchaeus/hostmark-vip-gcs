@@ -20,7 +20,12 @@ describe('development seed', () => {
     const today = addDays(EVENT_DAY, -10)
     const result = await seedDevData(app.db, app.auth, password, { now: new Date(`${today}T00:00:00Z`) })
     expect(result).toMatchObject({ startsOn: addDays(today, 30), rooms: 120, drivers: 15, guests: { delegations: 6, queued: 3 } })
-    expect(result.accounts).toHaveLength(7)
+    expect(result.accounts).toHaveLength(8)
+    const [event] = await app.sql<{ status: string; owner: string; members: number }>(
+      `select e.status, p.email as owner, (select count(*)::int from event_members m where m.event_id = e.id) as members
+       from events e join profiles p on p.id = e.owner_id`,
+    )
+    expect(event).toEqual({ status: 'live', owner: 'programme.manager@vipgcs.test', members: 7 })
 
     const [shifts] = await app.sql<{ n: number }>('select count(*)::int as n from driver_shifts')
     expect(shifts?.n).toBe(15 * 4)

@@ -6,6 +6,7 @@ import { EVENT_DAY, EVENT_LAST_DAY } from '@/tests/support/event-dates'
 
 export type AppRole =
   | 'super_admin'
+  | 'programme_manager'
   | 'admin'
   | 'coordinator'
   | 'programs'
@@ -66,6 +67,11 @@ export class TestDb {
   async asUser(userId: string): Promise<void> {
     await this.db.exec('set local role vip_app')
     await this.db.query(`select set_config('app.user_id', $1, true)`, [userId])
+  }
+
+  /** The event this request works in (what the API sets per request from step 9.3). */
+  async inEvent(eventId: string): Promise<void> {
+    await this.db.query(`select set_config('app.event_id', $1, true)`, [eventId])
   }
 
   /** vip_app with no signed-in user (no app.user_id). */

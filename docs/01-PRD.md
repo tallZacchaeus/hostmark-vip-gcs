@@ -30,12 +30,13 @@ It is a final-year Computer Science project. Every module must be buildable, tes
 7. The system is demonstrable on demand through **simulated mode**, without depending on real flights being delayed.
 
 ### Non-goals
-See [`00-Project-Breakdown.md` §8–9](00-Project-Breakdown.md#8-not-in-the-first-version-optional-or-future). In short: no live traffic prediction, no WhatsApp/SMS/email sending, no screenshot/PDF intake (stretch), no Co-Pilot actions beyond the agreed set, no multi-event or multi-venue support, no hotel booking or fleet management.
+See [`00-Project-Breakdown.md` §8–9](00-Project-Breakdown.md#8-not-in-the-first-version-optional-or-future). In short: no live traffic prediction, no WhatsApp/SMS/email sending, no screenshot/PDF intake (stretch), no Co-Pilot actions beyond the agreed set, no multi-venue support within one event (multi-event support is now **planned**, §5.7), no hotel booking or fleet management.
 
 ## 3. Target users and roles
 
 | Role (system key) | Who | Device | What they do | Sees |
 |---|---|---|---|---|
+| **Programme Manager** (`programme_manager`) — **[In progress, §5.7]**: the role exists (P9 step 9.1); per-event screens follow | Runs one or more events for a client or programme (not the Programs team below) | Desktop | Creates events (drafts), sets one of their own events **Live** at a time, archives finished ones, sets up each event's venue, rooms and drivers (or copies them from an earlier event), creates staff accounts and assigns staff to their events | Their own events, all data in them |
 | **Super Admin** (`super_admin`) | System owner, e.g. the project lead | Desktop | Everything an Admin can do, plus manage Admin accounts, system settings (flight provider mode, AI and provider configuration), data export/purge, full audit log | Everything |
 | **Admin** (`admin`) | Event operations lead | Desktop | Everything a Coordinator can do, plus manage staff accounts, venue setup (rooms, wings, room types, cleaning durations), drivers and vehicles, event settings, intake link | Everything except system settings |
 | **Coordinator** (`coordinator`) — *main user* | Event coordinator(s) | Desktop/tablet, phone for Co-Pilot | Review intake, approve proposals, edit allocations, set VIP category and team groupings, use the Co-Pilot, reverse checkouts, undo automatic actions, run simulations | Everything operational |
@@ -189,6 +190,22 @@ Requirement IDs (`FR-xx-nn`) are referenced by the implementation plan and the t
 | FR-PG-03 | **Arrival conflict check:** if a participant's expected arrival at the venue (arrival + travel buffer) is after the item's start (minus a configurable lead time), the item is flagged *at risk*. The programs team and the coordinator are notified. Re-checked whenever arrivals change. |
 | FR-PG-04 | The coordinator sees the published program as a timeline. The Co-Pilot can answer program questions. |
 | FR-PG-05 | **[Future]** Transport scheduling for program movements (e.g. hotel → ceremony venue). |
+
+### 5.7 Multiple events and Programme Managers — **[Planned]** (requested 2026-11-10)
+
+Today one installation runs exactly one event. The system must instead host **many events at once**: each **Programme Manager** runs their own events, with **at most one of them live at a time**, while several Programme Managers run their live events in parallel. Decisions taken with the project owner on 2026-11-10:
+
+| ID | Requirement |
+|---|---|
+| FR-ME-01 | New role **Programme Manager**. A Programme Manager owns the events they create; a Super Admin sees and can manage every event. |
+| FR-ME-02 | Each event has a status **Draft → Live → Archived**. A Programme Manager may have at most **one Live** event; going live with another first asks to archive (or return to draft) the current one. Archived events are read-only. Drafts can be fully set up in advance. |
+| FR-ME-03 | Staff (Admin, Coordinator, Programs team, Front desk, Housekeeping, Driver) are **assigned to events**. They see only events they are assigned to; one person may be on several. A person on several live events picks which one they are working on (a switcher in the top bar); a person on one event goes straight to it. |
+| FR-ME-04 | Every record (guests, flights, trips, rooms, cleaning, programme, proposals, notifications, Victoria's log, audit) belongs to one event. Nobody can read or change another event's data, enforced by row-level security, not only by screens. |
+| FR-ME-05 | Venue, rooms, room types, VIP categories and drivers are **per event**. Setting up an event offers **copy from a previous event** (rooms, room types, categories, drivers; never guests). |
+| FR-ME-06 | Each event keeps its own registration link, flight mode, simulation, background work and Victoria context. The worker processes every live event. |
+| FR-ME-07 | Event export and post-event purge (FR-PL) work per event; a Super Admin can purge any archived event. |
+
+**Open:** whether an Admin keeps account management across all events (proposed: Admin powers apply only inside events they are assigned to; creating accounts is for Programme Managers and Super Admins).
 
 ## 6. User stories
 

@@ -10,7 +10,7 @@
 - `snake_case` everywhere, including API JSON.
 - `created_at` and `updated_at` on every mutable table (`updated_at` maintained by a trigger).
 - A `version int` column, bumped by a trigger, on records edited concurrently (`delegations`, `arrivals`, `guests`, `pickups`; optimistic locking).
-- Every business table carries `event_id`, defaulting to the single event (`private.current_event_id()`). The MVP has exactly one event (a unique index enforces it).
+- Every business table carries `event_id`, defaulting to `private.current_event_id()`. **Since P9 step 9.1 (2026-11-11, branch `feat/multi-event`)** an installation may hold several events: `current_event_id()` returns the event chosen for the request (`app.event_id`, set per transaction like `app.user_id`) and, while none is chosen, falls back to the live event (or the oldest one). **Isolation between events is not enforced yet (step 9.2):** no policy filters by `event_id`, so only one event may run in production until then.
 - Every business table has the `audit_row_change` trigger and row-level security (§6).
 
 ---
@@ -22,6 +22,9 @@ Relationships marked P5 or later are planned; the rest are built (P1–P4).
 ```mermaid
 erDiagram
   EVENTS ||--o{ ROOMS : has
+  PROFILES ||--o{ EVENTS : owns
+  EVENTS ||--o{ EVENT_MEMBERS : staffed_by
+  PROFILES ||--o{ EVENT_MEMBERS : works_on
   EVENTS ||--o{ ROOM_TYPES : has
   EVENTS ||--o{ DRIVERS : has
   EVENTS ||--o{ VIP_CATEGORIES : ranks_with
@@ -63,7 +66,7 @@ erDiagram
 
 | Type | Values | Status |
 |---|---|---|
-| `app_role` | `super_admin`, `admin`, `coordinator`, `programs`, `driver`, `accommodation`, `housekeeping` | ✅ |
+| `app_role` | `super_admin`, `programme_manager` (✅ P9 step 9.1), `admin`, `coordinator`, `programs`, `driver`, `accommodation`, `housekeeping` | ✅ |
 | `actor_type` | `user`, `system`, `copilot`, `guest_intake` | ✅ |
 | `housekeeping_status` | `clean`, `needs_cleaning`, `cleaning` | ✅ |
 | `proposal_kind` | `room_plan`, `room_assignment`, `driver_assignment`, `driver_reassignment`, `release_pickup`, `copilot_action` | ✅ |
@@ -92,7 +95,7 @@ erDiagram
 
 ### 3.1 Event, accounts and auth — ✅ built (P1)
 
-**`events`**: one row (unique index on a constant).
+**`events`**: one row per event. Until P9 a unique index on a constant allowed only one; migration `20261111100100_multi_event.sql` dropped it (the existing event became `live`, owned by the longest-standing active Super Admin).
 
 | Column | Type | Notes |
 |---|---|---|
@@ -112,6 +115,8 @@ erDiagram
 | program_lead_time_min | int default 30 | 0–240 |
 | flight_mode | text (`live`, `simulated`) default `simulated` | Only a Super Admin may change it (trigger) |
 | auto_process_enabled | boolean default true | Kill switch for intake auto-processing |
+| status | text (`draft`, `live`, `archived`) default `draft` | ✅ P9 9.1. At most one `live` event per owner (partial unique index `events_one_live_per_owner`); several owners can each have one. Not writable by the API yet (step 9.4 adds go-live and archive) |
+| owner_id | uuid → profiles, nullable | ✅ P9 9.1. The Programme Manager who runs the event; set to the creator by trigger `set_event_owner` (not in the API's insert grant) |
 | coordinator_phone | text, nullable | ✅ 2026-11-10. The coordination desk's phone, E.164 (`^\+[1-9][0-9]{6,14}$`). Admin sets it in Settings → System (typed loosely, normalised by the API; blank clears it). Drivers read it through `get_event_context()` / `GET /api/driver/pickups` for "Call coordinator" |
 | created_at, updated_at | timestamptz | |
 
@@ -128,7 +133,10 @@ erDiagram
 | ban_reason, ban_expires | text, timestamptz | Exposed by the API as `deactivation_reason` |
 | must_change_password | boolean default true | Set for new accounts and password resets |
 | phone | text | E.164 (`+2348012345678`) |
+| active_event_id | uuid → events, nullable | ✅ P9 9.1. The event this person last chose (the switcher arrives in step 9.4) |
 | created_at, updated_at | timestamptz | |
+
+**`event_members`** (✅ P9 9.1): which staff work on which event. `id` uuid PK, `event_id` → events (cascade), `profile_id` → profiles (cascade), `added_by` → profiles, `created_at`; unique (`event_id`, `profile_id`). Audited. RLS: everyone reads their own rows, coordinators and above read all; Admin and above add and remove (step 9.4 narrows this to their own events). The migration made every existing non-Super-Admin account a member of the existing event. Super Admins see every event without membership.
 
 Triggers: `guard_last_super_admin` (never zero active Super Admins); `audit_row_change('skip_anonymous')` (Better Auth's own writes are skipped; account changes are recorded with the acting admin, see §5).
 

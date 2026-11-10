@@ -14,7 +14,7 @@ import {
 describe('roles', () => {
   it('matches the database enum exactly', () => {
     expectTypeOf<AppRole>().toEqualTypeOf<DbAppRole>()
-    expect(APP_ROLES).toHaveLength(7)
+    expect(APP_ROLES).toHaveLength(8)
   })
 
   it('recognises valid role strings only', () => {
@@ -40,6 +40,17 @@ describe('roles', () => {
     expect(canManageAccount('admin', 'driver')).toBe(true)
     expect(canManageAccount('admin', 'admin')).toBe(false)
     expect(canManageAccount('admin', 'super_admin')).toBe(false)
+  })
+
+  it('ranks a Programme Manager above Admin: admin-level access, managing Admins and below', () => {
+    expect(hasAnyRole('programme_manager', ADMIN_PLUS)).toBe(true)
+    expect(hasAnyRole('programme_manager', COORDINATOR_PLUS)).toBe(true)
+    expect(canManageAccount('programme_manager', 'admin')).toBe(true)
+    expect(canManageAccount('programme_manager', 'driver')).toBe(true)
+    expect(canManageAccount('programme_manager', 'programme_manager')).toBe(false)
+    expect(canManageAccount('programme_manager', 'super_admin')).toBe(false)
+    expect(canManageAccount('admin', 'programme_manager')).toBe(false)
+    expect(HOME_ROUTES.programme_manager).toBe('/dashboard')
   })
 
   it('does not let other roles manage accounts', () => {

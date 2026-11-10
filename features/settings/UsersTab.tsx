@@ -27,6 +27,7 @@ type Dialog =
 
 const ROLE_CLASSES: Readonly<Record<AppRole, string>> = {
   super_admin: 'admin',
+  programme_manager: 'admin',
   admin: 'admin',
   coordinator: 'coordinator',
   programs: 'programmes',

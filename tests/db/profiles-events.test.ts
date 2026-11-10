@@ -126,12 +126,6 @@ describe('profiles', () => {
 describe('events', () => {
   const db = useTestDb()
 
-  it('allows only one event', async () => {
-    await db().createEvent()
-    const error = await db().expectError(() => db().createEvent({ name: 'Second' }))
-    expect(error.code).toBe('23505')
-  })
-
   it('lets an admin create the event and blocks coordinators', async () => {
     const admin = await db().createProfile('admin')
     const coordinator = await db().createProfile('coordinator')

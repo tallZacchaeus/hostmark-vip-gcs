@@ -34,6 +34,7 @@ const VEHICLES = [
 ] as const
 const ACCOUNT_NAMES: Readonly<Record<AppRole, string>> = {
   super_admin: 'Segun Okoye',
+  programme_manager: 'Ngozi Okafor',
   admin: 'Tolu Adebayo',
   coordinator: 'Ada Nwosu',
   programs: 'Kemi Bassey',
@@ -166,7 +167,7 @@ async function seedVenue(db: Kysely<DB>, days: readonly string[]) {
   })
 }
 
-async function seedAccounts(db: Kysely<DB>, auth: Auth, password: string, driverLoginFor: string | undefined) {
+async function seedAccounts(db: Kysely<DB>, auth: Auth, password: string, eventId: string, driverLoginFor: string | undefined) {
   // Better Auth creates the accounts first (its own connection), then one audited transaction
   // marks them ready to use and links the driver login.
   const created: Array<{ role: AppRole; email: string; id: string }> = []
@@ -182,6 +183,15 @@ async function seedAccounts(db: Kysely<DB>, auth: Auth, password: string, driver
       .updateTable('profiles')
       .set({ must_change_password: false })
       .where('id', 'in', created.map((account) => account.id))
+      .execute()
+    // The demo event is live and run by the demo Programme Manager; everyone else works on it
+    // (Super Admins see every event without being members).
+    const manager = created.find((account) => account.role === 'programme_manager')
+    await tx.updateTable('events').set({ status: 'live', owner_id: manager?.id ?? null }).where('id', '=', eventId).execute()
+    const members = created.filter((account) => account.role !== 'super_admin')
+    await tx
+      .insertInto('event_members')
+      .values(members.map((account) => ({ event_id: eventId, profile_id: account.id })))
       .execute()
     const driverLogin = created.find((account) => account.role === 'driver')
     if (driverLogin && driverLoginFor) {
@@ -205,7 +215,7 @@ export async function seedDevData(db: Kysely<DB>, auth: Auth, password: string, 
   }
   const days = eventDays(now, options.startsInDays ?? DEFAULT_STARTS_IN_DAYS)
   const venue = await seedVenue(db, days)
-  const accounts = await seedAccounts(db, auth, password, venue.driverIds[0])
+  const accounts = await seedAccounts(db, auth, password, venue.eventId, venue.driverIds[0])
   const guests = await seedGuests(db, days[0] ?? '', days.at(-1) ?? '')
   const transport = await seedTransport(db, days[0] ?? '', venue.driverIds)
   const allocation = await seedRooms(db, now)

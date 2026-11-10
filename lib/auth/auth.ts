@@ -113,7 +113,7 @@ export function createAuth(config: AuthConfig) {
       admin({
         ac: accessControl,
         roles: authRoles,
-        adminRoles: ['super_admin', 'admin'],
+        adminRoles: ['super_admin', 'programme_manager', 'admin'],
         // Least-privileged role; our routes always set the role explicitly.
         defaultRole: 'housekeeping',
         schema: {

@@ -58,6 +58,7 @@ describe('role labels', () => {
     expect(ASSIGNABLE_ROLES.map((role) => ROLE_LABELS[role])).toEqual([
       'Event Coordinator',
       'Admin',
+      'Programme Manager',
       'Programmes team',
       'Driver',
       'Front desk',

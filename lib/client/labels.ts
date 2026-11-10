@@ -4,6 +4,7 @@ import type { AppRole } from '@/lib/auth/roles'
 
 export const ROLE_LABELS: Readonly<Record<AppRole, string>> = {
   super_admin: 'Super Admin',
+  programme_manager: 'Programme Manager',
   admin: 'Admin',
   coordinator: 'Event Coordinator',
   programs: 'Programmes team',
@@ -16,6 +17,7 @@ export const ROLE_LABELS: Readonly<Record<AppRole, string>> = {
 export const ASSIGNABLE_ROLES: readonly AppRole[] = [
   'coordinator',
   'admin',
+  'programme_manager',
   'programs',
   'driver',
   'accommodation',

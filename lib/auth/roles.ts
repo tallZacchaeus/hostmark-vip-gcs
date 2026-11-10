@@ -3,6 +3,7 @@
 
 export const APP_ROLES = [
   'super_admin',
+  'programme_manager',
   'admin',
   'coordinator',
   'programs',
@@ -13,11 +14,14 @@ export const APP_ROLES = [
 
 export type AppRole = (typeof APP_ROLES)[number]
 
-/** Roles that manage accounts, venue and drivers. */
-export const ADMIN_PLUS: readonly AppRole[] = ['super_admin', 'admin']
+/**
+ * Roles that manage accounts, venue and drivers. A Programme Manager (P9, 01-PRD.md section 5.7)
+ * owns events and ranks above Admin: super_admin ⊇ programme_manager ⊇ admin ⊇ coordinator.
+ */
+export const ADMIN_PLUS: readonly AppRole[] = ['super_admin', 'programme_manager', 'admin']
 
-/** Roles with the full operational view (01-PRD.md: super_admin ⊇ admin ⊇ coordinator). */
-export const COORDINATOR_PLUS: readonly AppRole[] = ['super_admin', 'admin', 'coordinator']
+/** Roles with the full operational view. */
+export const COORDINATOR_PLUS: readonly AppRole[] = [...ADMIN_PLUS, 'coordinator']
 
 export const ANY_ROLE: readonly AppRole[] = APP_ROLES
 
@@ -31,7 +35,7 @@ export const HOUSEKEEPING_ROLES: readonly AppRole[] = ['housekeeping', ...COORDI
 export const CLEANING_READERS: readonly AppRole[] = ['housekeeping', 'accommodation', ...COORDINATOR_PLUS]
 
 /** The programme: the programs team and Admin draft and publish (FR-PG-01). */
-export const PROGRAM_EDITORS: readonly AppRole[] = ['super_admin', 'admin', 'programs']
+export const PROGRAM_EDITORS: readonly AppRole[] = [...ADMIN_PLUS, 'programs']
 
 /** The programme timeline: coordinators see what is published (FR-PG-04). */
 export const PROGRAM_READERS: readonly AppRole[] = [...COORDINATOR_PLUS, 'programs']
@@ -42,6 +46,7 @@ export const GUEST_READERS: readonly AppRole[] = [...COORDINATOR_PLUS, 'programs
 /** Where each role lands after signing in (03-App-Flow.md section 3; paths follow the Figma design). */
 export const HOME_ROUTES: Readonly<Record<AppRole, string>> = {
   super_admin: '/dashboard',
+  programme_manager: '/dashboard',
   admin: '/dashboard',
   coordinator: '/dashboard',
   programs: '/programme',
@@ -60,11 +65,15 @@ export function hasAnyRole(role: AppRole, allowed: readonly AppRole[]): boolean 
 
 /**
  * Whether `actorRole` may create, edit or deactivate an account holding `targetRole`.
- * Super Admin manages everyone; Admin manages only roles below Admin.
+ * Super Admin manages everyone; a Programme Manager manages Admins and below; an Admin manages
+ * only roles below Admin. Matches profiles_update in db/migrations (20261111100100).
  */
 export function canManageAccount(actorRole: AppRole, targetRole: AppRole): boolean {
   if (actorRole === 'super_admin') {
     return true
+  }
+  if (actorRole === 'programme_manager') {
+    return targetRole !== 'programme_manager' && targetRole !== 'super_admin'
   }
   return actorRole === 'admin' && !ADMIN_PLUS.includes(targetRole)
 }

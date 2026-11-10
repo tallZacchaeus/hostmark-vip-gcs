@@ -206,6 +206,30 @@ Frontend (2026-10-19, from the Figma Make export in `design/figma-make/`):
 
 **Exit:** every PRD §8 metric has a measured value with a reproducible script, and the demo runs end to end.
 
+### P9 — Multiple events and Programme Managers 🟨 (planned 2026-11-10, branch `feat/multi-event`; [`01`](01-PRD.md) §5.7)
+
+**Why it is a real redesign:** the database allows exactly one event (`events_singleton` unique index), `private.current_event_id()` returns "the" event, 19 columns default to it, and **none of the 51 row-level security policies filter by event**: isolation between events does not exist yet and must be added everywhere, not only in screens.
+
+**Approach:** keep `private.current_event_id()` as the single point of truth, but make it read the **event chosen for this request** (a transaction setting, like `app.user_id`) instead of "the only row". Every request runs inside one event; RLS adds `event_id = private.current_event_id()` to every policy, and membership decides which events a person may choose.
+
+| Step | Work | Depends on |
+|---|---|---|
+| 9.1 Schema | `programme_manager` role; `events.status` (draft/live/archived), `events.owner_id`; drop `events_singleton`; one live event per owner (partial unique index); `event_members (event_id, profile_id)`; `profiles.active_event_id`; `current_event_id()` reads the request's event | — |
+| 9.2 Isolation | Add the event filter to all 51 policies and the `security definer` functions; DB tests per role proving no read or write crosses events (two events side by side) | 9.1 |
+| 9.3 Request context | Route wrapper resolves the active event (membership-checked, live or draft for owners, read-only when archived) and sets it per transaction; worker loops over live events; registration links resolve their own event; Victoria answers within the active event | 9.2 |
+| 9.4 Screens | Event switcher in the top bar; Programme Manager's **Events** page (create draft, go live, archive, assign staff); "copy setup from a previous event"; Settings scoped to the active event | 9.3 |
+| 9.5 Migration of live data | Existing event becomes Live, owned by the first Super Admin; existing staff become members of it; no data loss | 9.1 |
+| 9.6 Evaluation and docs | Re-run all evaluations per event; update `02`, `03`, `05`, tester guide | 9.4 |
+
+**Progress:**
+- ✅ **9.1 Schema** (2026-11-11; migrations `20261111100000_programme_manager_role.sql`, `20261111100100_multi_event.sql`; tests `tests/db/multi-event.test.ts` (9), `lib/auth/roles.test.ts`; applied, rolled back and re-applied with dbmate on Postgres 18). The `programme_manager` role ranks above Admin (`is_admin_plus`, `is_coordinator_plus`, account rules in `profiles_update`, `audit_profile_change` and `canManageAccount`: a manager manages Admins and below, only a Super Admin manages managers); `events.status`/`owner_id` with one live event per owner and the creator as owner; `event_members` (existing staff added to the existing event); `profiles.active_event_id`; `current_event_id()` follows `app.event_id` with a fallback to the live (or oldest) event. The event settings API now reads and writes only the current event (before, `updateEvent` had no `where` and would have changed every event) and still refuses a second event until step 9.4. The demo seed has a Programme Manager who owns the live demo event, with the other accounts as members.
+- Left for **9.2**: policies that list roles explicitly (`has_role('super_admin', 'admin', …)`) do not include `programme_manager` yet; they are rewritten with the event filter.
+- Left for **9.3**: eight places still read "the" event without naming it (`lib/repositories/arrivals.ts`, `intake.ts`, `transport.ts`, `lib/services/transport/context.ts`, `simulation/runner.ts`, `intake/records.ts`, `worker/tick.ts`, `rooms/plan.ts`); each must use the request's event.
+
+**Exit:** two Programme Managers each run a live event at the same time on one installation; staff assigned to one see nothing of the other (proved by tests per role); a manager can prepare a draft while their live event runs, and archive it afterwards.
+
+**Size and risk:** the largest change since P1 (every table's security rules, every route's context). It is built on its own branch with the full test suite green at each step; the droplet keeps running the current version until it is done.
+
 ## 3. Cross-cutting rules while building
 
 - Update [`05-Backend-Schema.md`](05-Backend-Schema.md) **in the same change** as any migration, and update this file's checkboxes as items land.
