@@ -108,7 +108,7 @@ export function TopBar({ onOpenMenu, onOpenCopilot, onOpenNotifications, unreadC
         </span>
         {canUseCopilot && (
           <Button icon="sparkle" onClick={onOpenCopilot}>
-            Ask Co-Pilot
+            Ask Victoria
           </Button>
         )}
         <button

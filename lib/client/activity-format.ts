@@ -92,7 +92,7 @@ export function actorLabel(entry: Pick<AuditEntry, 'actor_type' | 'actor_name'>)
     case 'system':
       return 'The system'
     case 'copilot':
-      return 'Co-Pilot'
+      return 'Victoria'
     case 'guest_intake':
       return 'Guest registration'
     default:

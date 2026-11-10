@@ -20,7 +20,7 @@ type Day = 'today' | 'yesterday'
 
 const PAGE_SIZE = 200
 const DOMAINS: readonly ActivityDomain[] = ['Arrivals', 'Transport', 'Rooms', 'Sanitation', 'Intake', 'Programme', 'Setup']
-const WHO_LABELS: Readonly<Record<Who, string>> = { everyone: 'Everyone', staff: 'Staff', copilot: 'Co-Pilot', automatic: 'Automatic' }
+const WHO_LABELS: Readonly<Record<Who, string>> = { everyone: 'Everyone', staff: 'Staff', copilot: 'Victoria', automatic: 'Automatic' }
 
 function auditPath(today: string, day: Day, who: Who, domain: ActivityDomain | 'all', timeZone: string): string {
   const date = day === 'today' ? today : addDays(today, -1)
@@ -152,7 +152,7 @@ export function ActivityScreen() {
             {filtersActive ? (
               <Button onClick={clearFilters}>Clear filters</Button>
             ) : (
-              <p>Changes by staff, Co-Pilot and automatic updates appear here.</p>
+              <p>Changes by staff, Victoria and automatic updates appear here.</p>
             )}
           </div>
         ) : (

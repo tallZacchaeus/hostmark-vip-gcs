@@ -10,7 +10,7 @@ The project owner creates an account for you. You get an **email from Hostmark**
 
 | Role | What you test | Best on |
 |---|---|---|
-| Event coordinator | Intake, arrivals, transport, rooms, programme, sanitation, Co-Pilot, simulation | Laptop |
+| Event coordinator | Intake, arrivals, transport, rooms, programme, sanitation, Victoria (the assistant), simulation | Laptop |
 | Programmes team | Programme items and their VIP participants | Laptop |
 | Front desk | Check-in and check-out | Phone |
 | Housekeeping | Cleaning rooms | Phone |
@@ -36,7 +36,7 @@ Tick each item and note anything confusing, slow or wrong.
 - [ ] **Rooms**: create a room plan, approve some lines, then move a guest to another room (try an occupied room to see the warning).
 - [ ] **Programme**: an item with a late-arriving VIP is flagged "at risk"; press **Notify programme team**.
 - [ ] **Sanitation**: rooms waiting to be cleaned, in priority order; reverse a check-out that has not been started.
-- [ ] **Ask Co-Pilot** (top bar): "Who arrives in the next 2 hours?", "Is <flight> delayed?", "Where is <guest> staying?", then "Add a note to <guest>: allergic to peanuts" — it only appears on the profile after you press **Approve**. Try your own wording too: tell us what it misunderstands.
+- [ ] **Ask Victoria** (top bar; the assistant): "Who arrives in the next 2 hours?", "Is <flight> delayed?", "Where is <guest> staying?", then "Add a note to <guest>: allergic to peanuts" — it only appears on the profile after you press **Approve**. Try your own wording too: tell us what it misunderstands.
 - [ ] **Simulation**: run "One flight 45 minutes late" and watch Arrivals and Transport react.
 
 **Programmes team**
@@ -62,8 +62,8 @@ Send these to the project owner. Small wording or layout notes are welcome too.
 
 ## 4. Known limits in this test build
 
-- The Co-Pilot understands a fixed set of question patterns (it does not use an AI model yet). Unusual wording may get a "try asking…" answer — please report those.
-- The microphone in the Co-Pilot appears only in browsers with speech recognition (Chrome, Edge, Safari); in Chrome the audio is processed by Google.
+- Victoria understands a fixed set of question patterns (it does not use an AI model yet). Unusual wording may get a "try asking…" answer — please report those.
+- The microphone in Victoria appears only in browsers with speech recognition (Chrome, Edge, Safari); in Chrome the audio is processed by Google.
 - Email covers account links and registration confirmations only; flight changes, pickups and rooms are in-app notifications. Cloudflare's bot check on the public registration form is off.
 - The cleaning "ready by" estimate assumes enough cleaners; with a long queue it is optimistic.
 

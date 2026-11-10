@@ -48,12 +48,12 @@ describe('TopBar', () => {
     expect(navigation.push).toHaveBeenCalledWith('/guests?q=Okafor%20%26%20Sons')
   })
 
-  it('opens the menu, Co-Pilot and notifications, naming the unread count', async () => {
+  it('opens the menu, Victoria and notifications, naming the unread count', async () => {
     const user = userEvent.setup()
     const handlers = renderTopBar('coordinator', 3)
 
     await user.click(screen.getByRole('button', { name: 'Open menu' }))
-    await user.click(screen.getByRole('button', { name: 'Ask Co-Pilot' }))
+    await user.click(screen.getByRole('button', { name: 'Ask Victoria' }))
     await user.click(screen.getByRole('button', { name: 'Notifications, 3 unread' }))
 
     expect(handlers.onOpenMenu).toHaveBeenCalledTimes(1)
@@ -61,10 +61,10 @@ describe('TopBar', () => {
     expect(handlers.onOpenNotifications).toHaveBeenCalledTimes(1)
   })
 
-  it('gives the programmes team neither guest search nor Co-Pilot', () => {
+  it('gives the programmes team neither guest search nor Victoria', () => {
     renderTopBar('programs')
     expect(screen.queryByRole('search')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Ask Co-Pilot' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ask Victoria' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument()
   })
 

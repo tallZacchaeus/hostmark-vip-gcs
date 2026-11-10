@@ -61,7 +61,7 @@ describe('ConsoleShell', () => {
     expect(screen.queryByRole('button', { name: 'Close menu' })).not.toBeInTheDocument()
   })
 
-  it('opens the notifications drawer and Co-Pilot one at a time', async () => {
+  it('opens the notifications drawer and Victoria one at a time', async () => {
     installEventSource()
     mockApi(consoleRoutes())
     const user = userEvent.setup()
@@ -72,9 +72,9 @@ describe('ConsoleShell', () => {
     await user.click(screen.getByRole('button', { name: 'Close notifications' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Ask Co-Pilot' }))
-    expect(await screen.findByRole('dialog', { name: 'Ask Co-Pilot' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Close Co-Pilot' }))
+    await user.click(screen.getByRole('button', { name: 'Ask Victoria' }))
+    expect(await screen.findByRole('dialog', { name: 'Ask Victoria' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close Victoria' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 

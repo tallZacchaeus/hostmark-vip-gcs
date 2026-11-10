@@ -1,5 +1,5 @@
 'use client'
-// Co-Pilot drawer (FR-CP-01…05, Figma "Ask Co-Pilot"): ask by typing or by holding the microphone
+// The assistant drawer, shown as "Ask Victoria" (FR-CP-01…05; Figma "Ask Co-Pilot"): ask by typing or by holding the microphone
 // (where the browser supports speech); answers come from live data with links to the records used;
 // a requested change comes back as a card to approve or dismiss. One conversation per opening.
 import Link from 'next/link'
@@ -41,7 +41,7 @@ function Answer({ reply, onNavigate }: { readonly reply: CopilotReply; readonly 
     <div className="copilot-response">
       <div className="copilot-label">
         <Icon name="sparkle" size={14} />
-        Co-Pilot
+        Victoria
       </div>
       <p>{reply.answer}</p>
       {reply.citations.length > 0 ? (
@@ -110,8 +110,8 @@ export function CopilotDrawer({ onClose }: { readonly onClose: () => void }) {
           <span>
             <Icon name="sparkle" />
           </span>
-          <h2 id="copilot-title">Ask Co-Pilot</h2>
-          <button type="button" aria-label="Close Co-Pilot" onClick={onClose}>
+          <h2 id="copilot-title">Ask Victoria</h2>
+          <button type="button" aria-label="Close Victoria" onClick={onClose}>
             <Icon name="close" />
           </button>
         </div>
@@ -146,7 +146,7 @@ export function CopilotDrawer({ onClose }: { readonly onClose: () => void }) {
           <div className="copilot-thinking">
             <div className="copilot-label">
               <Icon name="sparkle" size={14} />
-              Co-Pilot
+              Victoria
             </div>
             <span>
               <i />

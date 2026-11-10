@@ -67,7 +67,7 @@ Page titles are 34 px / 800; card titles 15–20 px / 700–800; body 14 px; hel
 
 ### Console (desktop/tablet)
 - **Sidebar** (collapses to a drawer below 1100 px): Dashboard, Programme, Guests, Intake *(count)*, Arrivals, Transport, Rooms, Sanitation · Activity, Simulation, Settings; event card and signed-in user at the bottom. Items a role cannot open are hidden.
-- **Top bar:** search · event name · **Simulated** badge (when active) · event clock · **Ask Co-Pilot** · notifications bell · account menu (change password, sign out).
+- **Top bar:** search · event name · **Simulated** badge (when active) · event clock · **Ask Victoria** (the Co-Pilot assistant, named Victoria on screen since 2026-11-10) · notifications bell · account menu (change password, sign out).
 - **Dashboard:** greeting hero with the venue photo, KPI tiles, then **Waiting for your approval** (left) and recent activity / at a glance (right), quick actions at the bottom.
 - **Tables:** the design's grid rows (guests, intake, settings) and plain `data-table`s for admin lists; filters sit above the table and the row opens the detail page.
 - **Detail pages:** a header with name + honorific + VIP category chip + status, then tabs or sections: Overview · Members · Travel · Rooms · Program · History.

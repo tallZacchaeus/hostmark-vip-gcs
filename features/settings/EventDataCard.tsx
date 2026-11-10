@@ -80,7 +80,7 @@ function PurgeDialog({ eventName, onClose, onPurged }: PurgeDialogProps) {
   return (
     <FormDialog
       title="Remove guest personal data?"
-      description="Names become “Guest” with a short code; contact details, dietary and accessibility notes, requirements, registration forms and Co-Pilot questions are deleted. Names, e-mail addresses and phone numbers are also taken out of titles and notes, on a best effort basis (a nickname or misspelling may remain). Times, rooms, flights and counts stay for reporting. This cannot be undone, so download an export first if you need one."
+      description="Names become “Guest” with a short code; contact details, dietary and accessibility notes, requirements, registration forms and questions asked to Victoria are deleted. Names, e-mail addresses and phone numbers are also taken out of titles and notes, on a best effort basis (a nickname or misspelling may remain). Times, rooms, flights and counts stay for reporting. This cannot be undone, so download an export first if you need one."
       submitLabel="Remove personal data"
       width="compact"
       danger

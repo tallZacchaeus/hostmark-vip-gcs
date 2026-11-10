@@ -113,7 +113,7 @@ describe('ActivityScreen', () => {
     expect(await screen.findByText('3 changes')).toBeInTheDocument()
   })
 
-  it('asks the API for automatic, staff or Co-Pilot changes of one type', async () => {
+  it('asks the API for automatic, staff or Victoria changes of one type', async () => {
     const fetchMock = mockApi([auditRoute()])
     const user = userEvent.setup()
     renderWithApp(<ActivityScreen />)
@@ -138,7 +138,7 @@ describe('ActivityScreen', () => {
     const user = userEvent.setup()
     renderWithApp(<ActivityScreen />)
     expect(await screen.findByText('Nothing has changed on this day.')).toBeInTheDocument()
-    expect(screen.getByText('Changes by staff, Co-Pilot and automatic updates appear here.')).toBeInTheDocument()
+    expect(screen.getByText('Changes by staff, Victoria and automatic updates appear here.')).toBeInTheDocument()
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Day' }), 'yesterday')
 

@@ -8,7 +8,7 @@ describe('activity sentences', () => {
     expect(actorLabel({ actor_type: 'user', actor_name: 'Tolu Adebayo' })).toBe('Tolu Adebayo')
     expect(actorLabel({ actor_type: 'user', actor_name: null })).toBe('A staff member')
     expect(actorLabel({ actor_type: 'system', actor_name: null })).toBe('The system')
-    expect(actorLabel({ actor_type: 'copilot', actor_name: null })).toBe('Co-Pilot')
+    expect(actorLabel({ actor_type: 'copilot', actor_name: null })).toBe('Victoria')
     expect(actorLabel({ actor_type: 'guest_intake', actor_name: null })).toBe('Guest registration')
   })
 
