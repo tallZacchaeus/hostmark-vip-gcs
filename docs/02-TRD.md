@@ -1,6 +1,6 @@
 # 02 — Technical Requirements Document (TRD)
 
-**Status:** v7, 2026-11-10. Production hosting is **Vercel + Supabase** (decision 13 in [`00`](00-Project-Breakdown.md#decisions-log), §5.2); the droplet set-up of decision 12 remains as an alternative (§5.1). P1 (backend + the Figma Make frontend "Hostmark"), P2 (guest intake), P3 (flights, transport, driver app, simulation), P4 (room allocation, front desk check-in), P5 (turnaround and cleaning), P6 (event programme) and P7 (Co-Pilot, offline rules engine) are built and tested (see [`06`](06-Implementation-Plan.md)). 2026-11-10: the P8 engineering items are in place (Content-Security-Policy, Super Admin data export and post-event purge, `pnpm eval:all`, coverage above 80 %; §7, §8).
+**Status:** v7, 2026-11-10. Production hosting is **Vercel + Supabase** (decision 13 in [`00`](00-Project-Breakdown.md#decisions-log), §5.2); a second production copy runs on a 1 GB DigitalOcean droplet at https://hostmark.tech with Postgres on the droplet (decision 12, §5.1, live since 2026-11-10). P1 (backend + the Figma Make frontend "Hostmark"), P2 (guest intake), P3 (flights, transport, driver app, simulation), P4 (room allocation, front desk check-in), P5 (turnaround and cleaning), P6 (event programme) and P7 (Co-Pilot, offline rules engine) are built and tested (see [`06`](06-Implementation-Plan.md)). 2026-11-10: the P8 engineering items are in place (Content-Security-Policy, Super Admin data export and post-event purge, `pnpm eval:all`, coverage above 80 %; §7, §8).
 
 **Related:** [`01-PRD.md`](01-PRD.md) (what), [`05-Backend-Schema.md`](05-Backend-Schema.md) (data and API), [`06-Implementation-Plan.md`](06-Implementation-Plan.md) (build order).
 
@@ -266,17 +266,19 @@ Built in P3 (`lib/flights/*`, `lib/services/flights/*`, `lib/services/worker/*`)
 | Local (Docker) | `pnpm dev` | Docker Postgres 18 via `pnpm db:up` (port 5433) | Simulated |
 | Tests | Vitest | PGlite in-process (no Docker) | Simulated |
 | **Production / demo** | **Vercel** project `hostmark-vip` → `https://hostmark-vip.vercel.app` (§5.2) | **Supabase** project `hostmark-vip` (Postgres 17, London) | Live (switchable to simulated) |
-| Alternative | Droplet: `compose.yaml` (Caddy + app + Postgres + migrate) (§5.1) | Postgres 18 on the same droplet | Live (switchable to simulated) |
+| **Production (droplet)** | DigitalOcean droplet → `https://hostmark.tech`: `compose.yaml` + `compose.droplet.yaml` (Caddy + app + Postgres + migrate) (§5.1) | Postgres 18 on the same droplet | Live (switchable to simulated) |
 
-### 5.1 DigitalOcean droplet (alternative)
+### 5.1 DigitalOcean droplet — live at https://hostmark.tech
 
-- **Droplet:** Ubuntu LTS with Docker. **2 vCPU / 4 GB RAM** is recommended (building the Next.js image needs memory; alternatively build the image elsewhere and pull it). Choose the region closest to the venue (DigitalOcean has no African region; Frankfurt or London for West Africa — TBD).
-- **Deploy:** `git pull` → `docker compose --env-file .env.production up -d --build`. The `migrate` service applies `db/migrations` and exits; the app starts only if it succeeded.
-- **First run:** `docker compose --env-file .env.production run --rm tools pnpm admin:create --email you@example.com --name "Your Name"` prints a one-time Super Admin password.
+- **Droplet (live since 2026-11-10):** `hostmark-vip`, Ubuntu 24.04, **1 vCPU / 1 GB RAM** (`s-1vcpu-1gb`, about $6/mo), London (`lon1`), IP 178.62.105.236, with 2 GB swap. Domain `hostmark.tech` (registered at Hostinger): A records for `@` and `www` point to the droplet; `www` redirects to the bare domain.
+- **1 GB layout:** `compose.droplet.yaml` is layered over `compose.yaml` and sets memory limits (Postgres 320 MB with `shared_buffers=96MB`, `max_connections=40`; app 512 MB with a 384 MB Node heap; Caddy and migrate 128 MB), uses the prebuilt image `vip-gcs-app:latest` instead of building, and publishes Postgres on `127.0.0.1:5432` only (for SSH tunnels). Measured at start: app ~110 MB, Postgres ~45 MB, Caddy ~60 MB.
+- **Deploy:** `bash scripts/droplet-deploy.sh` from a laptop. It builds the `linux/amd64` image locally (`next build` needs more than 1 GB), streams it to the droplet with `docker save | ssh docker load`, copies the Compose files, Caddyfile and migrations to `/opt/hostmark`, and runs `docker compose -f compose.yaml -f compose.droplet.yaml --env-file .env.production up -d`. The `migrate` service applies `db/migrations` and exits; the app starts only if it succeeded. The worker runs inside the app (`WORKER_MODE` default).
+- **Demo data and admin scripts:** open a tunnel (`ssh -L 15432:127.0.0.1:5432 root@178.62.105.236`) and run `scripts/seed-dev.ts` or `scripts/create-super-admin.ts` from a laptop with an env file pointing at `127.0.0.1:15432` (the app's variables plus `DATABASE_MIGRATION_URL` for the owner). The demo data was loaded on 2026-11-10 with the same `SEED_PASSWORD` as the Vercel deployment.
+- **Server hardening (done):** key-only SSH (`PasswordAuthentication no`, `PermitRootLogin prohibit-password`), `ufw` allowing only 22, 80, 443/tcp and 443/udp, `fail2ban`, unattended security upgrades.
 - **Secrets:** `.env.production` on the droplet only (`chmod 600`, never in git): `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `SERVICE_DB_PASSWORD` (all URL-safe, e.g. `openssl rand -hex 32`, because they are embedded in connection URLs), `BETTER_AUTH_SECRET` (`openssl rand -base64 32`), `SITE_ADDRESS`, `API_ALLOWED_ORIGINS`. The app validates them at startup (`instrumentation.ts`) and refuses to start with missing or weak values.
 - **TLS and headers:** Caddy obtains Let's Encrypt certificates automatically (the domain's DNS A record must point to the droplet) and adds HSTS, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy` and `Permissions-Policy`.
-- **Firewall:** DigitalOcean cloud firewall allowing only 22 (from known IPs), 80 and 443. Postgres and the app are not published.
-- **Backups (P8):** nightly `pg_dump` (`docker compose exec -T db pg_dump …| gzip`) to DigitalOcean Spaces plus weekly droplet backups; a restore drill before the demo.
+- **Firewall:** `ufw` on the droplet (above). Postgres and the app are not published to the internet.
+- **Backups:** `/usr/local/bin/hostmark-backup` runs nightly at 02:30 UTC (`/etc/cron.d/hostmark-backup`): `pg_dump | gzip` into `/opt/hostmark/backups`, keeping 7 days (first dump 2026-11-10). Still open: copying dumps off the droplet (Spaces or a laptop) and a restore drill before the demo.
 - **Managed database option:** point `DATABASE_URL` at DigitalOcean Managed Postgres. The access model needs no superuser-only features (§2.1).
 - **Monitoring:** `/api/health` (database check) for an uptime monitor and the Docker healthcheck; structured JSON logs via `docker compose logs`.
 
@@ -374,7 +376,7 @@ Commands: `pnpm test` (unit), `pnpm test:ui`, `pnpm test:db`, `pnpm test:integra
 | Item | Estimate (verify current prices) |
 |---|---|
 | **Vercel Hobby** (app) + **Supabase Free** (Postgres) — current hosting | $0 (Pro plans, if limits are hit: Vercel $20/mo, Supabase $25/mo) |
-| *Alternative:* DigitalOcean droplet, 2 vCPU / 4 GB | about $24/mo |
+| DigitalOcean droplet, 1 vCPU / 1 GB (`hostmark.tech`) | about $6/mo |
 | *Alternative:* droplet backups (weekly) | +20% of the droplet price |
 | *Alternative:* DigitalOcean Spaces (database dumps) | about $5/mo |
 | Domain name | about $10–15/yr |
@@ -394,7 +396,7 @@ Commands: `pnpm test` (unit), `pnpm test:ui`, `pnpm test:db`, `pnpm test:integra
 | Race conditions between staff | Atomic SQL functions (first-wins checkout); proposals re-validated on approval; concurrency tests on real Postgres. |
 | **Single droplet = single point of failure** | Nightly dumps off the droplet, weekly droplet backups, a restore drill, Compose restart policies. |
 | **Operating our own server** | Unattended security upgrades, Docker images pinned to major versions, firewall limited to 22/80/443, dependency updates gated by pnpm's release-age check. |
-| Running out of memory while building on the droplet | Build the image on a laptop or CI and pull it, or use the recommended 4 GB droplet. |
+| Running out of memory on the 1 GB droplet | The image is built on a laptop (`scripts/droplet-deploy.sh`), never on the droplet; per-service memory limits, a small Postgres configuration and 2 GB swap. |
 | **Free Supabase project paused** before a demo (about a week without activity) | Open the dashboard and resume it the day before; or move to the Pro plan for the evaluation month. |
 | **Vercel Hobby limits** (active CPU, function time) during a long simulation | The 5-second job only calls while a simulation runs; watch Vercel usage; Pro if needed. |
 

@@ -1,0 +1,38 @@
+# Settings for a 1 GB droplet, layered over compose.yaml (see docs/02-TRD.md section 5.1):
+#   docker compose -f compose.yaml -f compose.droplet.yaml --env-file .env.production up -d
+# The app image is built on a bigger machine and loaded here (`next build` needs more than 1 GB):
+#   docker buildx build --platform linux/amd64 --target runner -t vip-gcs-app:latest --load .
+#   docker save vip-gcs-app:latest | gzip | ssh root@<droplet> 'gunzip | docker load'
+# Memory budget (the droplet also has 2 GB of swap): Postgres 320 MB, app 512 MB, Caddy 128 MB.
+services:
+  db:
+    command:
+      - postgres
+      - -c
+      - shared_buffers=96MB
+      - -c
+      - effective_cache_size=256MB
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - max_connections=40
+    mem_limit: 320m
+    # Loopback only: reachable through an SSH tunnel for seeding and admin scripts, never from outside.
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  migrate:
+    mem_limit: 128m
+
+  app:
+    build: !reset null
+    image: vip-gcs-app:latest
+    pull_policy: never
+    mem_limit: 512m
+    environment:
+      NODE_OPTIONS: --max-old-space-size=384
+
+  caddy:
+    mem_limit: 128m

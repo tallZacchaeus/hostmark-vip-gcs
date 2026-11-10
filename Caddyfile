@@ -11,6 +11,10 @@
 	}
 }
 
+www.{$SITE_ADDRESS} {
+	redir https://{$SITE_ADDRESS}{uri} permanent
+}
+
 {$SITE_ADDRESS} {
 	# The app limits bodies too; this stops oversized uploads before they reach it.
 	request_body {

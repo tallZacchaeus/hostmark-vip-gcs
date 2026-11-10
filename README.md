@@ -65,4 +65,8 @@ Production runs on **Vercel** (the app) and **Supabase** (Postgres), both in Lon
 | `pnpm hosted:migrate && vercel deploy --prod` | Later deploys |
 | `pnpm hosted:admin --email … --name …` | Create a Super Admin on the hosted database |
 
-The DigitalOcean droplet set-up (`compose.yaml`, `Caddyfile`) still works as an alternative: [`docs/02-TRD.md` §5.1](docs/02-TRD.md).
+A second copy runs on a **1 GB DigitalOcean droplet at https://hostmark.tech** (Docker Compose: Caddy, app, Postgres; nightly database dumps): [`docs/02-TRD.md` §5.1](docs/02-TRD.md).
+
+| Command | What it does |
+|---|---|
+| `bash scripts/droplet-deploy.sh` | Build the app image here, load it on the droplet, copy the Compose files and migrations, restart (migrations run first) |
