@@ -30,6 +30,8 @@ Routes follow the Figma Make design ("Hostmark", see [`design/figma-make/`](../d
 |---|---|---|---|
 | `/sign-in` | Sign in | Email + password (Better Auth); `?reason=inactive` explains a deactivated account | ✅ |
 | `/account/password` | Choose a new password | Forced after a temporary password; also reachable from the account menu | ✅ |
+| `/forgot-password` | Forgot password | Email → a 1-hour link; same answer for every address. Only while email is on (otherwise back to sign-in, whose "Forgot password?" says to ask an admin) | ✅ 2026-11-10 |
+| `/reset-password?token=…` | Choose your password | Opened from an emailed link (invitation, admin reset, forgot password); then sign in. An expired or used link offers a new one | ✅ 2026-11-10 |
 | `/forbidden` | Not part of your role | Link back to the role's home | ✅ |
 
 ### Console (sidebar + top bar) — Coordinator, Admin, Super Admin; Programs sees Programme only
@@ -65,6 +67,8 @@ The **Co-Pilot** drawer (top bar, coordinator+; ✅ P7: suggested questions, ans
 flowchart LR
   L["/sign-in"] --> R{role?}
   R -->|temporary password| PW["/account/password"]
+  L -->|Forgot password?| FP["/forgot-password"] -->|email link| RP["/reset-password"] --> L
+  INV["Invitation email"] --> RP
   R -->|super_admin / admin / coordinator| D["/dashboard"]
   R -->|programs| PG["/programme"]
   R -->|driver| DR["/driver"]

@@ -135,6 +135,49 @@ describe('UsersTab', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('confirms an emailed invitation without showing any password', async () => {
+    // Arrange
+    const created = account({ id: 'a-9', full_name: 'Ngozi Eze', email: 'ngozi@example.com', role: 'programs', must_change_password: true })
+    mockApi([
+      listRoute(),
+      { path: '/api/admin/users', method: 'POST', body: { account: created, temporary_password: null, password_delivery: 'emailed' }, status: 201 },
+    ])
+    const user = userEvent.setup()
+    renderWithApp(<UsersTab />, sessionFor('admin'))
+    await screen.findByText('Tolu Adebayo')
+
+    // Act
+    await user.click(screen.getByRole('button', { name: 'Invite user' }))
+    const dialog = screen.getByRole('dialog', { name: 'Invite user' })
+    await user.type(within(dialog).getByLabelText(/^Name/), 'Ngozi Eze')
+    await user.type(within(dialog).getByLabelText(/^Email/), 'ngozi@example.com')
+    await user.click(within(dialog).getByRole('button', { name: 'Create account' }))
+
+    // Assert
+    expect(await screen.findByText('Invitation emailed to ngozi@example.com. The link works for 72 hours.')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('falls back to the temporary password, saying why, when the email could not be sent', async () => {
+    // Arrange
+    mockApi([
+      listRoute(),
+      { path: '/api/admin/users/a-2/reset-password', method: 'POST', body: { temporary_password: 'Reset-Pass-77', password_delivery: 'email_failed' } },
+    ])
+    const user = userEvent.setup()
+    renderWithApp(<UsersTab />, sessionFor('admin'))
+    await screen.findByText('Tolu Adebayo')
+
+    // Act
+    await openMenuItem(user, 'Tolu Adebayo', 'Reset password')
+    await user.click(screen.getByRole('button', { name: 'Reset password' }))
+
+    // Assert
+    const passwordDialog = await screen.findByRole('dialog', { name: 'Temporary password for Tolu Adebayo' })
+    expect(within(passwordDialog).getByText('Reset-Pass-77')).toBeInTheDocument()
+    expect(within(passwordDialog).getByText(/The email could not be sent/)).toBeInTheDocument()
+  })
+
   it('keeps the Copy label when the browser refuses clipboard access', async () => {
     mockApi([
       listRoute(),

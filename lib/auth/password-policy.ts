@@ -5,6 +5,12 @@ import { z } from 'zod'
 export const MIN_PASSWORD_LENGTH = 10
 export const MAX_PASSWORD_LENGTH = 128
 
+/** Emailed password links (lib/auth/password-links.ts). "Forgot password?" links are short, since
+ * anyone can ask for one; invitations and admin resets last long enough to reach someone over a
+ * weekend. Shared with the screens that mention them. */
+export const FORGOT_LINK_HOURS = 1
+export const STAFF_LINK_HOURS = 72
+
 export const newPasswordSchema = z
   .string()
   .min(MIN_PASSWORD_LENGTH, `Use at least ${MIN_PASSWORD_LENGTH} characters`)

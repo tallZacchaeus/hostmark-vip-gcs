@@ -57,7 +57,12 @@ async function isolated<T>(part: string, fallback: T, work: () => Promise<T>): P
 }
 
 async function pollFlights(db: Kysely<DB>, options: TickOptions, stillHolder: () => Promise<boolean>): Promise<PollReport | null> {
-  const event = await withSystem(db, { actor: 'system' }, (tx) => loadTransportEvent(tx))
+  // A new install has no event until a Super Admin creates one: nothing to check yet, and no error.
+  const event = await withSystem(db, { actor: 'system' }, async (tx) => {
+    const exists = await tx.selectFrom('events').select('id').executeTakeFirst()
+    return exists ? loadTransportEvent(tx) : null
+  })
+  if (!event) return null
   const provider = flightProviderFor(event, options.aeroDataBoxKey)
   if (!provider) return null
   return pollDueFlights(db, { provider, now: options.now, dailyLimit: options.dailyLimit, stillHolder })

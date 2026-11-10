@@ -7,13 +7,15 @@ export interface PasswordRule {
   readonly met: boolean
 }
 
-export function passwordRules(password: string, email: string): PasswordRule[] {
-  return [
+/** `email` null: not known on this screen (an emailed password link), so that rule is left out. */
+export function passwordRules(password: string, email: string | null): PasswordRule[] {
+  const rules: PasswordRule[] = [
     { label: `At least ${MIN_PASSWORD_LENGTH} characters`, met: password.length >= MIN_PASSWORD_LENGTH },
     { label: 'Upper- and lower-case letters', met: /[a-z]/.test(password) && /[A-Z]/.test(password) },
     { label: 'One number', met: /[0-9]/.test(password) },
-    { label: 'Not your email', met: password !== '' && password.toLowerCase() !== email.toLowerCase() },
   ]
+  if (email === null) return rules
+  return [...rules, { label: 'Not your email', met: password !== '' && password.toLowerCase() !== email.toLowerCase() }]
 }
 
 export function allRulesMet(rules: readonly PasswordRule[]): boolean {

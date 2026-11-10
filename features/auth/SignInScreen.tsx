@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { type FormEvent, useState } from 'react'
 import { Icon } from '@/components/ui/Icon'
@@ -11,7 +12,13 @@ const REASON_MESSAGES: Readonly<Record<string, string>> = {
   inactive: 'This account has been deactivated. Ask your coordinator if you need access again.',
 }
 
-export function SignInScreen({ reason }: { readonly reason?: string }) {
+interface SignInScreenProps {
+  readonly reason?: string
+  /** Email is on: "Forgot password?" opens the email reset page instead of explaining whom to ask. */
+  readonly emailResets?: boolean
+}
+
+export function SignInScreen({ reason, emailResets = false }: SignInScreenProps) {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -84,9 +91,15 @@ export function SignInScreen({ reason }: { readonly reason?: string }) {
         <button type="submit" className="auth-primary" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
-        <button type="button" className="forgot-password" onClick={() => setShowHelp(true)}>
-          Forgot password?
-        </button>
+        {emailResets ? (
+          <Link className="forgot-password" href="/forgot-password">
+            Forgot password?
+          </Link>
+        ) : (
+          <button type="button" className="forgot-password" onClick={() => setShowHelp(true)}>
+            Forgot password?
+          </button>
+        )}
         {showHelp && (
           <p className="signin-note" role="status">
             Ask your coordinator or an admin to reset your password. You will get a temporary one to change at sign-in.

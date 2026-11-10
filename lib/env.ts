@@ -71,12 +71,27 @@ const serverEnvSchema = z.object({
    * (on Vercel, where no process stays running) have a scheduler call /api/internal/worker-tick.
    */
   WORKER_MODE: z.enum(['in-process', 'off']).default('in-process'),
+  /** Resend API key for outgoing email. Unset: no email is sent (temporary passwords on screen). */
+  RESEND_API_KEY: optionalSecret,
+  /** Sender for email, e.g. "Hostmark <noreply@hostmark.tech>"; required with RESEND_API_KEY. */
+  MAIL_FROM: z.preprocess(
+    blankAsUndefined,
+    z
+      .string()
+      .trim()
+      .max(200)
+      .regex(/^([^<>]+<[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+>|[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+)$/, 'must be an address, e.g. Hostmark <noreply@example.com>')
+      .optional(),
+  ),
   /** Bearer secret for /api/internal/worker-tick. Unset: that route does not exist. */
   CRON_SECRET: z.preprocess(
     blankAsUndefined,
     z.string().trim().min(MIN_SECRET_LENGTH, `must be at least ${MIN_SECRET_LENGTH} characters`).max(500).optional(),
   ),
 }).superRefine((env, context) => {
+  if (env.RESEND_API_KEY && !env.MAIL_FROM) {
+    context.addIssue({ code: 'custom', path: ['MAIL_FROM'], message: 'is required when RESEND_API_KEY is set' })
+  }
   if (env.NODE_ENV !== 'production' || env.ALLOW_PGLITE === 'true') return
   for (const key of ['DATABASE_URL', 'SERVICE_DATABASE_URL'] as const) {
     if (PGLITE_URL.test(env[key])) {

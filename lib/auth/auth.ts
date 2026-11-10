@@ -7,6 +7,7 @@ import { admin, bearer } from 'better-auth/plugins'
 import type { Dialect } from 'kysely'
 import { getAuthDialect } from '@/lib/db/client'
 import { getServerEnv } from '@/lib/env'
+import { FORGOT_LINK_HOURS, completePasswordReset, sendForgotPasswordEmail } from './password-links'
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from './password-policy'
 import { accessControl, authRoles } from './permissions'
 
@@ -15,6 +16,7 @@ const SESSION_EXPIRES_IN_SECONDS = 60 * 60 * 24
 const SESSION_UPDATE_AGE_SECONDS = 60 * 60
 const RATE_LIMIT_WINDOW_SECONDS = 60
 const SIGN_IN_ATTEMPTS_PER_WINDOW = 5
+const RESET_REQUESTS_PER_WINDOW = 3
 
 /** ['emailVerified'] → { emailVerified: 'email_verified' } */
 function snakeFields<const K extends string>(fields: readonly K[]): Record<K, string> {
@@ -47,6 +49,11 @@ export function createAuth(config: AuthConfig) {
       minPasswordLength: MIN_PASSWORD_LENGTH,
       maxPasswordLength: MAX_PASSWORD_LENGTH,
       revokeSessionsOnPasswordReset: true,
+      // "Forgot password?" (only offered while email is on). Invitations and admin resets issue
+      // their own longer-lived links (lib/services/accounts.ts).
+      resetPasswordTokenExpiresIn: FORGOT_LINK_HOURS * 60 * 60,
+      sendResetPassword: async ({ user, token }) => sendForgotPasswordEmail(user, token, config.baseURL),
+      onPasswordReset: async ({ user }) => completePasswordReset(user.id),
     },
     user: {
       modelName: 'profiles',
@@ -97,6 +104,9 @@ export function createAuth(config: AuthConfig) {
       max: 100,
       customRules: {
         '/sign-in/email': { window: RATE_LIMIT_WINDOW_SECONDS, max: SIGN_IN_ATTEMPTS_PER_WINDOW },
+        // Each request can send an email: keep "Forgot password?" from being used to spam.
+        '/request-password-reset': { window: RATE_LIMIT_WINDOW_SECONDS, max: RESET_REQUESTS_PER_WINDOW },
+        '/reset-password': { window: RATE_LIMIT_WINDOW_SECONDS, max: SIGN_IN_ATTEMPTS_PER_WINDOW },
       },
     },
     plugins: [

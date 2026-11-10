@@ -54,6 +54,19 @@ describe('server environment', () => {
     expect(() => parseServerEnv({ ...VALID, DATABASE_LISTEN_URL: 'mysql://db/app' })).toThrow(/DATABASE_LISTEN_URL/)
   })
 
+  it('leaves email off by default and needs a sender once a Resend key is set', () => {
+    // Arrange + Act
+    const off = parseServerEnv(VALID)
+    const on = parseServerEnv({ ...VALID, RESEND_API_KEY: 're_key', MAIL_FROM: 'Hostmark <noreply@hostmark.tech>' })
+
+    // Assert
+    expect(off.RESEND_API_KEY).toBeUndefined()
+    expect(on.MAIL_FROM).toBe('Hostmark <noreply@hostmark.tech>')
+    expect(() => parseServerEnv({ ...VALID, RESEND_API_KEY: 're_key' })).toThrow(/MAIL_FROM/)
+    expect(() => parseServerEnv({ ...VALID, RESEND_API_KEY: 're_key', MAIL_FROM: 'not an address' })).toThrow(/MAIL_FROM/)
+    expect(() => parseServerEnv({ ...VALID, RESEND_API_KEY: 're_key', MAIL_FROM: 'Hostmark <noreply@hostmark.tech>' })).not.toThrow(/re_key/)
+  })
+
   it('accepts a scheduler secret only when it is long enough', () => {
     expect(parseServerEnv({ ...VALID, CRON_SECRET: '' }).CRON_SECRET).toBeUndefined()
     expect(parseServerEnv({ ...VALID, CRON_SECRET: 'c'.repeat(32) }).CRON_SECRET).toBe('c'.repeat(32))

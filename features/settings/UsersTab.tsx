@@ -8,18 +8,21 @@ import { Icon } from '@/components/ui/Icon'
 import { Skeleton } from '@/components/ui/Status'
 import { useToast } from '@/components/ui/Toast'
 import { useSession, useTimeZone } from '@/components/shell/SessionContext'
+import { STAFF_LINK_HOURS } from '@/lib/auth/password-policy'
 import { type AppRole, canManageAccount } from '@/lib/auth/roles'
 import { apiSend, errorMessage, withQuery } from '@/lib/client/api'
 import { formatShortDay, initials } from '@/lib/client/format'
 import { ASSIGNABLE_ROLES, ROLE_LABELS } from '@/lib/client/labels'
 import { refreshApi, useApi } from '@/lib/client/use-api'
 import type { Account } from './types'
-import { DeactivateUserDialog, EditRoleDialog, InviteUserDialog, ResetPasswordDialog, TemporaryPasswordDialog } from './UserDialogs'
+import { DeactivateUserDialog, EditRoleDialog, InviteUserDialog, type PasswordOutcome, ResetPasswordDialog, TemporaryPasswordDialog } from './UserDialogs'
+
+const EMAIL_FAILED_NOTICE = 'The email could not be sent, so here is a temporary password instead. Check the email settings (Resend) if this keeps happening.'
 
 type Dialog =
   | { readonly type: 'invite' }
   | { readonly type: 'edit' | 'reset' | 'deactivate'; readonly account: Account }
-  | { readonly type: 'password'; readonly name: string; readonly password: string }
+  | { readonly type: 'password'; readonly name: string; readonly password: string; readonly notice?: string }
   | null
 
 const ROLE_CLASSES: Readonly<Record<AppRole, string>> = {
@@ -81,6 +84,18 @@ export function UsersTab() {
   const { user } = useSession()
   const timeZone = useTimeZone()
   const toast = useToast()
+
+  // Emailed: confirm and close. Otherwise show the temporary password once (saying why when the
+  // email failed although it is set up).
+  const showPasswordOutcome = (account: Account, outcome: PasswordOutcome, emailedMessage: string) => {
+    if (outcome.password_delivery === 'emailed' || outcome.temporary_password === null) {
+      setDialog(null)
+      toast.show({ message: emailedMessage })
+      return
+    }
+    const notice = outcome.password_delivery === 'email_failed' ? EMAIL_FAILED_NOTICE : undefined
+    setDialog({ type: 'password', name: account.full_name, password: outcome.temporary_password, notice })
+  }
   const [query, setQuery] = useState('')
   const [role, setRole] = useState<AppRole | ''>('')
   const [dialog, setDialog] = useState<Dialog>(null)
@@ -186,8 +201,8 @@ export function UsersTab() {
         <InviteUserDialog
           roles={manageableRoles}
           onClose={close}
-          onCreated={(account, password) => {
-            setDialog({ type: 'password', name: account.full_name, password })
+          onCreated={(account, outcome) => {
+            showPasswordOutcome(account, outcome, `Invitation emailed to ${account.email}. The link works for ${STAFF_LINK_HOURS} hours.`)
             void refresh()
           }}
         />
@@ -208,7 +223,9 @@ export function UsersTab() {
         <ResetPasswordDialog
           account={dialog.account}
           onClose={close}
-          onReset={(password) => setDialog({ type: 'password', name: dialog.account.full_name, password })}
+          onReset={(outcome) =>
+            showPasswordOutcome(dialog.account, outcome, `A link to choose a new password was emailed to ${dialog.account.email}.`)
+          }
         />
       )}
       {dialog?.type === 'deactivate' && (
@@ -222,7 +239,7 @@ export function UsersTab() {
           }}
         />
       )}
-      {dialog?.type === 'password' && <TemporaryPasswordDialog name={dialog.name} password={dialog.password} onClose={close} />}
+      {dialog?.type === 'password' && <TemporaryPasswordDialog name={dialog.name} password={dialog.password} notice={dialog.notice} onClose={close} />}
     </>
   )
 }

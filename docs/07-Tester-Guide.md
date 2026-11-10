@@ -1,37 +1,42 @@
 # Tester guide — Hostmark VIP Guest Coordination
 
-Thank you for testing. This page tells you how to sign in, what to try, and how to report problems. It takes about 30 minutes.
+Thank you for testing. This page tells you how to sign in, what to try, and how to report problems. It takes about 30–45 minutes.
+
+The live site is **https://hostmark.tech**. It starts **empty**: there is no demo data. Everything you see was entered by the project owner or by other testers, so feel free to create guests, rooms, trips and programme items — that is the test.
 
 ## 1. Signing in
 
-Open the link you were given: the live site is **https://hostmark-vip.vercel.app**, the only address sign-in works on (locally: `http://localhost:3100`). All accounts use the same password. On the live site, the project owner gives it to you (it is `SEED_PASSWORD` in their `.env.deploy.local`, never in this repository). Locally it is **`Hostmark-Demo-2026`**.
+The project owner creates an account for you. You get an **email from Hostmark** with a link to choose your password (it works once, for 72 hours; check your spam folder). If email is not working, the owner gives you a temporary password instead, and you choose your own at first sign-in. Forgot it later? Use **Forgot password?** on the sign-in page. Your account has one role:
 
-| You are… | Email | Best on |
+| Role | What you test | Best on |
 |---|---|---|
-| Event coordinator | `coordinator@vipgcs.test` | Laptop |
-| Programmes team | `programs@vipgcs.test` | Laptop |
-| Front desk | `accommodation@vipgcs.test` | Phone |
-| Housekeeping | `housekeeping@vipgcs.test` | Phone |
-| Driver | `driver@vipgcs.test` | Phone |
-| Admin (also has Settings) | `admin@vipgcs.test` | Laptop |
+| Event coordinator | Intake, arrivals, transport, rooms, programme, sanitation, Co-Pilot, simulation | Laptop |
+| Programmes team | Programme items and their VIP participants | Laptop |
+| Front desk | Check-in and check-out | Phone |
+| Housekeeping | Cleaning rooms | Phone |
+| Driver | Today's trips | Phone |
+| Admin | Settings (venue, rooms, drivers, accounts) plus the coordinator's screens | Laptop |
 
 Tip: open two roles side by side (one in a private window) to watch changes arrive live.
 
-The data is a made-up event, the **Lagos Leadership Summit**, starting today. Flights are **simulated** (the orange "SIMULATED" badge): nothing contacts real airlines.
+Flights are **simulated** unless the owner switches them to live (the orange "SIMULATED" badge): in simulated mode nothing contacts real airlines, and landing times are set by hand or by the Simulation screen.
 
 ## 2. What to try
 
 Tick each item and note anything confusing, slow or wrong.
 
+**Guests (anyone with the registration link)**
+- [ ] Open the public registration link from the owner and register a delegation with a flight number and arrival time, using an email address you can read: a confirmation with the reference should arrive. Try leaving fields out, and register the same person twice.
+
 **Coordinator**
+- [ ] **Intake**: approve a registration from the review queue; look at a likely duplicate; paste a free-text message ("Mr Ade arrives on ET900 tomorrow at 14:00, vegetarian") and check what was understood.
 - [ ] **Dashboard**: the counts and decisions waiting for you make sense.
-- [ ] **Intake**: open the review queue; approve one registration, look at the likely duplicate.
-- [ ] **Arrivals**: ET512 is about 40 minutes late. Is that clear?
-- [ ] **Transport**: approve or reject a suggested driver.
-- [ ] **Rooms**: open the pending plan, approve some lines, then move a guest to another room (try an occupied room to see the warning).
-- [ ] **Programme**: the *Welcome briefing* is at risk because the ET512 speaker is late. Press **Notify programme team**.
+- [ ] **Arrivals**: set a landing time later than planned (or run a simulation) and check the flight shows as late.
+- [ ] **Transport**: approve or reject a suggested driver; assign one by hand.
+- [ ] **Rooms**: create a room plan, approve some lines, then move a guest to another room (try an occupied room to see the warning).
+- [ ] **Programme**: an item with a late-arriving VIP is flagged "at risk"; press **Notify programme team**.
 - [ ] **Sanitation**: rooms waiting to be cleaned, in priority order; reverse a check-out that has not been started.
-- [ ] **Ask Co-Pilot** (top bar): try "Who arrives in the next 2 hours?", "Is ET512 delayed?", "Where is Dr Eze staying?", then "Add a note to Dr Eze: allergic to peanuts" — it only appears on her profile after you press **Approve**. Try your own wording too: tell us what it misunderstands.
+- [ ] **Ask Co-Pilot** (top bar): "Who arrives in the next 2 hours?", "Is <flight> delayed?", "Where is <guest> staying?", then "Add a note to <guest>: allergic to peanuts" — it only appears on the profile after you press **Approve**. Try your own wording too: tell us what it misunderstands.
 - [ ] **Simulation**: run "One flight 45 minutes late" and watch Arrivals and Transport react.
 
 **Programmes team**
@@ -44,7 +49,7 @@ Tick each item and note anything confusing, slow or wrong.
 - [ ] Start a room, mark it ready, use **Undo**; report a problem.
 
 **Driver (phone)**
-- [ ] Open today's trip, confirm the changed time, and step through Start → Picked up → Dropped off.
+- [ ] Open today's trip, confirm the time, and step through Start → Picked up → Dropped off; try **Call coordinator**.
 
 ## 3. Reporting a problem
 
@@ -59,10 +64,19 @@ Send these to the project owner. Small wording or layout notes are welcome too.
 
 - The Co-Pilot understands a fixed set of question patterns (it does not use an AI model yet). Unusual wording may get a "try asking…" answer — please report those.
 - The microphone in the Co-Pilot appears only in browsers with speech recognition (Chrome, Edge, Safari); in Chrome the audio is processed by Google.
-- Emails are not sent; Cloudflare's bot check on the public registration form is off.
+- Email covers account links and registration confirmations only; flight changes, pickups and rooms are in-app notifications. Cloudflare's bot check on the public registration form is off.
 - The cleaning "ready by" estimate assumes enough cleaners; with a long queue it is optimistic.
 
 ## 5. For the person running the test
 
-Reset to the starting data (stop the server first): `SEED_PASSWORD=Hostmark-Demo-2026 pnpm local:setup --reset`.
-Smoke-test a running build: `E2E_BASE_URL=http://localhost:3100 pnpm test:e2e` (22 checks, read-only; see `playwright.config.ts`).
+**Before testers arrive (once, in this order):**
+1. Create your Super Admin from your laptop: `bash scripts/droplet-admin.sh --email you@example.com --name "Your Name"`. The temporary password appears once in your terminal; sign in at https://hostmark.tech and change it.
+2. **Settings → System**: create the event (name, venue, first and last day, time zone such as `Africa/Lagos`, arrival airports such as `LOS`). Leave flights **Simulated** unless an AeroDataBox key is configured.
+3. **Settings → Rooms**: add room types (with cleaning times), then rooms by hand or **Import CSV**.
+4. **Settings → VIP categories** and **Settings → Drivers** (with shifts covering the event days).
+5. **Settings → Users**: invite one account per tester with the right role. With email on, each tester gets a set-password link (72 hours); "Reset password" sends a fresh one. If an email fails, the dialog shows a temporary password once instead: send it privately.
+6. **Settings → System**: copy the public registration link and share it with whoever plays the guests.
+
+**During and after:** the database is dumped nightly on the droplet (`/opt/hostmark/backups`, 7 days kept). To start over with an empty database, ask the developer: it wipes everything, including accounts.
+
+**Local runs with demo data** (developers only): `SEED_PASSWORD=Hostmark-Demo-2026 pnpm local:setup --reset`, then `pnpm dev`; smoke-test with `E2E_BASE_URL=http://localhost:3100 pnpm test:e2e` (22 read-only checks, see `playwright.config.ts`).

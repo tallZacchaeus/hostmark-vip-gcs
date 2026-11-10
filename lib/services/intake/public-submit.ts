@@ -14,6 +14,7 @@ import { EMPTY_EXTRACTION, type Extraction } from '@/lib/domain/intake/extractio
 import { displayName, normalizeIntake } from '@/lib/domain/intake/normalize'
 import type { ArrivalMode, PublicRegistration } from '@/lib/domain/intake/schema'
 import { logger } from '@/lib/logger'
+import type { Mailer } from '@/lib/mail/mailer'
 import type { BotCheck } from '@/lib/security/turnstile'
 import {
   type IntakeEvent,
@@ -25,6 +26,7 @@ import {
   insertSubmission,
   notifyCoordinators,
 } from './records'
+import { sendRegistrationConfirmation } from './confirmation-email'
 
 /** Registrations accepted per client IP (hashed) per window, across all link visits. */
 export const INTAKE_IP_LIMIT = { windowMs: 15 * 60_000, max: 10 } as const
@@ -35,6 +37,8 @@ export interface PublicIntakeDeps {
   readonly botCheck: BotCheck
   /** Keys the IP hash, so raw addresses are never stored. */
   readonly ipHashSecret: string
+  /** Emails the guest a confirmation when given (and enabled). */
+  readonly mailer?: Mailer
   readonly now?: () => Date
 }
 
@@ -203,6 +207,18 @@ export async function submitRegistration(
   const stored = await withSystem(deps.db, { actor: 'guest_intake', automatic: true, undoable: false }, (tx) =>
     store(tx, event, registration, extraction, ipHash),
   )
+  if (deps.mailer) {
+    await sendRegistrationConfirmation(deps.db, deps.mailer, {
+      to: stored.intake.contact_email,
+      guest: displayName(stored.intake),
+      eventName: event.name,
+      venueName: event.venue_name,
+      referenceCode: stored.reference_code,
+      followUp: stored.follow_up,
+      arrivalDate: stored.intake.arrival_date,
+      flightNumber: stored.intake.flight_number,
+    })
+  }
   return {
     reference_code: stored.reference_code,
     follow_up: stored.follow_up,

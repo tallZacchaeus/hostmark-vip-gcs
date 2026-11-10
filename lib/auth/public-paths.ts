@@ -12,6 +12,10 @@ const PUBLIC_AUTH_PATHS: ReadonlySet<string> = new Set([
   '/list-sessions',
   '/revoke-session',
   '/revoke-other-sessions',
+  // Emailed password links (lib/auth/password-links.ts): ask for one, then set the password with
+  // its token. Both answer the same for unknown addresses; requests are rate limited in auth.ts.
+  '/request-password-reset',
+  '/reset-password',
   '/ok',
   '/error',
 ])

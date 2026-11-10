@@ -47,6 +47,9 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: https://${SITE_ADDRESS:?set SITE_ADDRESS}
       API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-}
+      # Email through Resend (optional): without a key, temporary passwords are shown on screen.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
     expose:
       - "3000"
     depends_on:

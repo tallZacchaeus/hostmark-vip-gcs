@@ -4,6 +4,7 @@ import { type FormEvent, useState } from 'react'
 import { Icon } from '@/components/ui/Icon'
 import { apiSend, errorMessage } from '@/lib/client/api'
 import { AuthFrame } from './AuthFrame'
+import { PasswordChecklist } from './PasswordChecklist'
 import { PasswordInput } from './PasswordInput'
 import { allRulesMet, passwordRules } from './password-rules'
 
@@ -72,17 +73,7 @@ export function ChangePasswordScreen({ email, forced, homeRoute }: ChangePasswor
           hasError={confirm !== '' && !matches}
           onChange={setConfirm}
         />
-        <div className="password-rules" id="password-rules" aria-live="polite">
-          {[...rules, { label: 'Both new passwords match', met: matches }].map((rule) => (
-            <p className={rule.met ? 'is-met' : ''} key={rule.label}>
-              {rule.met ? <Icon name="check" size={15} /> : <i aria-hidden="true" />}
-              <span>
-                {rule.label}
-                <span className="visually-hidden">{rule.met ? ' (met)' : ' (not met yet)'}</span>
-              </span>
-            </p>
-          ))}
-        </div>
+        <PasswordChecklist rules={rules} matches={matches} />
         <button type="submit" className="auth-primary" disabled={!canSave}>
           {busy ? 'Saving…' : 'Save and continue'}
         </button>

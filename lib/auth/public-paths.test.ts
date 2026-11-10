@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { authPathFromUrl, isPublicAuthPath } from './public-paths'
 
 describe('auth HTTP allowlist', () => {
-  it.each(['/sign-in/email', '/sign-out', '/get-session', '/list-sessions', '/revoke-session'])(
+  it.each(['/sign-in/email', '/sign-out', '/get-session', '/list-sessions', '/revoke-session', '/request-password-reset', '/reset-password'])(
     'exposes %s',
     (path) => {
       expect(isPublicAuthPath(path)).toBe(true)
@@ -18,6 +18,9 @@ describe('auth HTTP allowlist', () => {
     '/change-email',
     '/delete-user',
     '/change-password',
+    // The emailed link opens our /reset-password page, never Better Auth's redirecting callback.
+    '/reset-password/some-token',
+    '/forget-password',
   ])('blocks %s (handled by our own routes or not offered)', (path) => {
     expect(isPublicAuthPath(path)).toBe(false)
   })

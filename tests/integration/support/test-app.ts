@@ -8,6 +8,8 @@ import type { NextRouteHandler } from '@/lib/api/handler'
 import { type Auth, createAuth, setAuthForTesting } from '@/lib/auth/auth'
 import type { AppRole } from '@/lib/auth/roles'
 import { setDatabaseForTesting } from '@/lib/db/client'
+import { setMailerForTesting } from '@/lib/mail/get-mailer'
+import { createResendMailer } from '@/lib/mail/mailer'
 import type { DB } from '@/lib/db/types'
 import { resetNotificationHubForTesting } from '@/lib/realtime/hub'
 import { EVENT_DAY, EVENT_LAST_DAY } from '@/tests/support/event-dates'
@@ -39,6 +41,8 @@ export interface ApiResult<T = unknown> {
   readonly body: { success: boolean; data: T; error: { code: string; message: string; details?: unknown } | null; meta?: unknown }
 }
 
+export const MAIL_OFF = createResendMailer({ apiKey: undefined, from: undefined })
+
 export class TestApp {
   private constructor(
     readonly pglite: PGlite,
@@ -66,12 +70,15 @@ export class TestApp {
       close: async () => db.destroy(),
     })
     setAuthForTesting(auth)
+    // Email is off unless a test installs its own mailer (tests/integration/email.test.ts).
+    setMailerForTesting(MAIL_OFF)
     return new TestApp(pglite, db, auth)
   }
 
   async stop(): Promise<void> {
     await resetNotificationHubForTesting()
     setAuthForTesting(undefined)
+    setMailerForTesting(undefined)
     setDatabaseForTesting(undefined)
     await this.db.destroy()
   }

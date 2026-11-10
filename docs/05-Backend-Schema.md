@@ -423,15 +423,17 @@ Tests: `tests/db/*.test.ts` check each cell above as the relevant role.
 |---|---|---|---|
 | POST | `/api/auth/sign-in/email` | public | Sign in `{ email, password }` (5 attempts/min per IP) |
 | POST | `/api/auth/sign-out` · GET `/api/auth/get-session` | signed in | Better Auth (only an allowlist of its endpoints is exposed) |
+| POST | `/api/auth/request-password-reset` | public | `{ email }`: emails a 1-hour link when email is on and the account is active; the same answer for every address (3/min per IP) |
+| POST | `/api/auth/reset-password` | public | `{ token, newPassword }`: sets the password from an emailed link (one use); clears `must_change_password`, signs out other sessions |
 | GET | `/api/health` | public | Liveness + database check |
 | GET | `/api/internal/worker-tick` (`?poll=1`) | scheduler: `Authorization: Bearer <CRON_SECRET>`; 404 when `CRON_SECRET` is unset | One background-worker pass where no process stays running (Vercel; called by Supabase `pg_cron`, `02` §5.2). `?poll=1` also checks flights and makes driver and room suggestions. Returns `{ ran, report }`; `ran: false` when another process holds the worker lease |
 | GET | `/api/me` | any (also with a pending password change) | User, role, home route, event context |
 | POST | `/api/account/password` | any (also pending) | `{ current_password, new_password }`; signs out other sessions; returns a new token |
 | GET / POST / PATCH | `/api/admin/event` | GET coordinator+; POST/PATCH admin+ | Event settings; POST is first-time setup. `coordinator_phone` (2026-11-10): loose input such as "0803 555 0142" is stored as E.164; blank or null clears it |
 | POST | `/api/admin/event/intake-token` | admin+ | Regenerate the intake link token |
-| GET / POST | `/api/admin/users` | admin+ | List (`?role=&active=&search=`) / create (returns the temporary password once) |
+| GET / POST | `/api/admin/users` | admin+ | List (`?role=&active=&search=`) / create: `{ account, temporary_password, password_delivery }` — `emailed` (a 72-hour set-password link went to the new member; `temporary_password` null), `email_failed` or `shown` (the temporary password, once) |
 | GET / PATCH | `/api/admin/users/[id]` | admin+ | Read / update `full_name`, `phone`, `role`, `active`, `deactivation_reason` |
-| POST | `/api/admin/users/[id]/reset-password` | admin+ | New temporary password; signs the account out |
+| POST | `/api/admin/users/[id]/reset-password` | admin+ | Signs the account out and either emails a 72-hour link or returns a new temporary password once (same `password_delivery` field) |
 | GET / POST | `/api/admin/room-types` · GET / PATCH / DELETE `/[id]` | read: coordinator+, accommodation, housekeeping; write: admin+ | Room types |
 | GET / POST | `/api/admin/rooms` · GET / PATCH / DELETE `/[id]` | same | Rooms (`?floor=&wing=&room_type_id=`). Since 2026-11-10 a PATCH that takes a room out of service also re-plans its stays (as vip_system on the admin's behalf): a planned stay gets a move proposal, a checked-in guest or a stay with no room that fits an alert to coordinators |
 | POST | `/api/admin/rooms/import` | admin+ | CSV body (`text/csv`, ≤ 2 MB); `?dry_run=true` previews; all-or-nothing upsert by room number. A real import re-plans the stays of rooms it takes out of service, as the PATCH above (2026-11-10) |

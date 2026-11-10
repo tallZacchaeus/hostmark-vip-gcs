@@ -101,6 +101,11 @@ describe('SignInScreen', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Ask your coordinator or an admin to reset your password.')
   })
 
+  it('links "Forgot password?" to the email reset page when email is on', () => {
+    render(<SignInScreen emailResets />)
+    expect(screen.getByRole('link', { name: 'Forgot password?' })).toHaveAttribute('href', '/forgot-password')
+  })
+
   it('shows and hides the password on request', async () => {
     const user = userEvent.setup()
     render(<SignInScreen />)

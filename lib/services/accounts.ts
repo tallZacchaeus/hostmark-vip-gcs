@@ -5,12 +5,14 @@ import 'server-only'
 import { type Kysely, type Selectable, sql } from 'kysely'
 import { ApiError, Errors } from '@/lib/api/errors'
 import { getAuth } from '@/lib/auth/auth'
+import { revokePasswordLinks } from '@/lib/auth/password-links'
 import { type AppRole, canManageAccount } from '@/lib/auth/roles'
 import type { Actor } from '@/lib/auth/session'
 import { type Tx, withUser } from '@/lib/db/context'
 import type { DB, Profiles } from '@/lib/db/types'
 import { generateTemporaryPassword } from '@/lib/domain/temporary-password'
 import { logger } from '@/lib/logger'
+import { deliverPassword } from '@/lib/services/password-delivery'
 import type { AccountCreate, AccountListQuery, AccountUpdate } from '@/lib/validation/accounts'
 
 const ACCOUNT_COLUMNS = [
@@ -148,7 +150,8 @@ export async function createAccount(db: Kysely<DB>, actor: Actor, input: Account
       { account_id: userId },
     )
   }
-  return { account: toView(account), temporaryPassword }
+  const view = toView(account)
+  return { account: view, ...(await deliverPassword('invite', view, temporaryPassword)) }
 }
 
 export async function updateAccount(db: Kysely<DB>, actor: Actor, id: string, input: AccountUpdate, headers: Headers) {
@@ -183,6 +186,7 @@ export async function updateAccount(db: Kysely<DB>, actor: Actor, id: string, in
   }
   if (deactivating) {
     await getAuth().api.revokeUserSessions({ headers, body: { userId: id } })
+    await revokePasswordLinks(id)
   }
   return toView(updated)
 }
@@ -191,7 +195,8 @@ export async function resetAccountPassword(db: Kysely<DB>, actor: Actor, id: str
   if (id === actor.id) {
     throw new ApiError(409, 'use_password_change', 'Change your own password from your account settings')
   }
-  assertCanManage(actor, await requireVisible(db, actor, id))
+  const target = await requireVisible(db, actor, id)
+  assertCanManage(actor, target)
   const temporaryPassword = generateTemporaryPassword()
 
   await getAuth().api.setUserPassword({ headers, body: { userId: id, newPassword: temporaryPassword } })
@@ -200,7 +205,7 @@ export async function resetAccountPassword(db: Kysely<DB>, actor: Actor, id: str
     await tx.updateTable('profiles').set({ must_change_password: true }).where('id', '=', id).execute()
     await sql`select private.audit_profile_change(${id}::uuid, 'profiles.password_reset')`.execute(tx)
   })
-  return { temporaryPassword }
+  return deliverPassword('admin_reset', toView(target), temporaryPassword)
 }
 
 export async function changeOwnPassword(

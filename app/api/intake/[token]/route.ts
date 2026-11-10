@@ -6,6 +6,7 @@ import { definePublicRoute } from '@/lib/api/public-route'
 import { jsonOk } from '@/lib/api/response'
 import { getSystemDb } from '@/lib/db/system'
 import { getServerEnv } from '@/lib/env'
+import { getMailer } from '@/lib/mail/get-mailer'
 import { createTurnstileCheck } from '@/lib/security/turnstile'
 import { readLinkContext, submitRegistration } from '@/lib/services/intake/public-submit'
 import { intakeTokenParamsSchema, publicRegistrationSchema } from '@/lib/validation/intake'
@@ -23,6 +24,7 @@ export const POST = definePublicRoute({ params: intakeTokenParamsSchema, body: p
       reader: await getIntakeReader(),
       botCheck: createTurnstileCheck(env.TURNSTILE_SECRET_KEY, fetch, new URL(env.BETTER_AUTH_URL).hostname),
       ipHashSecret: env.BETTER_AUTH_SECRET,
+      mailer: getMailer(),
     },
     params.token,
     body,

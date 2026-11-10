@@ -20,6 +20,12 @@ describe('passwordRules', () => {
     expect(rules.find((rule) => rule.label === 'Not your email')?.met).toBe(false)
   })
 
+  it('leaves out the email rule when the email is not known (a password link)', () => {
+    const rules = passwordRules('Securepass1', null)
+    expect(rules.map((rule) => rule.label)).not.toContain('Not your email')
+    expect(allRulesMet(rules)).toBe(true)
+  })
+
   it('does not count an empty password as different from the email', () => {
     expect(passwordRules('', 'ada@example.com').at(-1)?.met).toBe(false)
   })

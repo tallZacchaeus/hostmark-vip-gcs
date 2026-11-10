@@ -28,8 +28,23 @@ function RoleSelect({ value, roles, onChange }: RoleSelectProps) {
   )
 }
 
+/** What the server did with a new or reset password (lib/services/password-delivery.ts). */
+export interface PasswordOutcome {
+  readonly temporary_password: string | null
+  /** Missing from older servers: treated as "shown". */
+  readonly password_delivery?: 'emailed' | 'email_failed' | 'shown'
+}
+
+interface TemporaryPasswordProps {
+  readonly name: string
+  readonly password: string
+  /** Why the password is shown although email is on (the email failed). */
+  readonly notice?: string
+  readonly onClose: () => void
+}
+
 /** Shows a temporary password once, with a copy button. It is never stored or shown again. */
-export function TemporaryPasswordDialog({ name, password, onClose }: { readonly name: string; readonly password: string; readonly onClose: () => void }) {
+export function TemporaryPasswordDialog({ name, password, notice, onClose }: TemporaryPasswordProps) {
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     try {
@@ -45,6 +60,12 @@ export function TemporaryPasswordDialog({ name, password, onClose }: { readonly 
         <h2 id="temp-password-title">Temporary password for {name}</h2>
         <p>Give it to them in person or by phone. It is shown only once; they choose their own at first sign-in.</p>
       </header>
+      {notice && (
+        <div className="settings-info">
+          <Icon name="info" size={18} />
+          <span>{notice}</span>
+        </div>
+      )}
       <div className="secret-box">
         <code>{password}</code>
         <Button icon={copied ? 'check' : 'copy'} onClick={() => void copy()}>
@@ -63,7 +84,7 @@ export function TemporaryPasswordDialog({ name, password, onClose }: { readonly 
 interface InviteProps {
   readonly roles: readonly AppRole[]
   readonly onClose: () => void
-  readonly onCreated: (account: Account, temporaryPassword: string) => void
+  readonly onCreated: (account: Account, outcome: PasswordOutcome) => void
 }
 
 export function InviteUserDialog({ roles, onClose, onCreated }: InviteProps) {
@@ -76,13 +97,13 @@ export function InviteUserDialog({ roles, onClose, onCreated }: InviteProps) {
 
   const submit = () =>
     void action.run(async () => {
-      const result = await apiSend<{ account: Account; temporary_password: string }>('/api/admin/users', 'POST', {
+      const result = await apiSend<{ account: Account } & PasswordOutcome>('/api/admin/users', 'POST', {
         full_name: name.trim(),
         email: email.trim(),
         role,
         ...(phone.trim() ? { phone: phone.replace(/\s+/g, '') } : {}),
       })
-      onCreated(result.account, result.temporary_password)
+      onCreated(result.account, result)
     })
 
   return (
@@ -110,7 +131,7 @@ export function InviteUserDialog({ roles, onClose, onCreated }: InviteProps) {
       </Field>
       <div className="settings-info">
         <Icon name="info" size={18} />
-        <span>You will see a temporary password once. They must choose their own at first sign-in.</span>
+        <span>They get an email with a link to choose their password. If email is not set up, you see a temporary password once instead.</span>
       </div>
     </FormDialog>
   )
@@ -143,12 +164,11 @@ export function EditRoleDialog({ account, roles, onClose, onSaved }: { readonly 
   )
 }
 
-export function ResetPasswordDialog({ account, onClose, onReset }: { readonly account: Account; readonly onClose: () => void; readonly onReset: (password: string) => void }) {
+export function ResetPasswordDialog({ account, onClose, onReset }: { readonly account: Account; readonly onClose: () => void; readonly onReset: (outcome: PasswordOutcome) => void }) {
   const action = useAction()
   const submit = () =>
     void action.run(async () => {
-      const result = await apiSend<{ temporary_password: string }>(`/api/admin/users/${account.id}/reset-password`, 'POST', {})
-      onReset(result.temporary_password)
+      onReset(await apiSend<PasswordOutcome>(`/api/admin/users/${account.id}/reset-password`, 'POST', {}))
     })
   return (
     <FormDialog
