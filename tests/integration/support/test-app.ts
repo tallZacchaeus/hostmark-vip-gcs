@@ -95,7 +95,27 @@ export class TestApp {
        returning id`,
       [EVENT_DAY, EVENT_LAST_DAY],
     )
-    return row?.id ?? ''
+    const id = row?.id ?? ''
+    // Everyone already on staff works on it (a single-team installation; P9).
+    await this.sql(
+      `insert into event_members (event_id, profile_id) select $1, p.id from profiles p where p.role <> 'super_admin' on conflict do nothing`,
+      [id],
+    )
+    return id
+  }
+
+  /**
+   * Runs `fn` with `app.sql` defaults (event_id) pointing at `eventId`, as the owner would with the
+   * event chosen (P9). The setting is session-wide on the one PGlite connection, so it is cleared
+   * again before API calls can see it.
+   */
+  async inEvent<T>(eventId: string, fn: () => Promise<T>): Promise<T> {
+    await this.sql(`select set_config('app.event_id', $1, false)`, [eventId])
+    try {
+      return await fn()
+    } finally {
+      await this.sql(`select set_config('app.event_id', '', false)`)
+    }
   }
 
   /** Creates an account through Better Auth (as the API would) and signs it in. */
@@ -109,6 +129,9 @@ export class TestApp {
     })
     const id = created.user.id
     await this.sql('update profiles set must_change_password = $2 where id = $1', [id, options.mustChangePassword ?? false])
+    if (role !== 'super_admin') {
+      await this.sql(`insert into event_members (event_id, profile_id) select e.id, $1 from events e on conflict do nothing`, [id])
+    }
     const token = await this.signIn(email, TEST_PASSWORD)
     if (options.banned) {
       await this.sql('update profiles set banned = true where id = $1', [id])

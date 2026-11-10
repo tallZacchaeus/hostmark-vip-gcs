@@ -6,6 +6,7 @@ import type { Tx } from '@/lib/db/context'
 import type { FlightPhase } from '@/lib/domain/flights/schedule'
 import { type ArrivalBoardStatus, arrivalStatus, pickDay } from '@/lib/domain/transport/board'
 import { zonedDateKey } from '@/lib/domain/time'
+import { CURRENT_EVENT_ID } from '@/lib/db/current-event'
 
 export interface ArrivalBoardRow {
   readonly arrival_id: string
@@ -165,7 +166,7 @@ function toBoardRow(row: RawRow, delayThresholdMin: number): ArrivalBoardRow {
 }
 
 export async function loadArrivalsBoard(tx: Tx, requestedDay: string | undefined, now: Date): Promise<ArrivalsBoard | null> {
-  const event = await tx.selectFrom('events').select(['timezone', 'delay_threshold_min']).executeTakeFirst()
+  const event = await tx.selectFrom('events').select(['timezone', 'delay_threshold_min']).where('id', '=', CURRENT_EVENT_ID).executeTakeFirst()
   if (!event) return null
   const days = await arrivalDays(tx, event.timezone)
   const day = pickDay(requestedDay, zonedDateKey(now, event.timezone), days)

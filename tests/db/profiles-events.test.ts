@@ -13,7 +13,8 @@ describe('profiles', () => {
     expect(ids.map((row) => row.id)).toEqual([driver])
   })
 
-  it('lets coordinators read every profile', async () => {
+  it("lets coordinators read every profile on their event's team", async () => {
+    await db().createEvent()
     const coordinator = await db().createProfile('coordinator')
     await db().createProfile('driver')
     await db().createProfile('housekeeping')
@@ -33,6 +34,7 @@ describe('profiles', () => {
   })
 
   it('lets an admin change the role of staff below admin', async () => {
+    await db().createEvent()
     const admin = await db().createProfile('admin')
     const driver = await db().createProfile('driver')
     await db().asUser(admin)
@@ -42,6 +44,7 @@ describe('profiles', () => {
   })
 
   it('stops an admin from promoting anyone to admin', async () => {
+    await db().createEvent()
     const admin = await db().createProfile('admin')
     const coordinator = await db().createProfile('coordinator')
     await db().asUser(admin)

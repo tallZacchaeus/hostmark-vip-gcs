@@ -15,6 +15,7 @@ export function useTestDb(): () => TestDb {
     await db?.close()
   })
   beforeEach(async () => {
+    db?.resetOptions()
     await db?.begin()
   })
   afterEach(async () => {

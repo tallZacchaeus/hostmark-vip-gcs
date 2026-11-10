@@ -22,7 +22,7 @@ describe('CORS', () => {
     expect(preflightHeaders('https://ops.example.com', ALLOWED)).toMatchObject({
       'Access-Control-Allow-Origin': 'https://ops.example.com',
       'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Event-Id',
       'Access-Control-Max-Age': '600',
     })
     expect(preflightHeaders('https://evil.example.com', ALLOWED)).toEqual({})

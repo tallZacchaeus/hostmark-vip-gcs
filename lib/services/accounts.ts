@@ -132,6 +132,13 @@ export async function createAccount(db: Kysely<DB>, actor: Actor, input: Account
   let account: AccountRow | undefined
   try {
     account = await withUser(db, actor.id, async (tx) => {
+      // New staff work on the inviter's current event (P9); Super Admins see every event anyway.
+      if (input.role !== 'super_admin') {
+        await sql`insert into public.event_members (event_id, profile_id, added_by)
+          select private.current_event_id(), ${userId}::uuid, ${actor.id}::uuid
+          where private.current_event_id() is not null
+          on conflict do nothing`.execute(tx)
+      }
       await sql`select private.audit_profile_change(${userId}::uuid, 'profiles.create')`.execute(tx)
       if (input.phone) {
         await tx.updateTable('profiles').set({ phone: input.phone }).where('id', '=', userId).execute()

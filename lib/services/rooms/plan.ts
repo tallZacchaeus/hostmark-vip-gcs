@@ -8,6 +8,7 @@ import type { Tx } from '@/lib/db/context'
 import { type PlanLine, allocate } from '@/lib/domain/rooms/allocator'
 import { createProposal } from '@/lib/services/proposals'
 import { allocationInput, loadRoomWorld, pendingRoomHolds, withHolds } from './input'
+import { CURRENT_EVENT_ID } from '@/lib/db/current-event'
 
 export interface PlanSummary {
   readonly proposal_id: string
@@ -44,7 +45,7 @@ export async function runAllocation(tx: Tx, now: Date): Promise<PlanSummary> {
   const waiting = new Set(holds.map((hold) => hold.guest_id))
   const guests = world.unplaced.filter((guest) => !waiting.has(guest.id))
   if (guests.length === 0) throw new ApiError(409, 'nothing_to_plan', 'Every guest already has a room or a room suggestion')
-  const event = await tx.selectFrom('events').select('id').executeTakeFirstOrThrow()
+  const event = await tx.selectFrom('events').select('id').where('id', '=', CURRENT_EVENT_ID).executeTakeFirstOrThrow()
   const plan = allocate(allocationInput(world, guests, now))
   const placed = plan.lines.filter((line): line is PlanLine & { room: NonNullable<PlanLine['room']> } => line.room !== null)
   const meetsAll = placed.filter((line) => line.preferences.every((result) => result.status === 'met')).length

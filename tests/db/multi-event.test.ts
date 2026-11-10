@@ -57,6 +57,7 @@ describe('multiple events (P9 step 9.1)', () => {
 
   it('records which staff work on which event, once each', async () => {
     // Arrange
+    db().separateTeams()
     const event = await db().createEvent()
     const driver = await db().createProfile('driver')
     await db().rows(`insert into event_members (event_id, profile_id) values ($1, $2)`, [event, driver])
@@ -110,11 +111,16 @@ describe('multiple events (P9 step 9.1)', () => {
 
   it('ranks a Programme Manager above Admin: admin-level access and account management below it', async () => {
     // Arrange
+    db().separateTeams()
     const manager = await db().createProfile('programme_manager')
     const admin = await db().createProfile('admin')
     const superAdmin = await db().createProfile('super_admin')
+    // The installation's first event takes in existing staff (join_first_event); the insert is a no-op then.
+    const event = await db().createEvent({ owner_id: manager, status: 'live' })
+    await db().rows(`insert into event_members (event_id, profile_id) values ($1, $2) on conflict do nothing`, [event, admin])
 
     // Act
+    await db().inEvent(event)
     await db().asUser(manager)
     const helpers = await db().one<{ admin_plus: boolean; coordinator_plus: boolean }>(
       `select private.is_admin_plus() as admin_plus, private.is_coordinator_plus() as coordinator_plus`,

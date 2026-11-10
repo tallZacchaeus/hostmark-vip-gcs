@@ -5,7 +5,7 @@
 // flight check never stops simulation steps or driver suggestions.
 import type { Kysely } from 'kysely'
 import { sql } from 'kysely'
-import { withSystem } from '@/lib/db/system'
+import { inSystemEvent, withSystem } from '@/lib/db/system'
 import type { DB } from '@/lib/db/types'
 import { logger } from '@/lib/logger'
 import { type PollReport, pollDueFlights } from '@/lib/services/flights/poll'
@@ -57,22 +57,53 @@ async function isolated<T>(part: string, fallback: T, work: () => Promise<T>): P
 }
 
 async function pollFlights(db: Kysely<DB>, options: TickOptions, stillHolder: () => Promise<boolean>): Promise<PollReport | null> {
-  // A new install has no event until a Super Admin creates one: nothing to check yet, and no error.
-  const event = await withSystem(db, { actor: 'system' }, async (tx) => {
-    const exists = await tx.selectFrom('events').select('id').executeTakeFirst()
-    return exists ? loadTransportEvent(tx) : null
-  })
-  if (!event) return null
+  const event = await withSystem(db, { actor: 'system' }, (tx) => loadTransportEvent(tx))
   const provider = flightProviderFor(event, options.aeroDataBoxKey)
   if (!provider) return null
   return pollDueFlights(db, { provider, now: options.now, dailyLimit: options.dailyLimit, stillHolder })
 }
 
-/** Runs one pass, or returns null when another process holds the lease. */
+const EMPTY_REPORT: TickReport = { simulation_steps: 0, poll: null, suggestions: 0, room_suggestions: 0 }
+
+function mergePolls(a: PollReport | null, b: PollReport | null): PollReport | null {
+  if (!a || !b) return a ?? b
+  return { checked: a.checked + b.checked, changed: a.changed + b.changed, failed: a.failed + b.failed, quota_reached: a.quota_reached || b.quota_reached }
+}
+
+function mergeReports(a: TickReport, b: TickReport): TickReport {
+  return {
+    simulation_steps: a.simulation_steps + b.simulation_steps,
+    poll: mergePolls(a.poll, b.poll),
+    suggestions: a.suggestions + b.suggestions,
+    room_suggestions: a.room_suggestions + b.room_suggestions,
+  }
+}
+
+/** Events the worker serves (P9): every event that is not archived, oldest first. A new install has none. */
+async function workingEvents(db: Kysely<DB>): Promise<string[]> {
+  const rows = await withSystem(db, { actor: 'system' }, (tx) =>
+    tx.selectFrom('events').select('id').where('status', '<>', 'archived').orderBy('created_at').orderBy('id').execute(),
+  )
+  return rows.map((row) => row.id)
+}
+
+/**
+ * Runs one pass over every working event, each in its own event context (so defaults, settings
+ * and notifications belong to that event), or returns null when another process holds the lease.
+ */
 export async function runWorkerTick(db: Kysely<DB>, options: TickOptions): Promise<TickReport | null> {
   if (!(await claimLease(db, options.holder, options.now))) return null
   // Long passes renew the lease between units of work and stop as soon as it is lost.
   const stillHolder = () => claimLease(db, options.holder, new Date(Math.max(Date.now(), options.now.getTime())))
+  let report = EMPTY_REPORT
+  for (const eventId of await workingEvents(db)) {
+    if (!(await stillHolder())) break
+    report = mergeReports(report, await inSystemEvent(eventId, () => runEventPass(db, options, stillHolder)))
+  }
+  return report
+}
+
+async function runEventPass(db: Kysely<DB>, options: TickOptions, stillHolder: () => Promise<boolean>): Promise<TickReport> {
   const simulationSteps = await isolated('simulation', 0, () => advanceSimulationRuns(db, options.now, stillHolder))
   if (!options.poll) return { simulation_steps: simulationSteps, poll: null, suggestions: 0, room_suggestions: 0 }
   const poll = await isolated('flights', null, () => pollFlights(db, options, stillHolder))

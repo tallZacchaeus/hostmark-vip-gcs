@@ -6,6 +6,7 @@ import type { Tx } from '@/lib/db/context'
 import { boardRange, pickDay } from '@/lib/domain/transport/board'
 import { type PickupKind, tripWindow } from '@/lib/domain/transport/matcher'
 import { addDays, zonedDateKey, zonedDayStart } from '@/lib/domain/time'
+import { CURRENT_EVENT_ID } from '@/lib/db/current-event'
 
 export type TripState = 'done' | 'progress' | 'planned' | 'suggested' | 'unassigned'
 export type DriverState = 'on_trip' | 'available' | 'off_shift' | 'inactive'
@@ -214,7 +215,7 @@ function decisionsFrom(proposals: ProposalRow[]): BoardDecision[] {
 }
 
 export async function loadTransportBoard(tx: Tx, requestedDay: string | undefined, now: Date): Promise<TransportBoard | null> {
-  const event = await tx.selectFrom('events').select(['timezone', 'airport_travel_min', 'local_travel_min']).executeTakeFirst()
+  const event = await tx.selectFrom('events').select(['timezone', 'airport_travel_min', 'local_travel_min']).where('id', '=', CURRENT_EVENT_ID).executeTakeFirst()
   if (!event) return null
   const days = await pickupDays(tx, event.timezone)
   const today = zonedDateKey(now, event.timezone)

@@ -24,7 +24,7 @@ export function preflightHeaders(origin: string | null, allowedOrigins: readonly
   return {
     ...base,
     'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Event-Id',
     'Access-Control-Max-Age': String(PREFLIGHT_MAX_AGE_SECONDS),
   }
 }

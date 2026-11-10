@@ -12,6 +12,7 @@ import { logger } from '@/lib/logger'
 import { loadTransportEvent } from '@/lib/services/transport/context'
 import { applyScenarioStep } from './steps'
 import { chooseTargets } from './targets'
+import { CURRENT_EVENT_ID } from '@/lib/db/current-event'
 
 /**
  * Virtual time starts two hours before the first target's moment: the first flight lands ("delayed
@@ -136,7 +137,7 @@ const stopRuns = (db: Kysely<DB>, now: Date, ids: readonly string[]) =>
 export async function advanceSimulationRuns(db: Kysely<DB>, now: Date, stillHolder?: StillHolder): Promise<number> {
   const { runs, mode } = await withSystem(db, { actor: 'system' }, async (tx) => ({
     runs: await tx.selectFrom('simulation_runs').select(RUN_COLUMNS).where('status', '=', 'running').execute(),
-    mode: (await tx.selectFrom('events').select('flight_mode').executeTakeFirst())?.flight_mode,
+    mode: (await tx.selectFrom('events').select('flight_mode').where('id', '=', CURRENT_EVENT_ID).executeTakeFirst())?.flight_mode,
   }))
   if (runs.length === 0) return 0
   if (mode !== 'simulated') {

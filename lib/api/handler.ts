@@ -6,6 +6,7 @@ import type { z } from 'zod'
 import { type AppRole, hasAnyRole } from '@/lib/auth/roles'
 import type { Actor, ActorResolution } from '@/lib/auth/session'
 import { type Tx, withUser } from '@/lib/db/context'
+import { inSystemEvent } from '@/lib/db/system'
 import type { DB } from '@/lib/db/types'
 import type { Logger } from '@/lib/logger'
 import { readLimitedText } from './body'
@@ -24,6 +25,22 @@ export interface RouteDeps {
   /** Origins allowed to make cookie-authenticated writes (the app itself + API_ALLOWED_ORIGINS). */
   allowedOrigins(): readonly string[]
   readonly logger: Logger
+  /**
+   * The signed-in person's current event (P9). When given, system work done during the request
+   * (notifications, automatic follow-ups) happens in that event too, via inSystemEvent().
+   */
+  resolveEventId?(db: Kysely<DB>, userId: string, requested?: string): Promise<string | null>
+}
+
+/** The event the screen shows (P9): sent by the client so each browser tab keeps its own event. */
+export const EVENT_HEADER = 'x-event-id'
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function requestedEvent(headers: Headers): string | undefined {
+  const value = headers.get(EVENT_HEADER)?.trim()
+  if (!value) return undefined
+  if (!UUID.test(value)) throw new ApiError(400, 'invalid_event', 'The event id is not valid')
+  return value
 }
 
 const SAFE_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS'])
@@ -135,15 +152,24 @@ export function createRouteFactory(deps: RouteDeps) {
         const body = options.body ? options.body.parse(await readJsonBody(request)) : (undefined as TBody)
 
         const db = deps.getDb()
-        return await handler({
-          request,
-          actor,
-          body,
-          query,
-          params,
-          db,
-          asActor: (fn) => withUser(db, actor.id, fn),
-        })
+        // The request's event: the one the screen names (if the person works on it) or their
+        // chosen one. Their own transactions and any system work they cause both use it.
+        const requested = requestedEvent(request.headers)
+        const eventId = deps.resolveEventId ? await deps.resolveEventId(db, actor.id, requested) : null
+        if (requested && eventId !== requested) {
+          throw new ApiError(409, 'event_not_found', 'You do not work on this event. Reload the page.')
+        }
+        const run = () =>
+          handler({
+            request,
+            actor,
+            body,
+            query,
+            params,
+            db,
+            asActor: (fn) => withUser(db, actor.id, fn, eventId ?? undefined),
+          })
+        return await (eventId ? inSystemEvent(eventId, run) : run())
       } catch (error: unknown) {
         const apiError = toApiError(error)
         // Only unexpected failures are logged; 501/503 are expected answers with their own message.

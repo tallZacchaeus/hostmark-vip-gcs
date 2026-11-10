@@ -5,6 +5,7 @@ import { Errors } from '@/lib/api/errors'
 import type { Tx } from '@/lib/db/context'
 import type { Pagination } from '@/lib/validation/common'
 import { readDelegationSummary } from './guests'
+import { CURRENT_EVENT_ID } from '@/lib/db/current-event'
 
 export const INTAKE_TABS = ['review', 'duplicates', 'missing', 'flagged', 'processed', 'rejected'] as const
 export type IntakeTab = (typeof INTAKE_TABS)[number]
@@ -72,7 +73,7 @@ export async function countSubmissionTabs(tx: Tx): Promise<Record<IntakeTab, num
 
 /** The shared registration link for "Copy registration link" (coordinators may read the event). */
 export async function readIntakeLink(tx: Tx): Promise<{ token: string; open: boolean } | null> {
-  const row = await tx.selectFrom('events').select(['intake_token as token', 'intake_open as open']).executeTakeFirst()
+  const row = await tx.selectFrom('events').select(['intake_token as token', 'intake_open as open']).where('id', '=', CURRENT_EVENT_ID).executeTakeFirst()
   return row ?? null
 }
 

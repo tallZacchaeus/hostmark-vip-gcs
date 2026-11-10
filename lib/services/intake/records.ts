@@ -12,9 +12,11 @@ import { type NormalizedIntake, displayName, normalizeIntake } from '@/lib/domai
 import type { IntakeFields } from '@/lib/domain/intake/schema'
 import { type IntakeIssue, isHighConfidence, validateIntake } from '@/lib/domain/intake/validate'
 import { addMinutes, zonedDateTime } from '@/lib/domain/time'
+import { CURRENT_EVENT_ID } from '@/lib/db/current-event'
 
 const EVENT_COLUMNS = [
   'id',
+  'status',
   'name',
   'venue_name',
   'timezone',
@@ -42,8 +44,9 @@ const MAX_REFERENCE_ATTEMPTS = 8
 export const jsonb = (value: unknown) => sql<Json>`${JSON.stringify(value)}::jsonb`
 
 export async function loadEvent(tx: Tx, intakeToken?: string): Promise<IntakeEvent | undefined> {
+  // By registration link, or else the current event (P9).
   let query = tx.selectFrom('events').select(EVENT_COLUMNS)
-  if (intakeToken !== undefined) query = query.where('intake_token', '=', intakeToken)
+  query = intakeToken !== undefined ? query.where('intake_token', '=', intakeToken) : query.where('id', '=', CURRENT_EVENT_ID)
   return query.limit(1).executeTakeFirst()
 }
 

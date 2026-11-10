@@ -8,7 +8,7 @@ import { type Kysely, sql } from 'kysely'
 import type { IntakeReader } from '@/lib/ai/intake-reader'
 import { ApiError, Errors } from '@/lib/api/errors'
 import type { Tx } from '@/lib/db/context'
-import { withSystem } from '@/lib/db/system'
+import { inSystemEvent, withSystem } from '@/lib/db/system'
 import type { DB } from '@/lib/db/types'
 import { EMPTY_EXTRACTION, type Extraction } from '@/lib/domain/intake/extraction'
 import { displayName, normalizeIntake } from '@/lib/domain/intake/normalize'
@@ -102,10 +102,13 @@ async function admit(deps: PublicIntakeDeps, token: string, ipHash: string): Pro
   const now = deps.now?.() ?? new Date()
   const { event, allowance } = await withSystem(deps.db, { actor: 'guest_intake', automatic: false }, async (tx) => {
     const found = await loadEvent(tx, token)
-    return { event: found, allowance: found?.intake_open ? await consumeAllowance(tx, ipHash, now) : null }
+    const open = found?.intake_open && found.status !== 'archived'
+    return { event: found, allowance: open ? await consumeAllowance(tx, ipHash, now) : null }
   })
   if (!event) throw invalidLink()
-  if (!event.intake_open || !allowance) throw new ApiError(409, 'intake_closed', 'Registration for this event is closed.')
+  if (!event.intake_open || event.status === 'archived' || !allowance) {
+    throw new ApiError(409, 'intake_closed', 'Registration for this event is closed.')
+  }
   if (!allowance.allowed) throw Errors.rateLimited(allowance.retryAfterSeconds)
   return event
 }
@@ -194,6 +197,17 @@ export async function submitRegistration(
 ): Promise<RegistrationReceipt> {
   const ipHash = hashClientIp(ip, deps.ipHashSecret)
   const event = await admit(deps, token, ipHash)
+  // Everything from here on belongs to the link's event (P9), whichever events exist.
+  return inSystemEvent(event.id, () => registerInEvent(deps, event, registration, ip, ipHash))
+}
+
+async function registerInEvent(
+  deps: PublicIntakeDeps,
+  event: IntakeEvent,
+  registration: PublicRegistration,
+  ip: string,
+  ipHash: string,
+): Promise<RegistrationReceipt> {
 
   const bot = await deps.botCheck.verify(registration.turnstile_token, ip)
   if (!bot.ok) throw new ApiError(403, 'bot_check_failed', 'We could not confirm this registration came from a person. Reload the page and try again.')

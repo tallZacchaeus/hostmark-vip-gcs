@@ -169,6 +169,8 @@ describe('audit log', () => {
     expect(await db().rows(SELECT_AUDIT, [created])).toEqual([])
 
     await db().asUser(admin)
+    // As createAccount does: the new account joins the admin's event first (P9), then the change is audited.
+    await db().rows(`insert into event_members (event_id, profile_id) values (private.current_event_id(), $1)`, [created])
     await db().rows(`select private.audit_profile_change($1, 'profiles.create')`, [created])
     await db().asOwner()
     const entries = await db().rows<AuditRow>(SELECT_AUDIT, [created])

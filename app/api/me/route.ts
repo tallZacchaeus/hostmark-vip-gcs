@@ -1,12 +1,13 @@
-// The signed-in staff member, where their app should open, and the event context.
+// The signed-in staff member, where their app should open, the current event's context and the
+// events they work on.
 // Allowed while a temporary password is pending so the client can show the change screen.
 import { jsonOk } from '@/lib/api/response'
 import { defineRoute } from '@/lib/api/route'
 import { ANY_ROLE, HOME_ROUTES } from '@/lib/auth/roles'
-import { findEventContext } from '@/lib/repositories/event'
+import { findEventContext, listMyEvents } from '@/lib/repositories/event'
 
 export const GET = defineRoute({ roles: ANY_ROLE, allowPendingPasswordChange: true }, async ({ actor, asActor }) => {
-  const event = await asActor((tx) => findEventContext(tx))
+  const { event, events } = await asActor(async (tx) => ({ event: await findEventContext(tx), events: await listMyEvents(tx) }))
   return jsonOk({
     user: {
       id: actor.id,
@@ -17,5 +18,7 @@ export const GET = defineRoute({ roles: ANY_ROLE, allowPendingPasswordChange: tr
     },
     home_route: HOME_ROUTES[actor.role],
     event,
+    // Every event this person works on (P9), for the event switcher; one has is_current.
+    events,
   })
 })

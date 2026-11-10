@@ -47,8 +47,17 @@ function isEnvelope(value: unknown): value is Envelope<unknown> {
   return typeof value === 'object' && value !== null && 'success' in value
 }
 
+// The event this screen shows (P9), sent with every request so a browser tab keeps working in the
+// event it opened with even when another tab switches. Set by <SessionProvider>.
+let screenEventId: string | null = null
+
+export function setScreenEvent(eventId: string | null): void {
+  screenEventId = eventId
+}
+
 function buildInit(options: RequestOptions): RequestInit {
   const headers = new Headers({ Accept: 'application/json' })
+  if (screenEventId) headers.set('X-Event-Id', screenEventId)
   let body: string | undefined
   if (options.rawBody) {
     headers.set('Content-Type', options.rawBody.contentType)

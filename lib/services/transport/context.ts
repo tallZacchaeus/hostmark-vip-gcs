@@ -7,6 +7,7 @@ import type { Tx } from '@/lib/db/context'
 import type { FlightPhase } from '@/lib/domain/flights/schedule'
 import type { CascadeArrival, CascadeEvent, CascadeFlight, CascadePickup } from '@/lib/domain/transport/cascade'
 import type { MatchDriver, MatchShift, MatchTrip } from '@/lib/domain/transport/matcher'
+import { CURRENT_EVENT_ID } from '@/lib/db/current-event'
 
 export interface TransportEvent extends CascadeEvent {
   readonly id: string
@@ -27,6 +28,7 @@ export async function loadTransportEvent(tx: Tx): Promise<TransportEvent> {
   const event = await tx
     .selectFrom('events')
     .select(['id', 'timezone', 'venue_name', 'arrival_airports', 'airport_exit_buffer_min', 'airport_travel_min', 'local_travel_min', 'delay_threshold_min', 'flight_mode'])
+    .where('id', '=', CURRENT_EVENT_ID)
     .executeTakeFirst()
   if (!event) throw new ApiError(409, 'event_not_found', 'Set up the event first')
   return { ...event, flight_mode: event.flight_mode as TransportEvent['flight_mode'] }

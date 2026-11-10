@@ -21,7 +21,23 @@ export interface SqlError extends Error {
 }
 
 export class TestDb {
+  /**
+   * Staff join every event automatically, as on a single-team installation, so tests about one
+   * event need no membership set-up. Tests about isolation between events turn it off.
+   */
+  private autoMembership = true
+
   private constructor(private readonly db: PGlite) {}
+
+  /** From now on, staff work only on the events a test adds them to (event_members). */
+  separateTeams(): void {
+    this.autoMembership = false
+  }
+
+  /** Called on every fresh transaction. */
+  resetOptions(): void {
+    this.autoMembership = true
+  }
 
   static async create(): Promise<TestDb> {
     return new TestDb(await createMigratedPglite())
@@ -108,18 +124,33 @@ export class TestDb {
       ends_on: EVENT_LAST_DAY,
       ...overrides,
     }
-    return this.insert('events', values)
+    const event = await this.insert('events', values)
+    if (this.autoMembership) {
+      await this.db.query(
+        `insert into public.event_members (event_id, profile_id)
+         select $1, p.id from public.profiles p where p.role <> 'super_admin' on conflict do nothing`,
+        [event],
+      )
+    }
+    return event
   }
 
   async createProfile(role: AppRole, overrides: Record<string, unknown> = {}): Promise<string> {
     const suffix = crypto.randomUUID().slice(0, 8)
-    return this.insert('profiles', {
+    const profile = await this.insert('profiles', {
       full_name: `${role} ${suffix}`,
       email: `${role}.${suffix}@example.com`,
       role,
       must_change_password: false,
       ...overrides,
     })
+    if (this.autoMembership && role !== 'super_admin') {
+      await this.db.query(
+        `insert into public.event_members (event_id, profile_id) select e.id, $1 from public.events e on conflict do nothing`,
+        [profile],
+      )
+    }
+    return profile
   }
 
   async createRoomType(overrides: Record<string, unknown> = {}): Promise<string> {

@@ -3,6 +3,7 @@
 // and shared with every client component below it.
 import { createContext, type ReactNode, useContext } from 'react'
 import type { AppRole } from '@/lib/auth/roles'
+import { setScreenEvent } from '@/lib/client/api'
 
 export interface SessionUser {
   readonly id: string
@@ -30,6 +31,8 @@ export interface SessionValue {
 const SessionContext = createContext<SessionValue | null>(null)
 
 export function SessionProvider({ value, children }: { readonly value: SessionValue; readonly children: ReactNode }) {
+  // Set while rendering (not in an effect): children's effects run first and already fetch.
+  setScreenEvent(value.event?.id ?? null)
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }
 

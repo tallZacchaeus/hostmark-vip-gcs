@@ -79,3 +79,7 @@ export const eventUpdateSchema = z
 
 export type EventCreate = z.infer<typeof eventCreateSchema>
 export type EventUpdate = z.infer<typeof eventUpdateSchema>
+
+/** PUT /api/me/event: the event to work in (P9). */
+export const activeEventSchema = z.strictObject({ event_id: z.uuid('Choose an event') })
+export type ActiveEvent = z.infer<typeof activeEventSchema>
