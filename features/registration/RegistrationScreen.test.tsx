@@ -61,6 +61,26 @@ describe('RegistrationScreen', () => {
     expect(screen.getByText('Step 1 of 4')).toBeInTheDocument()
   })
 
+  it('keeps arrival and departure inside the travel dates', async () => {
+    // Arrange
+    render(<RegistrationScreen token="abc123" event={{ ...EVENT, travel_from: '2026-11-26', travel_to: '2026-11-30' }} siteKey={null} />)
+    const user = userEvent.setup()
+    await completeStepOne(user)
+    await user.click(screen.getByRole('button', { name: 'Own transport' }))
+
+    // Act
+    await user.type(screen.getByLabelText(/^Arrival date/), '2026-11-20')
+    await user.type(screen.getByLabelText(/^Arrival time/), '14:30')
+    await user.type(screen.getByLabelText(/^Departure date/), '2026-12-02')
+    await next(user)
+
+    // Assert
+    expect(screen.getByLabelText(/^Arrival date/)).toHaveAttribute('min', '2026-11-26')
+    expect(screen.getByLabelText(/^Departure date/)).toHaveAttribute('max', '2026-11-30')
+    expect(screen.getAllByText('Choose a date from 26 Nov to 30 Nov')).toHaveLength(2)
+    expect(screen.getByText('Step 2 of 4')).toBeInTheDocument()
+  })
+
   it('asks for the flight details only when flying', async () => {
     const user = renderForm()
     await completeStepOne(user)

@@ -93,6 +93,7 @@ describe('intake: public registration, review queue and pasted messages', () => 
         timezone: 'Africa/Lagos',
         starts_on: EVENT_DAY,
         ends_on: EVENT_LAST_DAY,
+        intake_window_days: 3,
         turnstile_site_key: null,
       })
     })

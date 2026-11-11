@@ -43,7 +43,15 @@ describe('validateIntake', () => {
   it('warns on an unusable phone and an arrival outside the event window', () => {
     expect(codes({ contact_phone: '12' })).toEqual(['phone_invalid'])
     expect(codes({ arrival_date: '2026-10-20' })).toEqual(['arrival_outside_window'])
-    expect(codes({ arrival_date: '2026-11-02', departure_date: '2026-11-03' })).toEqual(['arrival_outside_window'])
+  })
+
+  it('flags travel dates outside the window: from N days before the event to N days after it ends', () => {
+    // Arrange: the event runs 29–31 Oct with a 3-day window, so 26 Oct to 3 Nov.
+    // Act / Assert
+    expect(codes({ arrival_date: '2026-10-26', departure_date: '2026-11-03' })).toEqual([])
+    expect(codes({ departure_date: '2026-11-04' })).toEqual(['departure_outside_window'])
+    expect(codes({ arrival_date: '2026-10-25', departure_date: '2026-11-10' })).toEqual(['arrival_outside_window', 'departure_outside_window'])
+    expect(check({ departure_date: '2026-11-04' })[0]?.message).toBe('The departure date is outside the travel dates (2026-10-26 to 2026-11-03)')
   })
 
   it('warns when people in the party have no name', () => {

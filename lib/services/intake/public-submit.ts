@@ -49,6 +49,8 @@ export interface LinkContext {
   readonly timezone: string
   readonly starts_on: string
   readonly ends_on: string
+  /** Days before the start and after the end that guests may travel (travel-window.ts). */
+  readonly intake_window_days: number
 }
 
 export interface RegistrationReceipt {

@@ -106,7 +106,7 @@ erDiagram
 | arrival_airports | text[] | IATA codes (`^[A-Z]{3}$`) used in validation |
 | intake_token | text unique | 32 hex chars (122 random bits). Not writable by the API; changed only by `regenerate_intake_token()`. |
 | intake_open | boolean | default false |
-| intake_window_days | int default 3 | 0–30. Allowed arrival dates: `starts_on − N … ends_on` |
+| intake_window_days | int default 3 | 0–30. Travel window: arrival and departure dates `starts_on − N … ends_on + N` (form limits them; outside → `arrival_outside_window` / `departure_outside_window` warnings) |
 | airport_exit_buffer_min | int default 30 | 0–240. Landing → pickup time |
 | airport_travel_min | int default 60 | 0–600. Fixed airport ↔ venue travel time |
 | local_travel_min | int default 45 | 0–600. Location pickups |
@@ -320,7 +320,7 @@ Functions in `public` are called by the API (granted to `vip_app`); `private` ho
 | `private.notify_users(...)` / `private.notify_roles(...)` | vip_system | Notification fan-out (active accounts only) | ✅ |
 | `private.audit_profile_change(id, action)` | admin+ | Records account creation / password reset with the acting admin | ✅ |
 | `private.set_audit_context(...)` | server code | Transaction-local actor type, action name, reason, automatic/undoable flags | ✅ |
-| `public.intake_link_context(token)` | vip_system | Is the registration link open; event name, venue, timezone, dates (never the token or other settings) | ✅ |
+| `public.intake_link_context(token)` | vip_system | Is the registration link open; event name, venue, timezone, dates, travel window days (never the token or other settings) | ✅ |
 | `public.similarity(text, text)` (pg_trgm) | vip_app, vip_system | Name similarity for duplicate candidates | ✅ |
 | Record creation for a submission | — | Done in TypeScript inside one audited transaction (`lib/services/intake/records.ts`), not a SQL function: shared by auto-processing, approval, manual entry and the seed | ✅ (replaces the planned `create_records_from_submission`) |
 | Flight ingestion and the transport cascade | vip_system | Done in TypeScript (`lib/services/flights/ingest.ts` → pure plan `lib/domain/transport/cascade.ts` → `lib/services/transport/apply.ts`) inside one audited transaction: diff, update the flight and `next_check_at`, record `flight_updates`, move venue ETAs and pickups, create missing pickups, keep drivers who can still make it (they confirm again), propose reassignments / releases, withdraw suggestions made for a pickup time that moved, alert coordinators | ✅ (replaces the planned `ingest_flight_update`) |

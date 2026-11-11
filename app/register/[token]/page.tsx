@@ -1,5 +1,5 @@
 // Public registration page (no sign-in). The link context comes from the database as the trusted
-// server role; only the event name and venue reach the page, never the token's other settings.
+// server role; only the event name, venue and travel dates reach the page, never the token's other settings.
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { RegistrationScreen } from '@/features/registration/RegistrationScreen'
@@ -9,6 +9,7 @@ import { ApiError } from '@/lib/api/errors'
 import { createRateLimiter } from '@/lib/api/rate-limit'
 import { getSystemDb } from '@/lib/db/system'
 import { getServerEnv } from '@/lib/env'
+import { travelWindow } from '@/lib/domain/intake/travel-window'
 import { type LinkContext, readLinkContext } from '@/lib/services/intake/public-submit'
 import { intakeTokenParamsSchema } from '@/lib/validation/intake'
 
@@ -41,5 +42,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   const context = await loadContext(token)
   if (!context) return <RegistrationUnavailable reason="invalid" />
   if (!context.open) return <RegistrationUnavailable reason="closed" eventName={context.event_name} />
-  return <RegistrationScreen token={token} event={context} siteKey={getServerEnv().TURNSTILE_SITE_KEY ?? null} />
+  const travel = travelWindow(context)
+  const event = { event_name: context.event_name, venue_name: context.venue_name, travel_from: travel.from, travel_to: travel.to }
+  return <RegistrationScreen token={token} event={event} siteKey={getServerEnv().TURNSTILE_SITE_KEY ?? null} />
 }

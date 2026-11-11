@@ -2,12 +2,12 @@
 // automatically only when it has no error or warning and no likely duplicate. Notes ("info") are
 // shown to the coordinator but never block (e.g. unnamed companions become placeholders, FR-IN-09).
 // Nothing here asks the AI how confident it is.
-import { addDays } from '@/lib/domain/time'
 import { airlineMatchesCode } from './airlines'
 import type { DuplicateKind } from './duplicates'
 import type { Extraction } from './extraction'
 import type { NormalizedIntake } from './normalize'
 import { FLIGHT_NUMBER, type IntakeFields, requiredFieldProblems } from './schema'
+import { type EventDates, isInTravelWindow, travelWindow } from './travel-window'
 
 export type IssueSeverity = 'error' | 'warning' | 'info'
 
@@ -18,11 +18,7 @@ export interface IntakeIssue {
   readonly message: string
 }
 
-export interface EventWindow {
-  readonly starts_on: string
-  readonly ends_on: string
-  readonly intake_window_days: number
-}
+export type EventWindow = EventDates
 
 function contactIssues(fields: IntakeFields, intake: NormalizedIntake): IntakeIssue[] {
   if (fields.contact_phone && !intake.contact_phone) {
@@ -42,13 +38,18 @@ function flightIssues(fields: IntakeFields, intake: NormalizedIntake): IntakeIss
     : []
 }
 
+const TRAVEL_DATES = [
+  ['arrival_date', 'arrival'],
+  ['departure_date', 'departure'],
+] as const
+
 function dateIssues(intake: NormalizedIntake, event: EventWindow): IntakeIssue[] {
-  if (!intake.arrival_date) return []
-  const earliest = addDays(event.starts_on, -event.intake_window_days)
-  if (intake.arrival_date < earliest || intake.arrival_date > event.ends_on) {
-    return [{ code: 'arrival_outside_window', field: 'arrival_date', severity: 'warning', message: `The arrival date is outside the event window (${earliest} to ${event.ends_on})` }]
-  }
-  return []
+  const window = travelWindow(event)
+  return TRAVEL_DATES.flatMap(([field, name]) => {
+    const day = intake[field]
+    if (!day || isInTravelWindow(day, window)) return []
+    return [{ code: `${name}_outside_window`, field, severity: 'warning' as const, message: `The ${name} date is outside the travel dates (${window.from} to ${window.to})` }]
+  })
 }
 
 function partyIssues(intake: NormalizedIntake): IntakeIssue[] {

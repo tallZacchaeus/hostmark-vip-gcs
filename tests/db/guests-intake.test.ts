@@ -70,7 +70,7 @@ describe('guests and intake (P2 migration)', () => {
 
     await db().asSystem()
     const context = await db().value<Record<string, unknown>>('select public.intake_link_context($1)', [token])
-    expect(context).toMatchObject({ open: true, timezone: 'Africa/Lagos' })
+    expect(context).toMatchObject({ open: true, timezone: 'Africa/Lagos', intake_window_days: 3 })
     expect(context).not.toHaveProperty('intake_token')
     expect(await db().value('select public.intake_link_context($1)', ['not-a-token'])).toBeNull()
   })

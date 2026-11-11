@@ -7,6 +7,7 @@ import { Icon } from '@/components/ui/Icon'
 import { EMPTY_FIELDS, type IntakeFields, type PartyMember } from '@/features/intake/model'
 import { ApiClientError, apiSend } from '@/lib/client/api'
 import { requiredFieldProblems } from '@/lib/domain/intake/schema'
+import { isInTravelWindow, type TravelWindow, travelWindowMessage } from '@/lib/domain/intake/travel-window'
 import { saveReceipt, type RegistrationReceipt } from './receipt'
 import { ArrivalStep, DelegationStep, type Errors, PartyStep, ReviewStep } from './RegistrationSteps'
 import { TurnstileWidget } from './TurnstileWidget'
@@ -26,12 +27,20 @@ function stepOf(path: string): number {
   return index === -1 ? LAST_STEP : index + 1
 }
 
-function stepErrors(fields: IntakeFields, step: number): Errors {
-  return Object.fromEntries(
+/** Arrival or departure dates outside the event's travel dates. */
+function travelDateErrors(fields: IntakeFields, window: TravelWindow | null): Errors {
+  if (!window) return {}
+  const outside = (['arrival_date', 'departure_date'] as const).filter((field) => fields[field] !== '' && !isInTravelWindow(fields[field], window))
+  return Object.fromEntries(outside.map((field) => [field, travelWindowMessage(window)]))
+}
+
+function stepErrors(fields: IntakeFields, step: number, window: TravelWindow | null): Errors {
+  const required = Object.fromEntries(
     requiredFieldProblems(fields)
       .filter((problem) => stepOf(problem.path) === step)
       .map((problem) => [problem.path, problem.message]),
   )
+  return step === stepOf('arrival_date') ? { ...travelDateErrors(fields, window), ...required } : required
 }
 
 /** Server-side field problems ("form.full_name") as form errors. */
@@ -88,6 +97,9 @@ function StepBar({ step, onGo }: StepBarProps) {
 export interface RegistrationEvent {
   readonly event_name: string
   readonly venue_name: string
+  /** The dates guests may arrive and leave (YYYY-MM-DD, inclusive); absent means unrestricted. */
+  readonly travel_from?: string
+  readonly travel_to?: string
 }
 
 interface RegistrationScreenProps {
@@ -106,6 +118,7 @@ export function RegistrationScreen({ token, event, siteKey }: RegistrationScreen
   const [failure, setFailure] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const onBotToken = useCallback((value: string | null) => setBotToken(value), [])
+  const travelDates = event.travel_from && event.travel_to ? { from: event.travel_from, to: event.travel_to } : null
 
   const setField = <K extends keyof IntakeFields>(name: K, value: IntakeFields[K]) => {
     setFields((current) => ({ ...current, [name]: value }))
@@ -142,7 +155,7 @@ export function RegistrationScreen({ token, event, siteKey }: RegistrationScreen
   }
 
   const next = () => {
-    const found: Errors = step === LAST_STEP ? (consent ? {} : { consent: 'Tick the box to confirm your details are correct' }) : stepErrors(fields, step)
+    const found: Errors = step === LAST_STEP ? (consent ? {} : { consent: 'Tick the box to confirm your details are correct' }) : stepErrors(fields, step, travelDates)
     if (step === LAST_STEP && siteKey && !botToken) found.bot = 'Complete the check above to show you are a person'
     setErrors(found)
     if (Object.keys(found).length > 0) return
@@ -183,7 +196,7 @@ export function RegistrationScreen({ token, event, siteKey }: RegistrationScreen
             <p>Takes about 3 minutes. We will confirm by email.</p>
             <StepBar step={step} onGo={goTo} />
             {step === 1 && <DelegationStep fields={fields} errors={errors} setField={setField} />}
-            {step === 2 && <ArrivalStep fields={fields} errors={errors} setField={setField} />}
+            {step === 2 && <ArrivalStep fields={fields} errors={errors} setField={setField} travelDates={travelDates} />}
             {step === 3 && <PartyStep fields={fields} errors={errors} setField={setField} setParty={setParty} />}
             {step === LAST_STEP && (
               <div className="registration-review">

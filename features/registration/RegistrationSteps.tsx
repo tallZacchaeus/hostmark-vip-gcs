@@ -6,6 +6,7 @@ import { Icon, type IconName } from '@/components/ui/Icon'
 import { ARRIVAL_MODE_LABELS, EMPTY_MEMBER, type IntakeFields, PARTY_ROLE_LABELS, type PartyMember, TITLES } from '@/features/intake/model'
 import { formatDay } from '@/lib/client/format'
 import { type ArrivalMode, MAX_PARTY_SIZE, PARTY_ROLES } from '@/lib/domain/intake/schema'
+import type { TravelWindow } from '@/lib/domain/intake/travel-window'
 
 export type Errors = Partial<Record<string, string>>
 type SetField = <K extends keyof IntakeFields>(name: K, value: IntakeFields[K]) => void
@@ -77,8 +78,14 @@ export function DelegationStep({ fields, errors, setField }: StepProps) {
 const MODE_ICONS: Readonly<Record<ArrivalMode, IconName>> = { flying: 'plane', own_transport: 'car', pickup: 'pin' }
 const MODE_CHOICES: Readonly<Record<ArrivalMode, string>> = { flying: 'Flying', own_transport: 'Own transport', pickup: 'I need a pickup' }
 
-export function ArrivalStep({ fields, errors, setField }: StepProps) {
+interface ArrivalStepProps extends StepProps {
+  /** Keeps the date pickers inside the event's travel dates. */
+  readonly travelDates?: TravelWindow | null
+}
+
+export function ArrivalStep({ fields, errors, setField, travelDates = null }: ArrivalStepProps) {
   const mode = fields.arrival_mode
+  const dateLimits = travelDates ? { min: travelDates.from, max: travelDates.to } : {}
   return (
     <div className="registration-fields">
       <fieldset className={`registration-field ${errors.arrival_mode ? 'has-error' : ''}`}>
@@ -119,7 +126,7 @@ export function ArrivalStep({ fields, errors, setField }: StepProps) {
         <>
           <div className="registration-date-row">
             <RegistrationField label="Arrival date" required error={errors.arrival_date}>
-              <input type="date" value={fields.arrival_date} onChange={(event) => setField('arrival_date', event.target.value)} />
+              <input type="date" {...dateLimits} value={fields.arrival_date} onChange={(event) => setField('arrival_date', event.target.value)} />
             </RegistrationField>
             <RegistrationField
               label={mode === 'pickup' ? 'Pickup time' : mode === 'flying' ? 'Landing time' : 'Arrival time'}
@@ -131,7 +138,7 @@ export function ArrivalStep({ fields, errors, setField }: StepProps) {
             </RegistrationField>
           </div>
           <RegistrationField label="Departure date" required error={errors.departure_date}>
-            <input type="date" value={fields.departure_date} onChange={(event) => setField('departure_date', event.target.value)} />
+            <input type="date" {...dateLimits} value={fields.departure_date} onChange={(event) => setField('departure_date', event.target.value)} />
           </RegistrationField>
         </>
       )}

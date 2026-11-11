@@ -25,7 +25,7 @@ const NUMBER_FIELDS: ReadonlyArray<{ key: NumberKey; label: string; hint: string
   { key: 'delay_threshold_min', label: 'Delay threshold (minutes)', hint: 'A flight later than this is "delayed"', max: 240, fallback: 15 },
   { key: 'cleaning_delay_buffer_min', label: 'Cleaning buffer (minutes)', hint: 'Added to room ready estimates', max: 240, fallback: 15 },
   { key: 'program_lead_time_min', label: 'Programme lead time (minutes)', hint: 'Guests must arrive this early', max: 240, fallback: 30 },
-  { key: 'intake_window_days', label: 'Arrival window (days)', hint: 'Days before the event a registration may arrive', max: 30, fallback: 3 },
+  { key: 'intake_window_days', label: 'Travel window (days)', hint: 'Guests may arrive this many days before the event and leave this many days after it', max: 30, fallback: 3 },
 ]
 
 interface EventFormProps {

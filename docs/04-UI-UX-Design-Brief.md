@@ -113,6 +113,7 @@ Page titles are 34 px / 800; card titles 15–20 px / 700–800; body 14 px; hel
 - **Confirmations** only for consequential actions (reverse checkout, assign anyway, reject plan, undo). One-tap approve has no extra confirm dialog. Undo is the safety net.
 - **Forms** keep inputs on error, focus the first invalid field, and never clear typed data.
 - **Save buttons stay pressable** in dialogs with required fields. Pressing one with something missing lists what is still needed ("Enter a venue") instead of leaving a greyed-out button with no reason (`FormDialog` `missing`; tester feedback, Nov 2026). Only confirmations and no-change states stay disabled.
+- **Dialogs never outgrow the screen:** at most the screen height less 40 px and no wider than the screen; the fields scroll inside and the button bar stays pinned to the bottom.
 - **Motion:** 150–200 ms ease-out for drawers and toasts only. Respect `prefers-reduced-motion`.
 
 ## 7. Accessibility (WCAG 2.2 AA)
