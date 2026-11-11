@@ -2,7 +2,7 @@
 // Copying setup into a draft event (P9 step 9.4): choose an earlier event and what to bring over.
 // Guests, flights and everything that happened stay with the earlier event.
 import { useState } from 'react'
-import { Field, FormDialog } from '@/components/ui/FormDialog'
+import { Field, FormDialog, unmet } from '@/components/ui/FormDialog'
 import { apiSend } from '@/lib/client/api'
 import { plural } from '@/lib/client/format'
 import { useAction } from '@/lib/client/use-action'
@@ -62,7 +62,10 @@ export function CopySetupDialog({ target, sources, onCopied, onClose }: CopySetu
       onClose={onClose}
       busy={action.busy}
       error={action.error}
-      canSubmit={sourceId !== '' && parts.length > 0}
+      missing={unmet([
+        [sourceId !== '', 'Choose the event to copy from'],
+        [parts.length > 0, 'Tick at least one thing to copy'],
+      ])}
     >
       {sources.length === 0 ? (
         <p className="field-note is-wide">There is no other event to copy from yet.</p>

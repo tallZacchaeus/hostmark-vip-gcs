@@ -2,7 +2,7 @@
 // Coordinator-only details (FR-IN-11): VIP category, proximity priority and room-share group, plus
 // name, dietary and notes. Saved with the version read, so a concurrent edit is never overwritten.
 import { useState } from 'react'
-import { Field, FormDialog } from '@/components/ui/FormDialog'
+import { Field, FormDialog, unmet } from '@/components/ui/FormDialog'
 import { TITLES } from '@/features/intake/model'
 import type { VipCategory } from '@/features/settings/types'
 import { apiSend } from '@/lib/client/api'
@@ -52,7 +52,7 @@ export function EditGuestDialog({ guest, categories, onClose, onSaved }: EditGue
     })
 
   return (
-    <FormDialog title="Edit guest" submitLabel="Save" onSubmit={save} onClose={onClose} busy={action.busy} error={action.error} canSubmit={guest.member_role !== 'principal' || fullName.trim() !== ''}>
+    <FormDialog title="Edit guest" submitLabel="Save" onSubmit={save} onClose={onClose} busy={action.busy} error={action.error} missing={unmet([[guest.member_role !== 'principal' || fullName.trim() !== '', 'Enter the guest’s full name']])}>
       <Field label="Title">
         <input list="guest-titles" value={title} onChange={(event) => setTitle(event.target.value)} />
         <datalist id="guest-titles">

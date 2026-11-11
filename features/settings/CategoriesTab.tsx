@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { ErrorBanner } from '@/components/ui/Feedback'
-import { Field, FormDialog } from '@/components/ui/FormDialog'
+import { Field, FormDialog, unmet } from '@/components/ui/FormDialog'
 import { Icon } from '@/components/ui/Icon'
 import { Skeleton } from '@/components/ui/Status'
 import { useToast } from '@/components/ui/Toast'
@@ -36,7 +36,7 @@ function CategoryDialog({ category, nextRank, onClose, onSaved }: { readonly cat
       onClose={onClose}
       busy={action.busy}
       error={action.error}
-      canSubmit={name.trim() !== ''}
+      missing={unmet([[name.trim() !== '', 'Enter a name']])}
     >
       <Field label="Name" required hint="e.g. Head of State / Minister">
         <input value={name} onChange={(event) => setName(event.target.value)} data-autofocus />

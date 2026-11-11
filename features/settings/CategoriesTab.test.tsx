@@ -78,7 +78,8 @@ describe('CategoriesTab', () => {
     await user.click(screen.getByRole('button', { name: 'Add category' }))
     const dialog = screen.getByRole('dialog', { name: 'Add VIP category' })
     const submit = within(dialog).getByRole('button', { name: 'Add category' })
-    expect(submit).toBeDisabled()
+    await user.click(submit)
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Enter a name')
     await user.type(within(dialog).getByLabelText(/^Name/), ' Traditional Ruler ')
     await user.click(submit)
 

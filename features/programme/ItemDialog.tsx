@@ -5,7 +5,7 @@
 // left outside the event days keeps its day as an option until it is moved onto an event day.
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { Field, FormDialog } from '@/components/ui/FormDialog'
+import { Field, FormDialog, unmet } from '@/components/ui/FormDialog'
 import { Icon } from '@/components/ui/Icon'
 import { apiSend } from '@/lib/client/api'
 import { dateKey, formatShortDay, formatTime, zonedDateTime } from '@/lib/client/format'
@@ -126,7 +126,11 @@ export function ItemDialog({ item, day, days, venues, timeZone, onClose, onSaved
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }))
   const ownDay = item ? dateKey(item.starts_at, timeZone) : null
   const strandedDay = ownDay && !days.includes(ownDay) ? ownDay : null
-  const valid = draft.title.trim() !== '' && draft.location.trim() !== '' && draft.end > draft.start
+  const missing = unmet([
+    [draft.title.trim() !== '', 'Enter a title'],
+    [draft.location.trim() !== '', 'Enter a venue'],
+    [draft.end > draft.start, 'Make the end time later than the start time'],
+  ])
 
   const save = () =>
     void action
@@ -164,7 +168,7 @@ export function ItemDialog({ item, day, days, venues, timeZone, onClose, onSaved
       onClose={onClose}
       busy={action.busy}
       error={action.error}
-      canSubmit={valid}
+      missing={missing}
     >
       <Field label="Title" required>
         <input value={draft.title} maxLength={200} onChange={(event) => set('title', event.target.value)} />

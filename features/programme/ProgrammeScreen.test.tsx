@@ -68,6 +68,27 @@ describe('ProgrammeScreen', () => {
     expect(sentBody(fetchMock, putIndex)).toEqual({ participants: [{ guest_id: 'g-1', role: 'speaker' }] })
   })
 
+  it('tells the editor which fields are missing when they try to add an incomplete item', async () => {
+    // Arrange
+    const fetchMock = mockApi([
+      { path: '/api/programme/guests', body: [] },
+      { path: '/api/programme', body: programmeView({ can_edit: true }) },
+    ])
+    renderWithApp(<ProgrammeScreen />, sessionFor('programs'))
+    const user = userEvent.setup()
+    await user.click((await screen.findAllByRole('button', { name: 'Add item' }))[0] as HTMLElement)
+    const dialog = screen.getByRole('dialog', { name: 'Add programme item' })
+
+    // Act
+    await user.type(within(dialog).getByRole('textbox', { name: /^Title/ }), 'Opening dinner')
+    await user.click(within(dialog).getByRole('button', { name: 'Add item' }))
+
+    // Assert
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Enter a venue')
+    expect(within(dialog).getByRole('alert')).not.toHaveTextContent('Enter a title')
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+  })
+
   it('opens an item to show participants and lets editors edit drafts', async () => {
     mockApi([
       { path: '/api/programme/guests', body: [] },

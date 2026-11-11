@@ -79,7 +79,8 @@ describe('EditGuestDialog', () => {
   it('needs a name for the principal', async () => {
     const { dialog, user } = open(guest())
     await user.clear(within(dialog).getByLabelText(/^Full name/))
-    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled()
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Enter the guest’s full name')
   })
 
   it('lets a placeholder companion stay unnamed and clears an unset category', async () => {

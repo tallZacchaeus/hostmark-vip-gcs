@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Field, FormDialog } from '@/components/ui/FormDialog'
+import { Field, FormDialog, unmet } from '@/components/ui/FormDialog'
 import { Icon } from '@/components/ui/Icon'
 import { Modal } from '@/components/ui/Modal'
 import { useSession, useTimeZone } from '@/components/shell/SessionContext'
@@ -48,7 +48,7 @@ export function DriverDialog({ driver, onClose, onSaved }: DriverDialogProps) {
       onClose={onClose}
       busy={action.busy}
       error={action.error}
-      canSubmit={name.trim() !== ''}
+      missing={unmet([[name.trim() !== '', 'Enter the driver’s name']])}
     >
       <Field label="Name" required>
         <input value={name} onChange={(event) => setName(event.target.value)} data-autofocus />

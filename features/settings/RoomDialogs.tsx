@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Field, FormDialog } from '@/components/ui/FormDialog'
+import { Field, FormDialog, unmet } from '@/components/ui/FormDialog'
 import { apiRequest, apiSend } from '@/lib/client/api'
 import { useAction } from '@/lib/client/use-action'
 import type { Room, RoomType } from './types'
@@ -27,7 +27,7 @@ export function RoomTypeDialog({ roomType, onClose, onSaved }: { readonly roomTy
       onClose={onClose}
       busy={action.busy}
       error={action.error}
-      canSubmit={name.trim() !== ''}
+      missing={unmet([[name.trim() !== '', 'Enter a name']])}
     >
       <Field label="Name" required>
         <input value={name} onChange={(event) => setName(event.target.value)} data-autofocus />
@@ -89,7 +89,11 @@ export function RoomDialog({ room, roomTypes, onClose, onSaved }: RoomDialogProp
       onClose={onClose}
       busy={action.busy}
       error={action.error}
-      canSubmit={number.trim() !== '' && wing.trim() !== '' && typeId !== ''}
+      missing={unmet([
+        [number.trim() !== '', 'Enter the room number'],
+        [wing.trim() !== '', 'Enter the wing'],
+        [typeId !== '', 'Add a room type first, then choose it here'],
+      ])}
     >
       <Field label="Room number" required>
         <input value={number} onChange={(event) => setNumber(event.target.value)} data-autofocus />
@@ -176,7 +180,7 @@ export function RoomImportDialog({ onClose, onImported }: { readonly onClose: ()
       onClose={onClose}
       busy={action.busy}
       error={action.error}
-      canSubmit={csv.trim() !== ''}
+      missing={unmet([[csv.trim() !== '', 'Paste the CSV or choose a file']])}
     >
       <Field label="CSV file">
         <input type="file" accept=".csv,text/csv" onChange={(event) => void readFile(event.target.files?.[0])} />

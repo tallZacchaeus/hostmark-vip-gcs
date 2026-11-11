@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { Field, FormDialog } from '@/components/ui/FormDialog'
+import { Field, FormDialog, unmet } from '@/components/ui/FormDialog'
 import { Icon } from '@/components/ui/Icon'
 import { Modal } from '@/components/ui/Modal'
 import type { AppRole } from '@/lib/auth/roles'
@@ -93,7 +93,10 @@ export function InviteUserDialog({ roles, onClose, onCreated }: InviteProps) {
   const [phone, setPhone] = useState('')
   const [role, setRole] = useState<AppRole>(roles[0] ?? 'coordinator')
   const action = useAction()
-  const valid = name.trim() !== '' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())
+  const missing = unmet([
+    [name.trim() !== '', 'Enter a name'],
+    [/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()), 'Enter a valid email address'],
+  ])
 
   const submit = () =>
     void action.run(async () => {
@@ -115,7 +118,7 @@ export function InviteUserDialog({ roles, onClose, onCreated }: InviteProps) {
       onClose={onClose}
       busy={action.busy}
       error={action.error}
-      canSubmit={valid}
+      missing={missing}
     >
       <Field label="Name" required>
         <input value={name} onChange={(event) => setName(event.target.value)} autoComplete="off" data-autofocus />

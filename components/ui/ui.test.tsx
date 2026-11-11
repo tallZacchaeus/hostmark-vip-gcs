@@ -70,6 +70,35 @@ describe('FormDialog', () => {
     await userEvent.type(screen.getByLabelText('Number'), '{Enter}')
     expect(onSubmit).toHaveBeenCalledTimes(1)
   })
+
+  it('keeps the button pressable and says what is missing instead of silently refusing', async () => {
+    // Arrange
+    const onSubmit = vi.fn()
+    const { rerender } = render(
+      <FormDialog title="Add item" submitLabel="Save" onSubmit={onSubmit} onClose={vi.fn()} missing={['Enter a title', 'Enter a venue']}>
+        <input aria-label="Title" />
+      </FormDialog>,
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    // Act
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    // Assert
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a title')
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a venue')
+
+    // Once everything is filled in, the message goes and saving works.
+    rerender(
+      <FormDialog title="Add item" submitLabel="Save" onSubmit={onSubmit} onClose={vi.fn()} missing={[]}>
+        <input aria-label="Title" />
+      </FormDialog>,
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
 })
 
 function ToastTrigger({ run }: { readonly run: () => void }) {

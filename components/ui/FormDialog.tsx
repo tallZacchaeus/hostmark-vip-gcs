@@ -1,7 +1,9 @@
 'use client'
 // The design's settings dialog as a form: title, fields, an inline error, Cancel and a submit
-// button. Enter submits; Escape and the scrim cancel (Modal).
-import { type FormEvent, type ReactNode, useId } from 'react'
+// button. Enter submits; Escape and the scrim cancel (Modal). Forms with required fields pass
+// `missing` instead of disabling the button: pressing it then says what is still needed, rather
+// than leaving a greyed-out button with no reason (tester feedback, Nov 2026).
+import { type FormEvent, type ReactNode, useId, useState } from 'react'
 import { Button } from './Button'
 import { Icon } from './Icon'
 import { Modal } from './Modal'
@@ -14,7 +16,10 @@ interface FormDialogProps {
   readonly onClose: () => void
   readonly busy?: boolean
   readonly error?: string | null
+  /** False keeps the button disabled (confirmations, nothing changed yet). */
   readonly canSubmit?: boolean
+  /** What still has to be filled in, one short instruction each ("Enter a venue"); shown on submit. */
+  readonly missing?: readonly string[]
   readonly danger?: boolean
   readonly width?: 'wide' | 'compact'
   readonly children?: ReactNode
@@ -29,14 +34,22 @@ export function FormDialog({
   busy = false,
   error,
   canSubmit = true,
+  missing = [],
   danger = false,
   width = 'wide',
   children,
 }: FormDialogProps) {
   const titleId = useId()
+  const [triedSubmit, setTriedSubmit] = useState(false)
+  const showMissing = triedSubmit && missing.length > 0
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (canSubmit && !busy) onSubmit()
+    if (!canSubmit || busy) return
+    if (missing.length > 0) {
+      setTriedSubmit(true)
+      return
+    }
+    onSubmit()
   }
   return (
     <Modal
@@ -52,7 +65,20 @@ export function FormDialog({
           {description && <p>{description}</p>}
         </header>
         {children && <div className="settings-dialog-fields">{children}</div>}
-        {error && (
+        {showMissing ? (
+          <div className="form-error" role="alert">
+            <Icon name="alert" size={16} />
+            <div>
+              <span>Before saving:</span>
+              <ul>
+                {missing.map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : null}
+        {error && !showMissing && (
           <p className="form-error" role="alert">
             <Icon name="alert" size={16} />
             {error}
@@ -67,6 +93,11 @@ export function FormDialog({
       </form>
     </Modal>
   )
+}
+
+/** The messages for requirements not yet met: `unmet([[title !== '', 'Enter a title']])`. */
+export function unmet(checks: ReadonlyArray<readonly [boolean, string]>): string[] {
+  return checks.filter(([met]) => !met).map(([, message]) => message)
 }
 
 interface FieldProps {
