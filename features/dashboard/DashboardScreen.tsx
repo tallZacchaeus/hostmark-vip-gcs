@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/Status'
 import { useSession } from '@/components/shell/SessionContext'
 import { useNow } from '@/components/shell/useNow'
 import { firstName, greeting, plural } from '@/lib/client/format'
+import { EVENT_MANAGERS, hasAnyRole } from '@/lib/auth/roles'
 import { useApi } from '@/lib/client/use-api'
 import { ApprovalsCard } from './ApprovalsCard'
 import { ProgrammeRiskCard } from './ProgrammeRiskCard'
@@ -76,10 +77,12 @@ function Hero() {
           {now ? greeting(now, timeZone) : 'Welcome'}, {firstName(user.fullName)}
         </h1>
         <p>Here&apos;s what&apos;s happening with your VIP guests today.</p>
-        <span className="live-pill">
-          <i />
-          {simulated ? 'Simulated flight data' : 'Live flight data'}
-        </span>
+        {event && (
+          <span className="live-pill">
+            <i />
+            {simulated ? 'Simulated flight data' : 'Live flight data'}
+          </span>
+        )}
       </div>
       <div className="hero-photo" role="img" aria-label="Lagos skyline at golden hour">
         {event && (
@@ -156,17 +159,39 @@ function StatsRow() {
   )
 }
 
+// Event access is per person (P9): a Programme Manager sees only events they own, other staff
+// only events they were added to. With none, the figures would all be 0, so say why instead.
+function NoEventNotice() {
+  const { user } = useSession()
+  const managesEvents = hasAnyRole(user.role, EVENT_MANAGERS)
+  return (
+    <div className="error-banner" role="note">
+      <Icon name="info" />
+      {managesEvents ? (
+        <span>
+          You are not working in any event yet. Create a new event, or ask a Super Admin to hand one to you.{' '}
+          <Link href="/events">Open Events</Link>
+        </span>
+      ) : (
+        <span>You are not working in any event yet. Ask your Programme Manager to add you to their event team.</span>
+      )}
+    </div>
+  )
+}
+
 export function DashboardScreen() {
   const { event } = useSession()
+  if (!event) {
+    return (
+      <main className="dashboard-page">
+        <Hero />
+        <NoEventNotice />
+      </main>
+    )
+  }
   return (
     <main className="dashboard-page">
       <Hero />
-      {!event && (
-        <div className="error-banner" role="note">
-          <Icon name="info" />
-          <span>The event is not set up yet. An admin can set it up in Settings → System.</span>
-        </div>
-      )}
       <StatsRow />
       <div className="main-grid-v4">
         <div className="main-left">

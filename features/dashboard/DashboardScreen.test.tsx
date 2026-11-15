@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockApi } from '@/tests/support/api-mock'
-import { renderWithApp } from '@/tests/support/render'
+import { renderWithApp, sessionFor } from '@/tests/support/render'
 import { DashboardScreen, type DashboardSummary } from './DashboardScreen'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => '/dashboard' }))
@@ -61,5 +61,25 @@ describe('DashboardScreen', () => {
     const card = await screen.findByRole('region', { name: /Programme at risk/ })
     expect(await within(card).findByText('Nothing at risk today')).toBeInTheDocument()
     expect(within(card).queryByText('At risk')).not.toBeInTheDocument()
+  })
+
+  it('sends a Programme Manager with no event to the Events page instead of showing zeros', () => {
+    mockApi(routes(summary()))
+    renderWithApp(<DashboardScreen />, { ...sessionFor('programme_manager'), event: null })
+
+    expect(screen.getByText(/not working in any event yet/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Open Events/ })).toHaveAttribute('href', '/events')
+    expect(screen.queryByText('VIP guests')).not.toBeInTheDocument()
+    expect(screen.queryByText(/flight data/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Settings → System/)).not.toBeInTheDocument()
+  })
+
+  it('tells staff with no event to ask their Programme Manager, with no Events link', () => {
+    mockApi(routes(summary()))
+    renderWithApp(<DashboardScreen />, { ...sessionFor('coordinator'), event: null })
+
+    expect(screen.getByText(/Ask your Programme Manager to add you/i)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Open Events/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('VIP guests')).not.toBeInTheDocument()
   })
 })
