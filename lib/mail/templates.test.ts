@@ -1,5 +1,35 @@
 import { describe, expect, it } from 'vitest'
-import { passwordLinkEmail, registrationReceivedEmail } from './templates'
+import { demoRequestEmail, passwordLinkEmail, registrationReceivedEmail } from './templates'
+
+describe('demoRequestEmail', () => {
+  it('names the organisation in the subject and lists who asked, with their message escaped', () => {
+    // Act
+    const mail = demoRequestEmail({
+      name: 'Ada Nwosu',
+      organisation: 'Lagos <Leadership> Forum',
+      email: 'ada@example.com',
+      eventSizeLabel: '50 to 200 guests',
+      message: '<b>Two venues</b>',
+    })
+
+    // Assert
+    expect(mail.subject).toBe('Demo request from Lagos <Leadership> Forum')
+    expect(mail.text).toContain('Email: ada@example.com')
+    expect(mail.text).toContain('Event size: 50 to 200 guests')
+    expect(mail.text).toContain('<b>Two venues</b>')
+    expect(mail.html).not.toContain('<b>Two venues</b>')
+    expect(mail.html).toContain('&lt;Leadership&gt;')
+  })
+
+  it('leaves out the event size and message when they were not given', () => {
+    // Act
+    const mail = demoRequestEmail({ name: 'Ada Nwosu', organisation: 'Forum', email: 'ada@example.com' })
+
+    // Assert
+    expect(mail.text).not.toContain('Event size')
+    expect(mail.text).not.toContain('Message')
+  })
+})
 
 const LINK = 'https://hostmark.tech/reset-password?token=abc123'
 

@@ -22,6 +22,7 @@ Routes follow the Figma Make design ("Hostmark", see [`design/figma-make/`](../d
 ### Public
 | Route | Screen | Purpose | Status |
 |---|---|---|---|
+| `/` | Landing page (2026-11-16) | For people not signed in; signed-in staff are sent to their home screen. What Hostmark does, how a late flight is handled, the modules with screenshots, measured results, safeguards, **Request a demo** (`POST /api/demo-requests`) and **Staff sign in** | ✅ |
 | `/register/[token]` | Registration form | Four steps (delegation, arrival, party + needs + "anything else", review) with conditional arrival-mode fields, consent, Turnstile when configured; no VIP category | ✅ |
 | `/register/[token]/done` | Confirmation | Reference code (copy), summary, "we may contact you" when something needs checking | ✅ |
 

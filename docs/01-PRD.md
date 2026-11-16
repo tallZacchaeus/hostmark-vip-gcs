@@ -207,6 +207,16 @@ Today one installation runs exactly one event. The system must instead host **ma
 
 **Open:** whether an Admin keeps account management across all events (proposed: Admin powers apply only inside events they are assigned to; creating accounts is for Programme Managers and Super Admins).
 
+### 5.8 Public landing page and demo requests — **[Built 2026-11-16]**
+
+Event organisers deciding whether to use Hostmark need somewhere to learn what it does; until now `/` sent everyone straight to sign-in.
+
+| ID | Requirement |
+|---|---|
+| FR-LP-01 | `/` shows a public landing page to anyone not signed in (signed-in staff still go to their home screen): the problem, how a flight delay is handled, the six modules with screenshots, measured results, safeguards and the staff sign-in. It is the only page search engines may index. |
+| FR-LP-02 | **Request a demo**: name, organisation, work email, optional event size and message. The request is emailed to `DEMO_REQUEST_TO` with replies going to the requester; nothing is stored. At most 5 requests per 10 minutes per IP, plus a hidden honeypot field. Without `DEMO_REQUEST_TO` (or without email) the form says requests are not open yet. |
+| FR-LP-03 | Every figure on the page comes from `pnpm eval:all` and says how and when it was measured (`features/landing/content.ts`). |
+
 ## 6. User stories
 
 **Coordinator**

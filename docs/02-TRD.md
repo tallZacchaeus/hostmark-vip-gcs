@@ -265,6 +265,7 @@ Built in P3 (`lib/flights/*`, `lib/services/flights/*`, `lib/services/worker/*`)
 | `FLIGHT_POLL_DAILY_LIMIT` | `160` | — (live calls per UTC day) |
 | `RESEND_API_KEY` | unset | No email: invitations and resets show a temporary password once; no "Forgot password?" link; no guest confirmations |
 | `MAIL_FROM` | unset (required with the key) | e.g. `Hostmark <noreply@hostmark.tech>`; its domain must be verified in Resend |
+| `DEMO_REQUEST_TO` | unset | The landing page's **Request a demo** form says requests are not open yet (needs email on too) |
 | `WORKER_MODE` | `in-process` | `off`: run `pnpm worker` as its own process (not with a `pglite://` database) |
 
 ## 5. Hosting, environments, deployment

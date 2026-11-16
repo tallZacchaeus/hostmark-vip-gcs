@@ -43,6 +43,19 @@ describe('createResendMailer', () => {
     })
   })
 
+  it('sends a reply-to address when one is given', async () => {
+    // Arrange
+    const fetchFn = reply({ id: 'email-2' })
+    const mailer = createResendMailer({ apiKey: 're_test', from: 'Hostmark <noreply@hostmark.tech>' }, fetchFn)
+
+    // Act
+    await mailer.send({ ...MESSAGE, replyTo: 'client@example.com' })
+
+    // Assert
+    const [, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(init.body as string)).toMatchObject({ reply_to: 'client@example.com' })
+  })
+
   it('reports a refusal or an unreachable service without throwing', async () => {
     // Arrange
     const refused = createResendMailer({ apiKey: 're_test', from: 'a@b.co' }, reply({ message: 'domain not verified' }, false, 403))

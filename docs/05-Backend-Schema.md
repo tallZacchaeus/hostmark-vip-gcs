@@ -489,6 +489,7 @@ Tests: `tests/db/*.test.ts` check each cell above as the relevant role.
 | GET | `/register/[token]` · `/register/[token]/done` (pages) | public | Registration form and confirmation (receipt kept in the browser tab only) |
 | GET | `/api/intake/[token]` | public, 30/min per IP | Link context `{ open, event_name, venue_name, timezone, starts_on, ends_on, turnstile_site_key }`; 404 `invalid_link` |
 | POST | `/api/intake/[token]` | public, 30/min per IP + 10 per 15 min per IP hash | `{ form, consent: true, turnstile_token? }` → 201 `{ reference_code, follow_up, summary }`; 409 `intake_closed`, 403 `bot_check_failed`, 429 |
+| POST | `/api/demo-requests` | public, 5 per 10 min per IP | `{ name, organisation, email, event_size?, message?, website }` (`website` is a honeypot: filled in, the answer is the same but nothing is sent) → 201 `{ received: true }`; emailed to `DEMO_REQUEST_TO` with reply-to the requester, nothing stored; 503 `demo_requests_unavailable`, 502 `demo_request_not_sent`, 429 |
 | POST | `/api/intake/read-message` | coordinator+, 10/min | `{ text }` → `{ fields, extraction }`; saves nothing |
 | GET / POST | `/api/intake/submissions` | coordinator+ (POST 10/min) | Queue (`?tab=review|duplicates|missing|flagged|processed|rejected&search=&source=`) with `tabs` counts and the registration `link`; POST `{ text }` saves a pasted message as a draft |
 | GET / PATCH | `/api/intake/submissions/[id]` | coordinator+ | Detail with the matched delegation for comparison; PATCH `{ fields }` saves corrections and re-checks |

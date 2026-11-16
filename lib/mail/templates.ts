@@ -116,3 +116,31 @@ export function registrationReceivedEmail(input: RegistrationReceivedInput): Con
     }),
   }
 }
+
+export interface DemoRequestEmailInput {
+  readonly name: string
+  readonly organisation: string
+  readonly email: string
+  readonly eventSizeLabel?: string
+  readonly message?: string
+}
+
+/** To the Hostmark team: someone asked for a demo on the landing page. Reply goes to them. */
+export function demoRequestEmail(input: DemoRequestEmailInput): Content {
+  const details: ReadonlyArray<readonly [string, string]> = [
+    ['Name', input.name],
+    ['Organisation', input.organisation],
+    ['Email', input.email],
+    ...(input.eventSizeLabel ? [['Event size', input.eventSizeLabel] as const] : []),
+  ]
+  return {
+    subject: `Demo request from ${input.organisation}`,
+    ...render({
+      paragraphs: [
+        `${input.name} from ${input.organisation} asked for a demo of ${BRAND} on the website. Reply to this email to answer them.`,
+        ...(input.message ? [`Message: ${input.message}`] : []),
+      ],
+      details,
+    }),
+  }
+}

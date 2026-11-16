@@ -67,6 +67,13 @@ describe('server environment', () => {
     expect(() => parseServerEnv({ ...VALID, RESEND_API_KEY: 're_key', MAIL_FROM: 'Hostmark <noreply@hostmark.tech>' })).not.toThrow(/re_key/)
   })
 
+  it('takes an optional address for demo requests and refuses one that is not an address', () => {
+    expect(parseServerEnv(VALID).DEMO_REQUEST_TO).toBeUndefined()
+    expect(parseServerEnv({ ...VALID, DEMO_REQUEST_TO: ' ' }).DEMO_REQUEST_TO).toBeUndefined()
+    expect(parseServerEnv({ ...VALID, DEMO_REQUEST_TO: 'sales@example.com' }).DEMO_REQUEST_TO).toBe('sales@example.com')
+    expect(() => parseServerEnv({ ...VALID, DEMO_REQUEST_TO: 'sales' })).toThrow(/DEMO_REQUEST_TO/)
+  })
+
   it('accepts a scheduler secret only when it is long enough', () => {
     expect(parseServerEnv({ ...VALID, CRON_SECRET: '' }).CRON_SECRET).toBeUndefined()
     expect(parseServerEnv({ ...VALID, CRON_SECRET: 'c'.repeat(32) }).CRON_SECRET).toBe('c'.repeat(32))

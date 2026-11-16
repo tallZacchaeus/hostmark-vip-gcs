@@ -83,6 +83,8 @@ const serverEnvSchema = z.object({
       .regex(/^([^<>]+<[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+>|[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+)$/, 'must be an address, e.g. Hostmark <noreply@example.com>')
       .optional(),
   ),
+  /** Where "Request a demo" on the landing page is emailed. Unset: the form says requests are not open. */
+  DEMO_REQUEST_TO: z.preprocess(blankAsUndefined, z.string().trim().max(200).pipe(z.email('must be an email address')).optional()),
   /** Bearer secret for /api/internal/worker-tick. Unset: that route does not exist. */
   CRON_SECRET: z.preprocess(
     blankAsUndefined,

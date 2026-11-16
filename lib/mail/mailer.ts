@@ -12,6 +12,8 @@ export interface MailMessage {
   readonly subject: string
   readonly text: string
   readonly html: string
+  /** Where replies go (e.g. the person who filled in a form), when not the sender. */
+  readonly replyTo?: string
 }
 
 export type SendResult = { readonly ok: true; readonly id: string | null } | { readonly ok: false; readonly reason: string }
@@ -42,7 +44,14 @@ export function createResendMailer(config: ResendConfig, fetchFn: FetchLike = fe
         const response = await fetchFn(SEND_URL, {
           method: 'POST',
           headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ from, to: [message.to], subject: message.subject, text: message.text, html: message.html }),
+          body: JSON.stringify({
+            from,
+            to: [message.to],
+            subject: message.subject,
+            text: message.text,
+            html: message.html,
+            ...(message.replyTo ? { reply_to: message.replyTo } : {}),
+          }),
           signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
         })
         if (!response.ok) return { ok: false, reason: `rejected_${response.status}` }
